@@ -176,8 +176,8 @@ export function useComprasAlertas() {
     queryKey: ["compras", "alertas"],
     queryFn: async () => {
       try {
-        const { data } = await fetchApi<BackendAlerta[]>("/api/compras/alertas");
-        return data.map(adaptAlerta);
+        const { data } = await fetchApi<{ alerts: BackendAlerta[]; total: number; unreadCount: number }>("/api/compras/alertas");
+        return data.alerts.map(adaptAlerta);
       } catch {
         return mockAlertas;
       }
