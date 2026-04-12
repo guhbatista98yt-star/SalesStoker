@@ -160,30 +160,27 @@ export default function Alertas() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Alertas</h1>
-              <p className="text-sm text-muted-foreground">
-                Notificações e configurações de alertas
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Alertas</h1>
+            <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Notificações e configurações</span>
+          </div>
+          <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={toggleSound}
                 title={soundEnabled ? "Desativar som" : "Ativar som"}
-                className="gap-2"
+                className="h-8 gap-1.5 text-xs rounded-lg"
                 data-testid="button-toggle-sound"
               >
                 {soundEnabled ? (
-                  <Volume2 className="h-4 w-4 text-primary" />
+                  <Volume2 className="h-3.5 w-3.5 text-primary" />
                 ) : (
-                  <VolumeX className="h-4 w-4 text-muted-foreground" />
+                  <VolumeX className="h-3.5 w-3.5 text-muted-foreground" />
                 )}
-                <span className="hidden sm:inline text-xs">
+                <span className="hidden sm:inline">
                   {soundEnabled ? "Som ativado" : "Som desativado"}
                 </span>
               </Button>
@@ -193,7 +190,6 @@ export default function Alertas() {
                 onChange={setCompanyId}
                 loading={companiesLoading}
               />
-            </div>
           </div>
         </div>
       </div>

@@ -896,11 +896,11 @@ export default function Configuracoes() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 border-b bg-background/95 backdrop-blur px-6 py-4">
-        <h1 className="text-xl font-semibold tracking-tight">Configurações</h1>
-        <p className="text-sm text-muted-foreground">
-          Gerencie equipes, metas, gatilhos e relatórios de campanhas em um só lugar.
-        </p>
+      <div className="shrink-0 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-6 py-3 flex items-baseline gap-3">
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Configurações</h1>
+        <span className="hidden sm:inline text-xs text-muted-foreground font-medium">
+          Equipes, metas, alertas e campanhas
+        </span>
       </div>
 
       <div className="flex flex-1 overflow-hidden">

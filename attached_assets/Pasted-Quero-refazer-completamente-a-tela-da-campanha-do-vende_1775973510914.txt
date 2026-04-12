@@ -1,0 +1,622 @@
+Quero refazer completamente a tela da campanha do vendedor, pois a versão atual está simples demais visualmente e não transmite nível enterprise, sofisticação, clareza operacional e força comercial.
+
+Essa tela será apresentada nacionalmente para grandes empresas, então preciso de uma experiência visual e funcional muito mais profissional.
+
+IMPORTANTE:
+Não quero apenas “embelezar” a tela atual.
+Quero uma reconstrução real de UI/UX dessa página, com arquitetura visual melhor, hierarquia correta, mais profundidade, mais valor percebido e mais inteligência de apresentação.
+
+================================================================
+1. DIAGNÓSTICO DA TELA ATUAL — PROBLEMAS QUE PRECISAM SER CORRIGIDOS
+================================================================
+
+A tela atual está com os seguintes problemas e isso precisa ser corrigido no redesign:
+
+- layout muito simples e pouco marcante
+- hierarquia visual fraca
+- espaço vazio demais
+- cards excessivamente genéricos
+- banner de elegibilidade muito básico
+- ausência de um hero/header premium
+- ausência de identidade visual forte da campanha/fornecedor
+- pouca sensação de produto enterprise
+- pouca sofisticação visual
+- pouca profundidade de informação
+- pouca motivação para o vendedor acompanhar a campanha
+- falta de blocos de valor percebido
+- pouca diferenciação entre status positivo e negativo
+- pouca inteligência na organização da informação
+- UX muito funcional, mas pouco refinada
+- tela com cara de sistema interno simples, e não de portal profissional de campanha
+
+Quero resolver isso por completo.
+
+================================================================
+2. OBJETIVO DA NOVA TELA
+================================================================
+
+Quero transformar essa página em uma tela premium de acompanhamento de campanha para o vendedor.
+
+Ela precisa parecer:
+- profissional
+- clara
+- elegante
+- corporativa
+- comercial
+- moderna
+- confiável
+- pronta para grandes empresas
+- visualmente madura
+- com cara de produto SaaS enterprise
+
+Essa tela precisa equilibrar 4 pilares:
+1. clareza operacional
+2. motivação comercial
+3. identidade do fornecedor/campanha
+4. percepção premium
+
+================================================================
+3. DIREÇÃO VISUAL OBRIGATÓRIA
+================================================================
+
+Quero que essa tela herde o design system principal do CRM reformulado.
+
+Ou seja:
+- base clara
+- cards brancos
+- bordas suaves
+- cantos arredondados
+- sombras discretas
+- tipografia moderna
+- boa hierarquia
+- interface limpa
+- visual refinado
+- muito bom espaçamento
+- aparência enterprise
+
+Mas essa tela também precisa ter um nível visual acima, porque é uma vitrine da campanha.
+
+Ela deve parecer uma mistura de:
+- painel de performance
+- portal do vendedor
+- ambiente patrocinado pelo fornecedor
+- dashboard premium de campanha
+
+================================================================
+4. TEMA DO FORNECEDOR / IDENTIDADE DA CAMPANHA
+================================================================
+
+Quero que cada campanha tenha identidade visual do fornecedor, mas com controle.
+
+A estrutura da tela deve permanecer padronizada.
+O que muda por campanha/fornecedor:
+- logo do fornecedor
+- nome da campanha
+- slogan/subtítulo
+- cor principal
+- cor secundária
+- banner/hero visual
+- selo ou tag promocional
+- ícone da campanha
+- elementos visuais leves da marca
+
+IMPORTANTE:
+- a identidade do fornecedor deve aparecer forte no topo da tela
+- o restante da interface deve continuar premium e limpa
+- não deixar a marca destruir a consistência do produto
+- evitar poluição visual
+- evitar banner exagerado
+- evitar aparência publicitária amadora
+
+Quero um sistema visual assim:
+- 70% base do produto
+- 30% identidade controlada do fornecedor
+
+================================================================
+5. NOVA ESTRUTURA DA TELA — ARQUITETURA COMPLETA
+================================================================
+
+Quero reorganizar a tela da campanha do vendedor com esta estrutura:
+
+A. Header / Hero premium da campanha
+B. Barra de status inteligente
+C. Cards executivos principais
+D. Área de progresso detalhado
+E. Área de desempenho do vendedor
+F. Ranking ou status de participação
+G. Bloco de premiação
+H. Regras resumidas da campanha
+I. Produtos / mix / linhas válidas
+J. Memória de cálculo resumida
+K. Timeline / evolução
+L. Atualizações e notificações
+M. Rodapé informativo da campanha
+
+================================================================
+6. HERO / HEADER PREMIUM DA CAMPANHA
+================================================================
+
+Quero substituir o cabeçalho atual simples por um hero muito mais profissional.
+
+Esse hero deve conter:
+- logo do fornecedor
+- nome da campanha
+- subtítulo ou slogan
+- período da campanha
+- status da campanha (ativa, encerrada, futura, pausada)
+- badge do tipo da campanha (ranking, comissão, atingimento, crescimento, mix, gatilho etc.)
+- cor principal do fornecedor
+- fundo premium com banner leve ou padrão gráfico sutil
+- resumo rápido do vendedor dentro da campanha
+- botão ou ação secundária se fizer sentido (ex.: ver regulamento / detalhes)
+
+Esse hero deve ter:
+- ótima hierarquia
+- forte impacto visual
+- aparência corporativa premium
+- boa leitura
+- sem exagero
+- cantos arredondados
+- overlay suave se houver imagem
+- boa adaptação para mobile
+
+================================================================
+7. BARRA DE STATUS INTELIGENTE
+================================================================
+
+O banner atual de elegibilidade é básico demais.
+Quero evoluir isso para um bloco de status inteligente e premium.
+
+Quando o vendedor estiver elegível:
+- mostrar status positivo com visual sofisticado
+- mensagem principal forte
+- motivo resumido da elegibilidade
+- progresso resumido
+- indicação se já garantiu participação
+- indicação de prêmio estimado ou posição, se aplicável
+
+Quando não estiver elegível:
+- mostrar claramente por que ainda não entrou
+- listar os bloqueios
+- mostrar o que falta
+- transformar isso em informação acionável, não só aviso
+
+Exemplo:
+- falta R$ X para bater o gatilho
+- falta Y% de crescimento
+- falta Z item(s) do mix
+- a loja ainda não liberou a campanha
+- sua participação está condicionada à meta global
+
+Quero que esse bloco seja:
+- informativo
+- bonito
+- mais premium
+- claro
+- orientado para ação
+
+================================================================
+8. CARDS EXECUTIVOS PRINCIPAIS
+================================================================
+
+Hoje os cards estão muito secos.
+Quero uma nova geração de cards principais, com mais sofisticação e mais inteligência visual.
+
+Criar cards principais como:
+- Gatilho mínimo
+- Participação / mix
+- Crescimento pessoal
+- Crescimento da loja
+- Prêmio estimado
+- Posição atual
+- Valor elegível
+- Quantidade válida
+- Comissão acumulada
+- Próxima meta/faixa
+
+Cada card deve ter:
+- ícone melhor desenhado
+- título
+- subtítulo explicativo
+- valor principal
+- meta comparativa
+- barra/progresso melhor
+- status visual
+- tooltip
+- microfeedback
+- hierarquia forte
+- visual limpo
+
+Quero esses cards com aparência premium, mais próximos de dashboards SaaS de alto nível.
+
+================================================================
+9. BLOCO DE PROGRESSO DETALHADO
+================================================================
+
+Quero um bloco dedicado ao progresso da campanha, em vez de deixar tudo espalhado só nos cards.
+
+Esse bloco deve mostrar com clareza:
+- o que já foi cumprido
+- o que falta cumprir
+- próximos marcos
+- gatilho
+- meta mínima
+- evolução percentual
+- quanto falta para a próxima faixa ou elegibilidade
+
+Pode usar:
+- barras horizontais premium
+- progresso em etapas
+- checkpoints
+- radial progress em alguns casos
+- indicadores comparativos
+
+Exemplo:
+- você já bateu 54% do requisito
+- falta R$ 12.400 para destravar o prêmio
+- faltam 2 itens do mix
+- falta 4,8% de crescimento
+- sua loja ainda precisa atingir X
+
+================================================================
+10. BLOCO “MEU DESEMPENHO NA CAMPANHA”
+================================================================
+
+Quero um bloco central mostrando a posição e situação do vendedor de forma mais executiva.
+
+Exibir:
+- elegível ou não
+- participando ou não
+- já bateu gatilho ou não
+- posição atual
+- status na zona de premiação
+- prêmio estimado
+- prêmio já conquistado
+- base de cálculo atual
+- progresso pessoal
+- impacto da loja, quando aplicável
+
+Esse bloco precisa comunicar de forma muito clara:
+- “onde estou”
+- “o que falta”
+- “quanto posso ganhar”
+- “qual é minha situação agora”
+
+================================================================
+11. RANKING / POSIÇÃO
+================================================================
+
+Quando houver ranking, quero um bloco muito mais profissional.
+
+Exibir:
+- top 3 / top 5 / top 10
+- minha posição destacada
+- diferença para o próximo colocado
+- diferença para entrar na zona de premiação
+- badge visual de posição
+- indicador de subida/queda
+- evolução de colocação
+
+Se a campanha não tiver ranking:
+- esse bloco deve mudar automaticamente para “Status de Atingimento”
+- mostrando elegibilidade, progresso, meta e prêmio estimado
+
+Quero esse tratamento dinâmico conforme o tipo da campanha.
+
+================================================================
+12. PREMIAÇÃO
+================================================================
+
+Quero uma área específica para premiação, mais visual e aspiracional, sem perder o tom profissional.
+
+Mostrar:
+- tipo de premiação
+- prêmio fixo
+- prêmio por percentual
+- prêmio por ranking
+- prêmio por faixa
+- prêmio por atingimento
+- prêmio estimado atual
+- prêmio já confirmado
+- regras básicas da remuneração
+
+Se houver múltiplos critérios:
+- separar por cards ou blocos
+- mostrar claramente a origem do prêmio
+
+Exemplo:
+- prêmio por ranking geral
+- prêmio por comissão
+- prêmio por meta atingida
+- premiação adicional por faixa
+
+================================================================
+13. REGRAS RESUMIDAS DA CAMPANHA
+================================================================
+
+Quero uma área muito bem desenhada para explicar a campanha em linguagem simples.
+
+Hoje isso está implícito demais.
+Quero um bloco “Como funciona esta campanha” com:
+- o que conta
+- o que não conta
+- como participa
+- qual é o gatilho
+- qual a meta
+- como ganha
+- quando recebe
+- se depende da loja
+- se depende de ranking
+- se depende de crescimento
+- se depende do mix
+
+Apresentar isso de forma visual:
+- bullets elegantes
+- ícones
+- pequenos cards
+- grupos de regra
+- linguagem clara e direta
+
+================================================================
+14. PRODUTOS / MIX / LINHAS VÁLIDAS
+================================================================
+
+Quero uma área profissional para mostrar os produtos, grupos ou linhas que contam para a campanha.
+
+Não quero deixar isso escondido ou mal explicado.
+
+Essa área deve poder mostrar:
+- lista de produtos válidos
+- grupos/linhas válidas
+- se contam para participação
+- se contam para ranking
+- se contam para pagamento
+- quantidade vendida
+- valor vendido
+- status do item dentro da campanha
+
+Pode ser:
+- tabela premium
+- lista em cards
+- grid compacto
+- visão por categorias
+- filtros e busca se necessário
+
+================================================================
+15. MEMÓRIA DE CÁLCULO RESUMIDA
+================================================================
+
+Quero uma área de “Como o sistema calculou seu status”.
+
+Isso precisa gerar confiança.
+
+Mostrar em linguagem humana:
+- você vendeu R$ X válidos
+- você atingiu Y% da meta
+- sua loja atingiu Z%
+- você está elegível / ainda não elegível porque...
+- sua base de pagamento atual é...
+- seu prêmio estimado é...
+
+Essa memória de cálculo deve ser:
+- simples
+- legível
+- confiável
+- não técnica demais
+- útil para o vendedor entender rapidamente
+
+================================================================
+16. TIMELINE / EVOLUÇÃO
+================================================================
+
+Quero um bloco de evolução visual da campanha.
+
+Pode mostrar:
+- datas importantes
+- momento em que bateu gatilho
+- quando entrou na zona de prêmio
+- mudança de posição
+- evolução do faturamento
+- evolução do mix
+- marcos atingidos
+
+Isso pode ser apresentado como:
+- timeline vertical
+- mini gráfico
+- cards de marcos
+- feed de progresso
+
+================================================================
+17. ALERTAS, NOTIFICAÇÕES E CONQUISTAS
+================================================================
+
+Quero uma área para comunicação da campanha.
+
+Exemplos:
+- você já bateu a meta mínima
+- falta pouco para entrar na premiação
+- sua loja ainda não liberou a campanha
+- você subiu X posições
+- você desbloqueou participação
+- campanha encerrará em Y dias
+
+Quero isso com UX elegante:
+- banners sutis
+- badges
+- toasts quando fizer sentido
+- alert cards bonitos
+- sem exagero gamificado infantil
+
+================================================================
+18. MELHORIAS DE UI NOS CARDS ATUAIS
+================================================================
+
+Quero melhorar drasticamente os cards atuais em:
+- espaçamento interno
+- iconografia
+- peso tipográfico
+- destaque de números
+- contraste
+- separação de informação
+- estilo de barra de progresso
+- estados positivos/negativos
+- subtítulos
+- indicação clara do que é meta e do que é realizado
+
+Quero eliminar a sensação de:
+- cartão genérico
+- bloco cru
+- visual simples demais
+
+================================================================
+19. DESIGN / COMPONENTES / PADRÃO VISUAL
+================================================================
+
+Quero usar e evoluir o design system do CRM principal.
+
+Criar ou revisar componentes como:
+- CampaignHero
+- CampaignStatusBanner
+- CampaignSummaryCard
+- CampaignProgressCard
+- PerformanceCard
+- RankingCard
+- RewardCard
+- RuleCard
+- ProductCampaignTable
+- CalculationMemoryCard
+- CampaignTimeline
+- AchievementBanner
+- StatusBadge
+- SupplierThemeHeader
+- PositionHighlightCard
+
+Todos esses componentes precisam parecer da mesma família visual do produto principal.
+
+================================================================
+20. CORES E ESTADOS
+================================================================
+
+Quero melhor tratamento dos estados visuais.
+
+Hoje os estados positivo/negativo estão simples demais.
+
+Quero estados muito melhores para:
+- elegível
+- não elegível
+- quase elegível
+- campanha ativa
+- campanha encerrada
+- crescimento positivo
+- crescimento negativo
+- meta batida
+- meta pendente
+- loja dependente
+- ranking favorável
+- ranking em risco
+
+Regras:
+- usar cores com bom gosto
+- manter base clara
+- usar a cor do fornecedor como destaque controlado
+- preservar legibilidade
+
+================================================================
+21. RESPONSIVIDADE
+================================================================
+
+Essa tela precisa ficar excelente no desktop e muito boa no mobile.
+
+No desktop:
+- layout amplo
+- hero forte
+- cards bem distribuídos
+- ranking e progresso lado a lado
+- produtos e regras abaixo
+- ótima leitura
+
+No tablet:
+- reorganizar em menos colunas
+- manter impacto visual
+
+No mobile:
+- hero compacto
+- cards empilhados
+- progresso logo no topo
+- botão e área clicável maiores
+- ranking adaptado
+- tabela virando lista/cartões
+- experiência rápida e clara
+
+================================================================
+22. MICROINTERAÇÕES E ACABAMENTO PREMIUM
+================================================================
+
+Quero microinterações suaves e profissionais.
+
+Aplicar:
+- hover refinado
+- animação leve na entrada de cards
+- skeleton loading
+- transição suave entre estados elegível/não elegível
+- tooltip elegante
+- destaque suave no progresso
+- feedback visual em atualização
+- números com animação discreta
+- sem exageros
+
+================================================================
+23. O QUE NÃO QUERO
+================================================================
+
+Não quero:
+- só aumentar fonte e borda
+- só trocar cor
+- só colocar banner e chamar de redesign
+- tela com excesso de efeito
+- visual publicitário amador
+- gamificação infantil
+- aparência de sistema interno simples
+- cards secos
+- hierarquia fraca
+- espaços mal resolvidos
+- fornecedor quebrando o padrão do sistema
+- layout poluído
+- excesso de informação sem estrutura
+
+================================================================
+24. ENTREGA ESPERADA
+================================================================
+
+Quero que você refaça completamente a tela da campanha do vendedor e entregue:
+
+1. novo layout completo
+2. hero/header premium da campanha
+3. melhor barra de status
+4. cards muito mais profissionais
+5. bloco de progresso detalhado
+6. bloco de desempenho do vendedor
+7. ranking/status de participação
+8. área de premiação
+9. regras resumidas em linguagem clara
+10. produtos/mix válidos
+11. memória de cálculo resumida
+12. timeline/evolução
+13. alertas e conquistas
+14. responsividade forte
+15. visual enterprise premium
+
+================================================================
+25. CHECKLIST FINAL
+================================================================
+
+Antes de considerar concluído, valide se a nova tela:
+- parece adequada para grandes empresas
+- tem mais impacto visual
+- tem melhor hierarquia
+- transmite mais valor
+- está clara para o vendedor
+- ficou muito mais premium que a atual
+- tem identidade de campanha/fornecedor
+- funciona bem no desktop e mobile
+- está no nível de um produto nacional enterprise

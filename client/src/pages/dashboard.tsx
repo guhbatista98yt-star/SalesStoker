@@ -1,8 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RefreshCw, Calendar } from "lucide-react";
-import { DollarSign, Receipt, Package, GripVertical } from "lucide-react";
+import { RefreshCw, Calendar, Download, DollarSign, Receipt, Package, GripVertical } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -33,6 +32,7 @@ import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { getClosedMonthPeriod, getCurrentWeekPeriod, formatDateBR } from "@/lib/calendar-utils";
 import type { DatePeriod, RankingCriteria, Company, KPISummary, SalespersonRanking, ProductMix, AlertNotification, GoalWithProgress, SalesEvolutionData, SalespersonAFaturar } from "@shared/schema";
 
@@ -213,6 +213,16 @@ export default function Dashboard() {
     }
   }
 
+  // Derive sparkline data from evolution data
+  const weeklySparkline = useMemo(() =>
+    (salesData?.weekly ?? []).slice(-10).map(w => w.atual),
+    [salesData?.weekly]
+  );
+  const monthlySparkline = useMemo(() =>
+    (salesData?.monthly ?? []).slice(-8).map(m => m.atual),
+    [salesData?.monthly]
+  );
+
   const renderKpiCard = (id: string, dragHandle: React.ReactNode) => {
     switch (id) {
       case "vendas-semanal":
@@ -223,8 +233,10 @@ export default function Dashboard() {
             format="currency"
             icon={DollarSign}
             loading={isLoading}
-            subtitle="Semana atual"
+            subtitle="vs semana anterior"
             dragHandle={dragHandle}
+            sparklineData={weeklySparkline}
+            sparklineId="spark-semanal"
           />
         );
       case "vendas-mensal":
@@ -235,8 +247,10 @@ export default function Dashboard() {
             format="currency"
             icon={Receipt}
             loading={isLoading}
-            subtitle="Mês atual"
+            subtitle="vs mês anterior"
             dragHandle={dragHandle}
+            sparklineData={monthlySparkline}
+            sparklineId="spark-mensal"
           />
         );
       case "afaturar-total":
@@ -249,6 +263,8 @@ export default function Dashboard() {
             loading={isLoading}
             subtitle="Pedidos em aberto"
             dragHandle={dragHandle}
+            iconBg="bg-amber-50 dark:bg-amber-900/20"
+            iconColor="text-amber-600 dark:text-amber-400"
           />
         );
       default:
@@ -307,32 +323,27 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Page header ── */}
-      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border shrink-0">
-        <div className="px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-          {/* Left: title */}
-          <div className="flex items-center gap-2 min-w-0">
-            <div>
-              <h1 className="text-base font-semibold tracking-tight leading-none">Dashboard</h1>
-              <p className="text-[11px] text-muted-foreground leading-none mt-0.5 hidden sm:block">
-                Visão executiva de vendas
-              </p>
-            </div>
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
+          {/* Left: title + date info */}
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Dashboard</h1>
+            <span className="hidden sm:inline text-xs text-muted-foreground font-medium">
+              {format(today, "d 'de' MMMM", { locale: ptBR })}
+            </span>
           </div>
 
           {/* Right: controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                resetLayout();
-                queryClient.invalidateQueries();
-              }}
+              onClick={() => { resetLayout(); queryClient.invalidateQueries(); }}
               className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
               data-testid="button-refresh-data"
               title="Atualizar dados"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
 
             <CompanySelector
@@ -344,7 +355,7 @@ export default function Dashboard() {
             />
 
             <Button
-              variant={useSemanaFechada ? "default" : "outline"}
+              variant={useSemanaFechada ? "secondary" : "outline"}
               size="sm"
               onClick={() => setUseSemanaFechada(!useSemanaFechada)}
               className="h-8 gap-1.5 text-xs font-medium rounded-lg"
@@ -354,6 +365,15 @@ export default function Dashboard() {
               <span className="hidden xs:inline">
                 {useSemanaFechada ? "S. Fechada" : "Mês Atual"}
               </span>
+            </Button>
+
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 text-xs font-medium rounded-lg hidden sm:flex"
+              onClick={() => queryClient.invalidateQueries()}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar
             </Button>
           </div>
         </div>

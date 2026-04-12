@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LogOut, Loader2, KeyRound, LayoutDashboard, Users, Target, Bell,
-  BarChart3, TrendingUp, Settings, ChevronDown,
+  BarChart3, Settings, ChevronDown, Search,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import NotFound from "@/pages/not-found";
@@ -123,12 +123,12 @@ function MobileBottomNav() {
     { label: "Vendedores", href: "/vendedores", icon: Users,           match: (p: string) => p.startsWith("/vendedores") },
     { label: "Metas",      href: "/metas",      icon: Target,          match: (p: string) => p.startsWith("/metas") },
     { label: "Análises",   href: "/semanal",    icon: BarChart3,       match: (p: string) => p.startsWith("/semanal") || p.startsWith("/mensal") },
-    { label: "Alertas",    href: "/alertas",    icon: Bell,            match: (p: string) => p.startsWith("/alertas") },
+    { label: "Config",     href: "/configuracoes", icon: Settings,     match: (p: string) => p.startsWith("/configuracoes") },
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-card border-t border-border safe-bottom">
-      <div className="flex items-center justify-around h-16 px-2">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur border-t border-border safe-bottom">
+      <div className="flex items-center h-16 px-2">
         {items.map(item => {
           const active = item.match(location);
           return (
@@ -136,12 +136,20 @@ function MobileBottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl min-w-[52px] transition-all duration-150",
+                "flex flex-col items-center gap-1 flex-1 py-2 rounded-xl transition-all duration-150",
                 active ? "text-primary" : "text-muted-foreground",
               )}
             >
-              <item.icon className={cn("h-5 w-5", active && "text-primary")} />
-              <span className={cn("text-[9px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
+              <div className={cn(
+                "h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
+                active ? "bg-primary/10" : "transparent",
+              )}>
+                <item.icon className={cn("h-4 w-4", active && "text-primary")} />
+              </div>
+              <span className={cn(
+                "text-[9px] font-medium leading-none",
+                active ? "text-primary" : "text-muted-foreground"
+              )}>
                 {item.label}
               </span>
             </Link>
@@ -149,6 +157,30 @@ function MobileBottomNav() {
         })}
       </div>
     </nav>
+  );
+}
+
+/* ── Premium Search Input ─────────────────────────────────────────────────────── */
+function TopSearchBar() {
+  return (
+    <div className="relative hidden sm:flex items-center flex-1 max-w-xs xl:max-w-sm">
+      <Search className="absolute left-3 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+      <input
+        type="search"
+        placeholder="Pesquisar..."
+        className={cn(
+          "h-9 w-full rounded-lg bg-muted/60 dark:bg-muted/30",
+          "pl-9 pr-10 text-sm text-foreground",
+          "border border-transparent",
+          "outline-none focus:border-primary/40 focus:bg-background",
+          "placeholder:text-muted-foreground/60",
+          "transition-all duration-150",
+        )}
+      />
+      <kbd className="absolute right-3 hidden sm:flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+        ⌘K
+      </kbd>
+    </div>
   );
 }
 
@@ -165,61 +197,67 @@ function TopHeader() {
     : user?.email || "Usuário";
 
   return (
-    <header className="flex h-14 items-center justify-between gap-3 px-3 sm:px-5 border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60 shrink-0">
+    <header className={cn(
+      "flex h-14 items-center gap-3 px-3 sm:px-5 shrink-0",
+      "border-b border-border",
+      "bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+    )}>
       {/* Left: sidebar trigger */}
-      <div className="flex items-center gap-2">
-        <SidebarTrigger
-          data-testid="button-sidebar-toggle"
-          className="h-8 w-8 rounded-lg hover:bg-muted transition-colors"
-        />
+      <SidebarTrigger
+        data-testid="button-sidebar-toggle"
+        className="h-8 w-8 rounded-lg hover:bg-muted transition-colors shrink-0"
+      />
+
+      {/* Center: search */}
+      <div className="flex-1 flex">
+        <TopSearchBar />
       </div>
 
-      {/* Right: controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      {/* Right: actions */}
+      <div className="flex items-center gap-1">
         <ThemeToggle />
 
-        <ChangePasswordDialog>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" title="Alterar Senha">
-            <KeyRound className="h-4 w-4" />
-          </Button>
-        </ChangePasswordDialog>
+        {/* Notifications */}
+        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg relative" title="Notificações">
+          <Bell className="h-4 w-4" />
+        </Button>
 
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="h-8 gap-2 px-2 rounded-lg hover:bg-muted transition-colors"
+              className="h-8 gap-2 px-1.5 sm:px-2 rounded-lg hover:bg-muted"
             >
               <Avatar className="h-6 w-6">
-                <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-bold">
+                <AvatarFallback className="bg-primary text-primary-foreground text-[9px] font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden sm:inline text-xs font-medium text-foreground">
+              <span className="hidden sm:inline text-[13px] font-medium">
                 {displayName}
               </span>
-              <ChevronDown className="hidden sm:block h-3 w-3 text-muted-foreground" />
+              <ChevronDown className="hidden sm:block h-3 w-3 text-muted-foreground shrink-0" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52 rounded-xl shadow-panel">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex items-center gap-2">
-                <Avatar className="h-8 w-8">
+          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-panel">
+            <DropdownMenuLabel className="font-normal py-2.5">
+              <div className="flex items-center gap-2.5">
+                <Avatar className="h-9 w-9">
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col min-w-0">
-                  <p className="text-sm font-medium truncate">{displayName}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                  <p className="text-[13px] font-semibold truncate">{displayName}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <ChangePasswordDialog>
               <DropdownMenuItem asChild>
-                <button className="w-full flex items-center gap-2 cursor-pointer">
+                <button className="w-full flex items-center gap-2 cursor-pointer text-[13px]">
                   <KeyRound className="h-3.5 w-3.5" />
                   Alterar Senha
                 </button>
@@ -229,10 +267,10 @@ function TopHeader() {
             <DropdownMenuItem
               onClick={logout}
               data-testid="button-logout"
-              className="text-red-600 dark:text-red-400 focus:text-red-600 cursor-pointer"
+              className="text-red-600 dark:text-red-400 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/40 cursor-pointer text-[13px]"
             >
               <LogOut className="h-3.5 w-3.5 mr-2" />
-              Sair
+              Sair da conta
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -270,7 +308,6 @@ function AuthenticatedApp() {
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
-
         <div className="flex flex-col flex-1 overflow-hidden h-full min-w-0">
           <TopHeader />
           <main className="flex-1 overflow-hidden h-full relative pb-16 md:pb-0">

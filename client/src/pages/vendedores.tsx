@@ -36,24 +36,20 @@ export default function Vendedores() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Vendedores</h1>
-              <p className="text-sm text-muted-foreground">
-                Desempenho individual da equipe
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <CompanySelector
-                companies={companies}
-                selectedId={companyId}
-                onChange={setCompanyId}
-                loading={companiesLoading}
-              />
-              <PeriodSelector value={period} onChange={setPeriod} />
-            </div>
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Vendedores</h1>
+            <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CompanySelector
+              companies={companies}
+              selectedId={companyId}
+              onChange={setCompanyId}
+              loading={companiesLoading}
+            />
+            <PeriodSelector value={period} onChange={setPeriod} />
           </div>
         </div>
       </div>

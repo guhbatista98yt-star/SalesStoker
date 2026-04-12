@@ -48,16 +48,12 @@ export default function Metas() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Metas</h1>
-              <p className="text-sm text-muted-foreground">
-                Acompanhamento de metas - {monthNames[currentMonth - 1]} {currentYear}
-              </p>
-            </div>
-          </div>
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
+        <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Metas</h1>
+          <span className="hidden sm:inline text-xs text-muted-foreground font-medium">
+            {monthNames[currentMonth - 1]} {currentYear}
+          </span>
         </div>
       </div>
 

@@ -47,23 +47,17 @@ export default function Semanal() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Visão Semanal</h1>
-              <p className="text-sm text-muted-foreground">
-                Desempenho por vendedor na semana
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" className="gap-2" disabled>
-                <Calendar className="h-4 w-4" />
-                <span className="hidden sm:inline">{formatDateBR(weekPeriod.startDate)} - {formatDateBR(weekPeriod.endDate)}</span>
-                <span className="sm:hidden">{formatDateBR(weekPeriod.startDate).slice(0, 5)} - {formatDateBR(weekPeriod.endDate).slice(0, 5)}</span>
-              </Button>
-            </div>
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Visão Semanal</h1>
+            <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho por vendedor</span>
           </div>
+          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg" disabled>
+            <Calendar className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{formatDateBR(weekPeriod.startDate)} — {formatDateBR(weekPeriod.endDate)}</span>
+            <span className="sm:hidden">{formatDateBR(weekPeriod.startDate).slice(0, 5)} — {formatDateBR(weekPeriod.endDate).slice(0, 5)}</span>
+          </Button>
         </div>
       </div>
 
