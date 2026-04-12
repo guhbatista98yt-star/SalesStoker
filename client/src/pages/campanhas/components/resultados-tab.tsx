@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Calculator, Download, RefreshCw, Trophy, Users, CheckCircle2,
+  Calculator, Download, Trophy, Users, CheckCircle2,
   XCircle, ChevronDown, ChevronRight, Loader2, Clock, Info,
   TrendingUp, DollarSign, Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ApuracaoResult, VendedorApuracao } from "../types";
+import { GaugeMeter } from "@/components/campanhas/gauge-meter";
+import type { MetricStatus } from "@/components/campanhas/metric-card";
 
 interface ResultadosTabProps {
   campaignId: string;
@@ -70,8 +72,38 @@ function SummaryCard({
   );
 }
 
+function resolveGaugeStatus(d: VendedorApuracao, pct: number): MetricStatus {
+  if (d.premiado || d.atingiu) return "atingido";
+  if (pct >= 80 || d.gatilhoAtingido) return "quase";
+  return "pendente";
+}
+
 function VendedorRow({ d, mode }: { d: VendedorApuracao; mode: string }) {
   const [expanded, setExpanded] = useState(false);
+
+  const hasGatilho = d.gatilhoValor > 0;
+  const isGrowthMode = mode === "ranking_crescimento";
+  const showGauge = hasGatilho || (isGrowthMode && d.crescimentoPerc !== undefined);
+
+  let gaugePct = 0;
+  let gaugeValue = "—";
+  let gaugeTarget: string | undefined;
+  let gaugeRemaining: string | undefined;
+  let gStatus: MetricStatus = "pendente";
+
+  if (hasGatilho) {
+    gaugePct = Math.min((d.valorApuracao / d.gatilhoValor) * 100, 150);
+    gaugeValue = `${Math.min(gaugePct, 100).toFixed(1)}%`;
+    gaugeTarget = `Meta: R$ ${formatBRL(d.gatilhoValor)}`;
+    const remaining = d.gatilhoValor - d.valorApuracao;
+    gaugeRemaining = remaining > 0 ? `Faltam R$ ${formatBRL(remaining)}` : "Meta atingida!";
+    gStatus = resolveGaugeStatus(d, gaugePct);
+  } else if (isGrowthMode && d.crescimentoPerc !== undefined) {
+    gaugePct = Math.max(Math.min(d.crescimentoPerc, 150), 0);
+    gaugeValue = `${d.crescimentoPerc >= 0 ? "+" : ""}${d.crescimentoPerc.toFixed(1)}%`;
+    gaugeTarget = "Crescimento vs. período ant.";
+    gStatus = d.premiado ? "atingido" : d.crescimentoPerc >= 0 ? "quase" : "pendente";
+  }
 
   return (
     <div className={cn(
@@ -138,6 +170,21 @@ function VendedorRow({ d, mode }: { d: VendedorApuracao; mode: string }) {
       {/* Expanded memory */}
       {expanded && (
         <div className="border-t bg-muted/20 px-3 py-3 space-y-3">
+          {/* Gauge */}
+          {showGauge && (
+            <div className="flex justify-center py-1">
+              <div className="w-52">
+                <GaugeMeter
+                  pct={gaugePct}
+                  value={gaugeValue}
+                  targetLabel={gaugeTarget}
+                  remainingLabel={gaugeRemaining}
+                  status={gStatus}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Quick numbers */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div>

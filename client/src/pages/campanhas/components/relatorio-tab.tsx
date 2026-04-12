@@ -14,9 +14,11 @@ import {
 import {
   Trophy, Users, TrendingUp, Download, Search, Loader2,
   AlertCircle, CheckCircle2, XCircle, Calendar, BarChart3,
-  Medal, Star,
+  Medal, Star, LayoutGrid, List,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GaugeMeter } from "@/components/campanhas/gauge-meter";
+import type { MetricStatus } from "@/components/campanhas/metric-card";
 
 interface ReportEntry {
   salespersonId: string;
@@ -134,11 +136,19 @@ function AchievementBar({ percent, isEligible, hasGoal }: { percent: number | nu
   );
 }
 
+function entryGaugeStatus(r: ReportEntry): MetricStatus {
+  if (r.isEligible) return "atingido";
+  if ((r.percentAchieved ?? 0) >= 80) return "quase";
+  if (!r.hasGoal) return "info";
+  return "pendente";
+}
+
 export function RelatorioTab({ campaignId }: RelatorioTabProps) {
   const [year, setYear] = useState(CURRENT_YEAR);
   const [quarter, setQuarter] = useState("all");
   const [search, setSearch] = useState("");
   const [showOnly, setShowOnly] = useState<"all" | "eligible" | "not_eligible">("all");
+  const [viewMode, setViewMode] = useState<"table" | "gauges">("table");
 
   const { data, isLoading, error, isFetching } = useQuery<RelatorioData>({
     queryKey: [`/api/campaigns/${campaignId}/relatorio`, year, quarter],
@@ -296,7 +306,7 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
         </div>
       )}
 
-      {/* Table filters */}
+      {/* Table filters + view toggle */}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-44">
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -326,10 +336,68 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
             );
           })}
         </div>
+        <div className="flex rounded-md border overflow-hidden">
+          <button
+            onClick={() => setViewMode("table")}
+            title="Visão tabela"
+            className={cn(
+              "px-2.5 py-1.5 transition-colors",
+              viewMode === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+            )}
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => setViewMode("gauges")}
+            title="Visão gauges"
+            className={cn(
+              "px-2.5 py-1.5 transition-colors",
+              viewMode === "gauges" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+            )}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
+      {/* Gauge grid view */}
+      {viewMode === "gauges" && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filtered.map(r => {
+            const pct = r.hasGoal ? Math.min((r.currentSales / r.targetTrigger) * 100, 150) : 0;
+            const gStatus = entryGaugeStatus(r);
+            const remaining = r.hasGoal ? r.targetTrigger - r.currentSales : 0;
+            return (
+              <div key={r.salespersonId} className={cn(
+                "rounded-xl border bg-card p-3 space-y-1",
+                r.isEligible ? "border-green-200 dark:border-green-800" : "border-border"
+              )}>
+                <div className="text-xs font-semibold truncate">{r.salespersonName}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">{r.salespersonId}</div>
+                <GaugeMeter
+                  pct={pct}
+                  value={r.hasGoal ? `${Math.min(pct, 100).toFixed(1)}%` : "—"}
+                  targetLabel={r.hasGoal ? `Meta: ${fmtBRL(r.targetTrigger)}` : "Sem gatilho"}
+                  remainingLabel={
+                    !r.hasGoal ? undefined
+                      : remaining > 0 ? `Faltam ${fmtBRL(remaining)}` : "Meta atingida!"
+                  }
+                  status={gStatus}
+                  className="mt-1"
+                />
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="col-span-full text-center py-10 text-xs text-muted-foreground">
+              Nenhum vendedor encontrado.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Results table */}
-      <div className="border rounded-lg overflow-hidden">
+      {viewMode === "table" && (<><div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30">
@@ -417,6 +485,7 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
         Mostrando {filtered.length} de {data?.results.length} vendedores ·{" "}
         {data?.summary.suppliers.length ? `Fabricantes: ${data.summary.suppliers.join(", ")}` : "Todos os fabricantes"}
       </p>
+    </>)}
     </div>
   );
 }
