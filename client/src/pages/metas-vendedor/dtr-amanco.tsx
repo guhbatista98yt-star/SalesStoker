@@ -56,11 +56,15 @@ export default function DtrAmancoTab() {
     elegibilidade: el,
   } = data as any;
 
+  /* ── Helpers ── */
+  const safeDiv = (num: number, den: number, fallback = 0) =>
+    den === 0 || !isFinite(den) ? fallback : num / den;
+
   /* ── Derived ── */
-  const fatPct  = Math.min((fat.valor_atual / fat.meta_gatilho) * 100, 200);
-  const mixPct  = Math.min((mx.percentual_conexoes / mx.meta_percentual) * 100, 200);
+  const fatPct  = Math.min(safeDiv(fat.valor_atual, fat.meta_gatilho) * 100, 200);
+  const mixPct  = Math.min(safeDiv(mx.percentual_conexoes, mx.meta_percentual) * 100, 200);
   const lojaPct = cl.meta_percentual > 0
-    ? Math.max(0, Math.min((cl.crescimento_percentual / cl.meta_percentual) * 100, 200))
+    ? Math.max(0, Math.min(safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100, 200))
     : 100;
 
   /* ── Requirements ── */

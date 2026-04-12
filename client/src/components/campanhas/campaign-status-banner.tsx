@@ -119,7 +119,7 @@ export function CampaignStatusBanner({
             eligible ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-muted"
           )}>
             {eligible
-              ? <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />
+              ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-600" />
               : <Info className="h-4 w-4 text-muted-foreground" />
             }
           </div>

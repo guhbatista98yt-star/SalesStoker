@@ -255,7 +255,7 @@ export default function AcompanhamentoTab() {
       {/* Header strip */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-card rounded-2xl border border-border shadow-sm">
         <div>
-          <h1 className="text-xl font-bold text-foreground leading-tight">Acompanhamento de Metas</h1>
+          <h2 className="text-lg font-bold text-foreground leading-tight">Acompanhamento de Metas</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Meta semanal · {formatDateBR(periodoData.inicio)} – {formatDateBR(periodoData.fim)}
           </p>

@@ -1,0 +1,579 @@
+Quero que você faça uma revisão completa, profunda e crítica de toda a aplicação antes da entrada em operação, com postura de engenheiro sênior e foco total em estabilidade, confiabilidade dos cálculos, integridade dos dados, UX/UI profissional e responsividade real.
+
+IMPORTANTE:
+Esta aplicação irá para operação ainda hoje.
+Então eu não quero apenas sugestões superficiais, nem apenas análise visual.
+Quero uma revisão ponta a ponta do sistema, com identificação de falhas, bugs, riscos futuros, inconsistências lógicas, problemas de cálculo, problemas de criação de campanhas/metas/resultados, falhas de UI/UX e problemas de responsividade, e quero que tudo isso seja corrigido da melhor forma possível antes de considerar concluído.
+
+Quero que você atue como um programador sênior e faça:
+- auditoria técnica completa
+- correção dos problemas encontrados
+- reforço de arquitetura onde necessário
+- revisão de responsividade e mobile
+- revisão de UX/UI
+- revisão de regras e cálculos de campanhas
+- revisão de dashboards de vendedor e supervisor
+- revisão da criação de campanhas personalizadas
+- revisão da consistência de dados e prevenção de erro operacional
+
+============================================================
+1. CONTEXTO GERAL
+============================================================
+
+A aplicação possui:
+- módulo de criação de campanhas altamente personalizadas
+- tela do vendedor para acompanhar campanhas
+- necessidade de acompanhamento em tempo real de metas, regras e resultados
+- necessidade de dashboard de campanhas para supervisor/administrador
+- uso em desktop e smartphones com várias resoluções
+- redesign já iniciado com base em referências enviadas anteriormente
+- necessidade de visual profissional, premium, moderno e confiável
+
+IMPORTANTE:
+Já foram solicitados anteriormente:
+- redesign completo do CRM
+- redesign da tela do vendedor para campanhas
+- redesign da tela de login
+- módulo de criação de campanhas 100% personalizadas
+- uso de UX mobile inspirado na referência do app de celular enviada anteriormente, mas apenas na facilidade de uso e estrutura, não nas cores nem no design escuro
+
+Quero agora um reforço completo e uma revisão crítica final do sistema inteiro.
+
+============================================================
+2. OBJETIVO PRINCIPAL DESTA ETAPA
+============================================================
+
+Quero que você repasse toda a aplicação e valide se existe qualquer problema que possa gerar:
+
+- resultado errado
+- cálculo incorreto de campanha
+- erro de criação/edição de campanha
+- erro de regra
+- erro de meta
+- erro de ranking
+- erro de comissão
+- erro de apuração
+- erro de dashboard
+- erro de atualização em tempo real
+- erro de responsividade
+- erro de visualização em smartphone
+- textos quebrando layout
+- botões saindo da tela
+- cards desalinhados
+- barras de progresso inconsistentes
+- estados incorretos de elegibilidade
+- falhas de UI/UX
+- falhas de concorrência
+- estados inválidos
+- falhas de persistência
+- falhas de performance
+- falhas de integridade dos dados
+- risco de comportamento imprevisível em produção
+
+Não quero só listar os problemas.
+Quero corrigir, reforçar e validar.
+
+============================================================
+3. AUDITORIA PONTA A PONTA DO APLICATIVO
+============================================================
+
+Faça uma revisão completa da aplicação, incluindo:
+
+- arquitetura geral
+- frontend
+- backend
+- banco de dados
+- rotas
+- formulários
+- validações
+- dashboards
+- criação e edição de campanhas
+- cálculo de metas
+- cálculo de ranking
+- cálculo de comissões
+- cálculo de participação/elegibilidade
+- regras de gatilho
+- regras de pagamento
+- relatórios
+- atualização de dados
+- estados de loading
+- estados de erro
+- autenticação
+- tratamento de exceções
+- consistência da interface
+- responsividade
+- mobile
+- performance
+
+Quero que você procure:
+- bugs atuais
+- falhas silenciosas
+- pontos frágeis
+- comportamentos inconsistentes
+- riscos futuros
+- lógica duplicada
+- cálculo hardcoded inadequado
+- regra ambígua
+- dependência perigosa entre telas
+- pontos que podem gerar dados errados em operação
+
+============================================================
+4. MÓDULO DE CAMPANHAS — REVISÃO CRÍTICA
+============================================================
+
+O módulo de campanhas é uma parte crítica do sistema e precisa ser tratado com prioridade máxima.
+
+Quero revisão profunda de:
+- criação de campanha
+- edição de campanha
+- clonagem
+- ativação
+- pausa
+- encerramento
+- versionamento
+- regras
+- gatilhos
+- metas
+- ranking
+- comissão
+- cálculo de premiação
+- memória de cálculo
+- relatórios
+- exportação
+- dashboard do vendedor
+- dashboard do supervisor/administrador
+
+Verifique se existem riscos como:
+- campanha criada com campos inválidos
+- regra contraditória
+- conflito entre campanhas
+- cálculo errado de elegibilidade
+- cálculo errado de ranking
+- cálculo errado de prêmio
+- base de pagamento incorreta
+- meta calculada em base errada
+- apuração usando dados errados
+- campanha ativa podendo ser alterada sem controle
+- resultados divergentes entre telas
+- vendedor vendo um resultado e supervisor vendo outro
+- relatórios divergentes da memória de cálculo
+- exportações inconsistentes
+
+Quero que a lógica seja revisada de forma crítica e endurecida.
+
+============================================================
+5. ACOMPANHAMENTO EM TEMPO REAL DO VENDEDOR
+============================================================
+
+Algumas campanhas terão regras e metas que o vendedor precisa acompanhar em tempo real.
+
+Então a tela do vendedor precisa suportar corretamente:
+- cards dinâmicos
+- barras de progresso
+- metas parciais
+- gatilhos
+- elegibilidade
+- progresso do mix
+- percentual de crescimento
+- evolução de comissão
+- posição no ranking
+- prêmio estimado
+- prêmio já garantido
+- o que falta para concluir
+- o que já foi concluído
+- dependência de meta global da loja, se houver
+- atualização correta do estado da campanha
+
+Valide e corrija se:
+- as barras de progresso estiverem erradas
+- os percentuais estiverem errados
+- os cards estiverem mostrando dados incorretos
+- houver atraso ou inconsistência na atualização
+- os textos de status estiverem genéricos demais
+- a hierarquia visual estiver fraca
+- o vendedor não conseguir entender claramente sua situação
+
+Quero uma experiência profissional, clara e confiável.
+
+============================================================
+6. DASHBOARD DE CAMPANHAS PARA SUPERVISOR / ADMINISTRADOR
+============================================================
+
+O supervisor ou administrador precisa de um dashboard forte para acompanhar o resultado de cada campanha criada de todos os vendedores e conseguir agir de forma assertiva e antecipada.
+
+Quero revisar e reforçar a existência e a qualidade de um dashboard de campanhas para gestão, contendo no mínimo:
+
+- visão geral da campanha
+- período
+- status
+- total de vendedores elegíveis
+- total de participantes
+- total de atingidos
+- total de premiados
+- ranking geral
+- performance por vendedor
+- progresso por equipe/loja
+- evolução temporal da campanha
+- vendedores próximos de atingir meta
+- vendedores em risco
+- campanhas com baixo desempenho
+- campanhas com alta adesão
+- visão por fornecedor
+- visão por produto/grupo/categoria
+- valor vendido elegível
+- valor premiável
+- comissão projetada
+- alertas de inconsistência ou campanha travada
+- filtros por período, campanha, vendedor, loja, grupo, fornecedor e status
+
+Esse dashboard precisa ser:
+- altamente confiável
+- visualmente profissional
+- analítico
+- claro
+- útil para tomada de decisão rápida
+
+Se ainda estiver fraco, incompleto ou superficial, quero que seja melhorado.
+
+============================================================
+7. REFORÇO DA PERSONALIZAÇÃO TOTAL DAS CAMPANHAS
+============================================================
+
+Já foi solicitado anteriormente o módulo de criação de campanhas 100% personalizado.
+Quero reforçar isso.
+
+Validar se realmente já é possível configurar, sem hardcode:
+- campanhas por comissão percentual
+- campanhas por mix
+- campanhas por gatilho
+- campanhas por meta
+- campanhas por ranking
+- campanhas por crescimento
+- campanhas híbridas
+- campanhas com múltiplos critérios
+- campanhas com múltiplos vencedores
+- campanhas onde todos que atingirem ganham
+- campanhas com pagamento baseado em outra base
+- campanhas com base de participação diferente da base de ranking
+- campanhas com base de pagamento diferente da base de ranking
+- campanhas com critérios por fornecedor, produto, grupo, vendedor, equipe, período, valor, quantidade, faixa e percentual
+
+Se essa flexibilidade ainda não estiver realmente sólida, quero que seja reforçada.
+
+============================================================
+8. VALIDAÇÃO DE CÁLCULO — CRÍTICO
+============================================================
+
+Quero validação severa de todos os cálculos do sistema, principalmente:
+
+- cálculo de metas
+- cálculo de percentuais
+- cálculo de crescimento
+- cálculo de ranking
+- cálculo de participação
+- cálculo de gatilho
+- cálculo de comissão
+- cálculo de prêmio
+- cálculo de premiação por faixa
+- cálculo de elegibilidade
+- cálculo de base de pagamento
+- cálculo de relatório
+- memória de cálculo
+
+Verifique se:
+- existem divisões erradas
+- arredondamentos errados
+- totais inconsistentes
+- diferença entre telas
+- diferença entre dashboard e relatório
+- diferença entre vendedor e supervisor
+- erro em dados vazios, zero ou nulos
+- comportamento errado com campanhas ainda não iniciadas
+- comportamento errado com campanhas encerradas
+- erro em filtros por período
+- uso de base incorreta
+
+Não quero risco de resultado errado em produção.
+
+============================================================
+9. REVISÃO DE FORMULÁRIOS E CRIAÇÃO DE DADOS
+============================================================
+
+Validar todos os formulários do sistema, especialmente:
+- login
+- criação de campanha
+- edição de campanha
+- definição de meta
+- configuração de fornecedor/produto/grupo
+- filtros
+- exportações
+- criação de registros e dados auxiliares
+
+Verifique e corrija:
+- validações insuficientes
+- campos obrigatórios ausentes
+- inconsistência de tipos
+- mensagens ruins
+- estados de erro mal tratados
+- envio duplicado
+- problema de botão submit
+- falhas de loading
+- criação de registros inválidos
+- risco de dados quebrados no banco
+
+============================================================
+10. UX/UI — REFORÇO GERAL
+============================================================
+
+Já houve redesign com base nas referências enviadas, mas quero reforço e revisão crítica.
+
+Quero revisar o aplicativo inteiro para garantir:
+- visual premium
+- consistência visual
+- boa hierarquia
+- cards bem desenhados
+- textos claros
+- botões alinhados
+- espaços corretos
+- tabelas refinadas
+- telas com cara de produto enterprise
+- menus organizados
+- dashboards fortes
+- UX clara para vendedor, supervisor e administrador
+
+Corrigir se houver:
+- telas simples demais
+- cards genéricos
+- textos desalinhados
+- ícones inconsistentes
+- sombras exageradas ou ausentes
+- bordas fracas ou pesadas
+- contraste ruim
+- espaço vazio mal resolvido
+- excesso de informação sem estrutura
+- visual fraco para apresentação corporativa
+
+============================================================
+11. RESPONSIVIDADE — MÁXIMA PRIORIDADE
+============================================================
+
+Toda a aplicação será visualizada também em smartphones de várias resoluções.
+Então preciso do máximo de responsividade possível.
+
+Revisar toda a aplicação em múltiplos tamanhos de tela:
+- desktop grande
+- notebook
+- tablet
+- celulares pequenos
+- celulares médios
+- celulares grandes
+
+Verifique e corrija qualquer problema como:
+- card saindo da tela
+- texto quebrando errado
+- botão fora do layout
+- barra de progresso cortada
+- tabela estourando horizontalmente
+- grid quebrado
+- cabeçalho desalinhado
+- sidebar ruim em mobile
+- espaçamento ruim
+- números muito grandes para telas pequenas
+- ranking ilegível
+- filtros quebrados
+- formulários ruins no celular
+- modais grandes demais
+- botões difíceis de tocar
+- excesso de scroll lateral
+- componentes sobrepostos
+- conteúdo fora de esquadro
+
+IMPORTANTE:
+Use como referência a facilidade de uso da imagem mobile enviada anteriormente.
+Mas atenção:
+- não copiar as cores
+- não copiar o tema escuro
+- não copiar o estilo visual
+- usar apenas a lógica de facilidade, toque, organização compacta e responsividade
+
+Quero uma experiência mobile realmente boa.
+
+============================================================
+12. UI MOBILE ESPECÍFICA
+============================================================
+
+No mobile, quero garantir:
+- cards empilhados corretamente
+- margens corretas
+- paddings confortáveis
+- texto legível
+- botões maiores
+- rankings adaptados
+- tabelas convertidas em listas ou cards quando necessário
+- filtros recolhíveis
+- hero de campanha adaptado
+- dashboard com boa ordem visual
+- sem poluição
+- sem scroll lateral
+- sem elementos esmagados
+
+Validar isso nas telas de:
+- login
+- dashboard
+- campanhas
+- criação de campanha
+- tela do vendedor
+- tela do supervisor
+- relatórios
+- configurações
+
+============================================================
+13. PERFORMANCE E ESTABILIDADE
+============================================================
+
+Além do visual, quero revisão técnica para garantir:
+- boa performance
+- carregamento aceitável
+- ausência de travamentos
+- queries eficientes
+- renderização estável
+- telas pesadas otimizadas
+- prevenção de re-render desnecessário
+- prevenção de loops ou efeitos indevidos
+- bom comportamento com muitos dados
+- bom comportamento com várias campanhas
+- bom comportamento com muitos vendedores
+
+Se existir qualquer gargalo relevante, corrigir.
+
+============================================================
+14. CONCORRÊNCIA E ESTADOS INVÁLIDOS
+============================================================
+
+Quero que você procure problemas que só aparecem em operação real, como:
+- dois usuários alterando algo ao mesmo tempo
+- atualização simultânea
+- criação duplicada
+- clique duplo em botão
+- salvar duas vezes
+- estado de campanha mudando durante edição
+- conflito de atualização
+- tela mostrando dado antigo
+- cálculo baseado em cache vencido
+- inconsistência entre tela e banco
+- estados intermediários quebrando a interface
+
+Se identificar risco, tratar adequadamente.
+
+============================================================
+15. DASHBOARD DO SUPERVISOR — AÇÃO ANTECIPADA
+============================================================
+
+Reforçar que o supervisor precisa conseguir agir antes do problema acontecer.
+
+Então o dashboard deve ter visão de alerta como:
+- vendedores quase atingindo
+- vendedores travados em alguma regra
+- campanhas com baixa adesão
+- equipes abaixo da meta
+- lojas sem crescimento suficiente
+- gatilhos próximos
+- risco de perda de resultado
+- comparativos por período
+- tendência da campanha
+
+Quero um dashboard de campanha realmente útil para gestão e antecipação.
+
+============================================================
+16. TESTES E VALIDAÇÃO FINAL
+============================================================
+
+Quero que você valide criticamente cenários como:
+
+- campanha com ranking
+- campanha sem ranking
+- campanha com meta
+- campanha com comissão
+- campanha com mix
+- campanha com gatilho
+- campanha híbrida
+- campanha com mais de um ganhador
+- campanha com base de ranking diferente da base de pagamento
+- vendedor elegível
+- vendedor não elegível
+- loja elegível
+- loja não elegível
+- campanha ativa
+- campanha futura
+- campanha encerrada
+- campanha pausada
+- valores nulos
+- valores zerados
+- filtros por período
+- exportação
+- dashboard em desktop
+- dashboard em mobile
+- tela do vendedor em mobile
+- criação de campanha em mobile
+
+Quero correção dos problemas encontrados.
+
+============================================================
+17. O QUE NÃO QUERO
+============================================================
+
+Não quero:
+- apenas diagnóstico sem correção
+- mudança superficial
+- solução só visual
+- regra ambígua
+- cálculo frágil
+- comportamento imprevisível
+- falha silenciosa
+- tela bonita mas errada
+- responsividade parcial
+- mobile ruim
+- criação de campanha sujeita a erro
+- dashboards inconsistentes
+- ranking com resultado errado
+- prêmio com cálculo errado
+
+============================================================
+18. ENTREGA ESPERADA
+============================================================
+
+Quero que você:
+1. audite toda a aplicação
+2. identifique bugs, falhas e riscos
+3. corrija os problemas encontrados
+4. reforce a lógica das campanhas
+5. garanta acompanhamento em tempo real para vendedor
+6. garanta dashboard de campanhas forte para supervisor/admin
+7. reforce UI/UX do sistema todo
+8. revise responsividade completa
+9. valide mobile em múltiplas resoluções
+10. elimine riscos de resultado errado
+11. elimine riscos de erro operacional
+12. entregue uma aplicação mais segura, mais estável, mais profissional e pronta para operação
+
+============================================================
+19. CHECKLIST FINAL OBRIGATÓRIO
+============================================================
+
+Antes de considerar concluído, valide e me entregue um checklist final contendo:
+
+- bugs encontrados
+- bugs corrigidos
+- riscos encontrados
+- riscos mitigados
+- telas revisadas
+- módulos revisados
+- regras de campanha revisadas
+- cálculos revisados
+- responsividade validada
+- mobile validado
+- pontos que ainda exigem atenção, se houver
+
+Se algo ainda não puder ser garantido com segurança, sinalize claramente.
+Não quero falsa sensação de estabilidade.
+Quero uma revisão séria, madura e confiável.

@@ -31,7 +31,7 @@ export default function Vendedores() {
 
   const filteredSalespersons = salespersons.filter(({ salesperson }) =>
     salesperson.name.toLowerCase().includes(search.toLowerCase()) ||
-    salesperson.email.toLowerCase().includes(search.toLowerCase())
+    (salesperson.email ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (

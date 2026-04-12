@@ -69,7 +69,7 @@ export function MetricCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-3 min-w-0">
             <div className={cn("h-9 w-9 rounded-xl flex items-center justify-center shrink-0", iconBg)}>
-              <Icon className={cn("h-4.5 w-4.5", iconColor)} />
+              <Icon className={cn("h-[18px] w-[18px]", iconColor)} />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground leading-tight truncate">{title}</p>

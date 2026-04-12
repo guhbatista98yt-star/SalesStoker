@@ -42,6 +42,15 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
   - Status machine: rascunho → ativa → pausada/encerrada → cancelada
   - Natural language summary auto-generated on save
   - Sidebar: new "Campanhas" link; Configurações: "Criar Campanhas" shortcut
+- **System Hardening Audit (April 2026)**: Comprehensive correctness and stability pass across the entire application:
+  - **Invalid Tailwind classes fixed**: `h-4.5`/`w-4.5` → `h-[18px]`/`w-[18px]` in `campaign-status-banner.tsx` and `metric-card.tsx`
+  - **Null safety in vendedores.tsx**: `salesperson.email?.toLowerCase()` protected with optional chaining (`?? ""`) to prevent crash when email is null
+  - **Division-by-zero protection (frontend)**: Added `safeDiv()` helper in `dtr-amanco.tsx`, `tv-amanco.tsx`, and `tintas-elit.tsx` — all progress bar % calculations now return 0 instead of NaN/Infinity when denominator is 0
+  - **Division-by-zero protection (backend)**: Fixed `getMetasAmancoDTR()` and `getMetasAmancoTV()` in `storage.ts` — `faturamento_amanco.percentual` now correctly returns 0 when both `gatilho_individual` and `meta_gatilho` are 0
+  - **TypeScript fix in campaign-hero.tsx**: Added `import type { ReactNode }` to replace undeclared `React.ReactNode` type; removed unused `Lock` import
+  - **metas-vendedor/index.tsx rewrite**: New clean header with `h1` page title + subtitle; fully-responsive tab bar with icon + short label on mobile / full label on desktop; scrollable on narrow screens; tab trigger style: solid primary background when active
+  - **Semantic HTML fix**: Changed `<h1>` inside acompanhamento tab content to `<h2>` to avoid duplicate H1 per page
+
 - **Campaign Pages Premium Redesign (April 2026)**: Complete overhaul of salesperson campaign pages (metas-vendedor):
   - **Shared component library** in `client/src/components/campanhas/`:
     - `campaign-hero.tsx` — Supplier-branded hero card with gradient band, logo initials, period, status badge, type badge, mini metric strip with thin progress bars

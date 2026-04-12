@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Calendar, Target, TrendingUp, PaintBucket, Loader2 } from "lucide-react";
+import { AlertCircle, LayoutDashboard, TrendingUp, Calendar, PaintBucket } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 import AcompanhamentoTab from "./acompanhamento";
@@ -10,89 +8,91 @@ import DtrAmancoTab from "./dtr-amanco";
 import TvAmancoTab from "./tv-amanco";
 import TintasElitTab from "./tintas-elit";
 
+const TABS = [
+  { value: "acompanhamento", label: "Acompanhamento", short: "Geral",       icon: LayoutDashboard },
+  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",         icon: TrendingUp },
+  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",          icon: Calendar },
+  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",        icon: PaintBucket },
+] as const;
+
 export default function MetasVendedor() {
-    const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState("acompanhamento");
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState("acompanhamento");
 
-    if (!user || user.role !== "vendedor") {
-        return (
-            <div className="flex items-center justify-center h-full p-8">
-                <div className="text-center text-muted-foreground flex flex-col items-center gap-4">
-                    <AlertCircle className="w-12 h-12 text-destructive" />
-                    <p className="text-lg">Acesso negado. Apenas vendedores podem acessar este módulo.</p>
-                </div>
-            </div>
-        );
-    }
-
+  if (!user || user.role !== "vendedor") {
     return (
-        <div className="h-full overflow-auto bg-gray-50/50 dark:bg-zinc-950/50 pt-2 pb-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 py-4">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">Minhas Metas e Campanhas</h1>
-                        <p className="text-muted-foreground mt-1">Acompanhe seus resultados e performance em tempo real</p>
-                    </div>
-                </div>
-
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <div className="relative overflow-x-auto pb-2 scrollbar-hide">
-                        <TabsList className="w-max sm:w-full justify-start h-12 bg-white dark:bg-zinc-900 border shadow-sm rounded-lg p-1">
-                            <TabsTrigger
-                                value="acompanhamento"
-                                className="gap-2 flex-shrink-0 h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-md"
-                            >
-                                <Target className="w-4 h-4" />
-                                <span className="hidden sm:inline">Acompanhamento</span>
-                                <span className="sm:hidden">Geral</span>
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="dtr-amanco"
-                                className="gap-2 flex-shrink-0 h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-md"
-                            >
-                                <TrendingUp className="w-4 h-4" />
-                                <span className="hidden sm:inline">Campanha DTR Amanco</span>
-                                <span className="sm:hidden">DTR Amanco</span>
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="tv-amanco"
-                                className="gap-2 flex-shrink-0 h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-md"
-                            >
-                                <Calendar className="w-4 h-4" />
-                                <span className="hidden sm:inline">Campanha TV Amanco</span>
-                                <span className="sm:hidden">TV Amanco</span>
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="tintas-elit"
-                                className="gap-2 flex-shrink-0 h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-md"
-                            >
-                                <PaintBucket className="w-4 h-4" />
-                                <span className="hidden sm:inline">Campanha Tintas Elit</span>
-                                <span className="sm:hidden">Tintas Elit</span>
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
-
-                    <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <TabsContent value="acompanhamento" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                            <AcompanhamentoTab />
-                        </TabsContent>
-
-                        <TabsContent value="dtr-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                            <DtrAmancoTab />
-                        </TabsContent>
-
-                        <TabsContent value="tv-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                            <TvAmancoTab />
-                        </TabsContent>
-
-                        <TabsContent value="tintas-elit" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                            <TintasElitTab />
-                        </TabsContent>
-                    </div>
-                </Tabs>
-            </div>
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center flex flex-col items-center gap-4">
+          <div className="h-14 w-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
+            <AlertCircle className="w-7 h-7 text-destructive" />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-foreground">Acesso restrito</p>
+            <p className="text-sm text-muted-foreground mt-1">Apenas vendedores podem acessar este módulo.</p>
+          </div>
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="h-full overflow-auto bg-background">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+
+        {/* ── Page header ── */}
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Minhas Metas e Campanhas
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Acompanhe seus resultados e performance em tempo real
+          </p>
+        </div>
+
+        {/* ── Tabs ── */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Tab bar — scrollable on mobile */}
+          <div className="overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-hide">
+            <TabsList className="inline-flex w-max sm:w-full h-auto bg-card border border-border shadow-sm rounded-xl p-1 gap-0.5">
+              {TABS.map(tab => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="flex items-center gap-2 h-9 px-3 text-sm font-medium rounded-lg transition-all
+                      data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm
+                      data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground
+                      whitespace-nowrap flex-shrink-0 sm:flex-1 sm:justify-center"
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    {/* Long label: visible ≥ sm */}
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    {/* Short label: visible < sm */}
+                    <span className="sm:hidden">{tab.short}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
+
+          {/* Tab content */}
+          <div className="mt-4">
+            <TabsContent value="acompanhamento" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+              <AcompanhamentoTab />
+            </TabsContent>
+            <TabsContent value="dtr-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+              <DtrAmancoTab />
+            </TabsContent>
+            <TabsContent value="tv-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+              <TvAmancoTab />
+            </TabsContent>
+            <TabsContent value="tintas-elit" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+              <TintasElitTab />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
+    </div>
+  );
 }

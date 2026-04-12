@@ -42,7 +42,9 @@ export default function TintasElitTab() {
 
   const { last_update, periodo, gatilho_minimo, valor_vendido, faltante, participando } = data as any;
 
-  const progressPct = Math.min((valor_vendido / gatilho_minimo) * 100, 200);
+  const safeDiv = (num: number, den: number, fallback = 0) =>
+    den === 0 || !isFinite(den) ? fallback : num / den;
+  const progressPct = Math.min(safeDiv(valor_vendido, gatilho_minimo) * 100, 200);
 
   const requirements: Requirement[] = [
     {

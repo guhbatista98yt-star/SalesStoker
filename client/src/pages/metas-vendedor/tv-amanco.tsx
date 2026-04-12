@@ -53,11 +53,14 @@ export default function TvAmancoTab() {
     elegibilidade: el,
   } = data as any;
 
-  const fatPct  = Math.min((fat.valor_atual / fat.meta_gatilho) * 100, 200);
-  const mixPct  = Math.min((mx.percentual_conexoes / mx.meta_percentual) * 100, 200);
-  const cvPct   = Math.min(Math.max((cv.crescimento_percentual / (cv.meta_percentual || 1)) * 100, 0), 200);
+  const safeDiv = (num: number, den: number, fallback = 0) =>
+    den === 0 || !isFinite(den) ? fallback : num / den;
+
+  const fatPct  = Math.min(safeDiv(fat.valor_atual, fat.meta_gatilho) * 100, 200);
+  const mixPct  = Math.min(safeDiv(mx.percentual_conexoes, mx.meta_percentual) * 100, 200);
+  const cvPct   = Math.min(Math.max(safeDiv(cv.crescimento_percentual, cv.meta_percentual || 1) * 100, 0), 200);
   const lojaPct = cl.meta_percentual > 0
-    ? Math.max(0, Math.min((cl.crescimento_percentual / cl.meta_percentual) * 100, 200))
+    ? Math.max(0, Math.min(safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100, 200))
     : 100;
 
   function metricStatus(pct: number, ok: boolean) {

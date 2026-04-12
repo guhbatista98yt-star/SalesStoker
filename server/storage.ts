@@ -1635,7 +1635,10 @@ export class SqliteStorage implements IStorage {
       faturamento_amanco: {
         valor_atual,
         meta_gatilho: gatilho_individual > 0 ? gatilho_individual : meta_gatilho,
-        percentual: parseFloat(((valor_atual / (gatilho_individual > 0 ? gatilho_individual : meta_gatilho)) * 100).toFixed(2)),
+        percentual: (() => {
+          const den = gatilho_individual > 0 ? gatilho_individual : meta_gatilho;
+          return parseFloat((den > 0 ? (valor_atual / den) * 100 : 0).toFixed(2));
+        })(),
         faltante: gatilho ? 0 : (gatilho_individual > 0 ? gatilho_individual : meta_gatilho) - valor_atual,
         gatilho_atingido: gatilho
       },
@@ -1765,7 +1768,10 @@ export class SqliteStorage implements IStorage {
       faturamento_amanco: {
         valor_atual,
         meta_gatilho: gatilho_individual > 0 ? gatilho_individual : meta_gatilho,
-        percentual: parseFloat(((valor_atual / (gatilho_individual > 0 ? gatilho_individual : meta_gatilho)) * 100).toFixed(2)),
+        percentual: (() => {
+          const den = gatilho_individual > 0 ? gatilho_individual : meta_gatilho;
+          return parseFloat((den > 0 ? (valor_atual / den) * 100 : 0).toFixed(2));
+        })(),
         faltante: gatilho ? 0 : (gatilho_individual > 0 ? gatilho_individual : meta_gatilho) - valor_atual,
         gatilho_atingido: gatilho
       },

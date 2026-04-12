@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatDateBR } from "@/lib/calendar-utils";
-import { Calendar, CheckCircle2, Clock, Lock, Zap } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, Zap } from "lucide-react";
 
 export type CampaignStatus = "ativa" | "encerrada" | "futura" | "pausada";
 export type CampaignType = "atingimento" | "ranking" | "comissao" | "crescimento" | "mix" | "gatilho" | "sorteio";
@@ -29,7 +30,7 @@ const statusConfig: Record<CampaignStatus, { label: string; cls: string }> = {
   pausada:   { label: "Pausada",   cls: "bg-orange-100 text-orange-700 border-orange-300" },
 };
 
-const typeConfig: Record<CampaignType, { label: string; icon: React.ReactNode }> = {
+const typeConfig: Record<CampaignType, { label: string; icon: ReactNode }> = {
   atingimento: { label: "Atingimento", icon: <CheckCircle2 className="h-3 w-3" /> },
   ranking:     { label: "Ranking",     icon: <Zap className="h-3 w-3" /> },
   comissao:    { label: "Comissão",    icon: <Zap className="h-3 w-3" /> },
