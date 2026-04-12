@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Target } from "lucide-react";
+import { Target, AlertCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/calendar-utils";
 import type { GoalWithProgress } from "@shared/schema";
 
@@ -31,7 +31,7 @@ export default function Metas() {
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
 
-  const { data: goals = [], isLoading: goalsLoading } = useQuery<GoalWithProgress[]>({
+  const { data: goals = [], isLoading: goalsLoading, isError: goalsError } = useQuery<GoalWithProgress[]>({
     queryKey: ["/api/goals", "all", currentMonth.toString(), currentYear.toString()],
   });
 
@@ -100,6 +100,12 @@ export default function Metas() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        ) : goalsError ? (
+          <div className="text-center py-16 flex flex-col items-center gap-3 text-destructive">
+            <AlertCircle className="h-10 w-10 opacity-60" />
+            <p className="text-base font-medium">Erro ao carregar metas</p>
+            <p className="text-sm text-muted-foreground">Verifique a conexão e tente novamente.</p>
           </div>
         ) : goals.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">

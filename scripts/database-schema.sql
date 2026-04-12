@@ -308,3 +308,10 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_period ON campaigns (starts_at, ends_at
 CREATE INDEX IF NOT EXISTS idx_campaign_versions_campaign ON campaign_versions (campaign_id, version);
 CREATE INDEX IF NOT EXISTS idx_campaign_audit_campaign ON campaign_audit_logs (campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_audit_created ON campaign_audit_logs (created_at);
+
+-- Performance indexes for cache_campanhas (campaign sales queries)
+CREATE INDEX IF NOT EXISTS idx_cache_campanhas_data ON cache_campanhas(DTMOVIMENTO);
+CREATE INDEX IF NOT EXISTS idx_cache_campanhas_fabricante ON cache_campanhas(FABRICANTE);
+CREATE INDEX IF NOT EXISTS idx_cache_campanhas_data_vendedor ON cache_campanhas(DTMOVIMENTO, IDVENDEDOR);
+CREATE INDEX IF NOT EXISTS idx_cache_campanhas_data_fabricante ON cache_campanhas(DTMOVIMENTO, FABRICANTE);
+CREATE INDEX IF NOT EXISTS idx_cache_campanhas_produto ON cache_campanhas(IDPRODUTO);

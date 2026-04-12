@@ -30,9 +30,7 @@ import Configuracoes from "@/pages/configuracoes";
 import LandingPage from "@/pages/landing";
 import VisaoEmLoja from "@/pages/visao-em-loja";
 import TVDashboard from "@/pages/tv-dashboard";
-import DtrAmancoTab from "@/pages/metas-vendedor/dtr-amanco";
-import TvAmancoTab from "@/pages/metas-vendedor/tv-amanco";
-import TintasElitTab from "@/pages/metas-vendedor/tintas-elit";
+import MetasVendedorIndex from "@/pages/metas-vendedor/index";
 import CampanhasList from "@/pages/campanhas/index";
 import CampaignForm from "@/pages/campanhas/form";
 import { AlertCircle } from "lucide-react";
@@ -54,22 +52,10 @@ function VendedorGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function CampaignPage({ children }: { children: React.ReactNode }) {
-  return (
-    <VendedorGuard>
-      <div className="h-full overflow-auto bg-background pt-2 pb-20 sm:pb-10">
-        <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6">
-          {children}
-        </div>
-      </div>
-    </VendedorGuard>
-  );
-}
-
 function getInitialRoute(role?: string): string {
   switch (role) {
     case "loja":     return "/analises/visao-em-loja";
-    case "vendedor": return "/metas-vendedor/dtr-amanco";
+    case "vendedor": return "/metas-vendedor";
     default:         return "/";
   }
 }
@@ -89,10 +75,8 @@ function Router() {
       <Route path="/semanal" component={Semanal} />
       <Route path="/mensal" component={Mensal} />
       <Route path="/configuracoes" component={Configuracoes} />
-      <Route path="/metas-vendedor" component={() => <Redirect to="/metas-vendedor/dtr-amanco" />} />
-      <Route path="/metas-vendedor/dtr-amanco" component={() => <CampaignPage><DtrAmancoTab /></CampaignPage>} />
-      <Route path="/metas-vendedor/tv-amanco" component={() => <CampaignPage><TvAmancoTab /></CampaignPage>} />
-      <Route path="/metas-vendedor/tintas-elit" component={() => <CampaignPage><TintasElitTab /></CampaignPage>} />
+      <Route path="/metas-vendedor" component={() => <MetasVendedorIndex />} />
+      <Route path="/metas-vendedor/:tab" component={() => <MetasVendedorIndex />} />
       <Route path="/analises/visao-em-loja" component={VisaoEmLoja} />
       <Route path="/tv" component={TVDashboard} />
       <Route path="/campanhas" component={CampanhasList} />

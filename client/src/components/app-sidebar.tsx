@@ -25,9 +25,10 @@ const analysisItems = [
 ];
 
 const campaignVendedorItems = [
-  { title: "DTR Amanco",   url: "/metas-vendedor/dtr-amanco",   icon: TrendingUp },
-  { title: "TV Amanco",    url: "/metas-vendedor/tv-amanco",    icon: Calendar },
-  { title: "Tintas Elit",  url: "/metas-vendedor/tintas-elit",  icon: PaintBucket },
+  { title: "Acompanhamento", url: "/metas-vendedor/acompanhamento", icon: LayoutDashboard },
+  { title: "DTR Amanco",     url: "/metas-vendedor/dtr-amanco",     icon: TrendingUp },
+  { title: "TV Amanco",      url: "/metas-vendedor/tv-amanco",      icon: Calendar },
+  { title: "Tintas Elit",    url: "/metas-vendedor/tintas-elit",    icon: PaintBucket },
 ];
 
 function NavItem({ item, active }: { item: { title: string; url: string; icon: any }; active: boolean }) {

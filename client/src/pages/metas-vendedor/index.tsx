@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, LayoutDashboard, TrendingUp, Calendar, PaintBucket } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -9,15 +9,23 @@ import TvAmancoTab from "./tv-amanco";
 import TintasElitTab from "./tintas-elit";
 
 const TABS = [
-  { value: "acompanhamento", label: "Acompanhamento", short: "Geral",       icon: LayoutDashboard },
-  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",         icon: TrendingUp },
-  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",          icon: Calendar },
-  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",        icon: PaintBucket },
+  { value: "acompanhamento", label: "Acompanhamento", short: "Geral",  icon: LayoutDashboard },
+  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",   icon: TrendingUp },
+  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",    icon: Calendar },
+  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",  icon: PaintBucket },
 ] as const;
+
+type TabValue = typeof TABS[number]["value"];
+const VALID_TABS = TABS.map(t => t.value) as string[];
+
+function getTabFromPath(path: string): TabValue {
+  const segment = path.split("/").filter(Boolean).pop() ?? "";
+  return (VALID_TABS.includes(segment) ? segment : "acompanhamento") as TabValue;
+}
 
 export default function MetasVendedor() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("acompanhamento");
+  const [location, setLocation] = useLocation();
 
   if (!user || user.role !== "vendedor") {
     return (
@@ -35,6 +43,12 @@ export default function MetasVendedor() {
     );
   }
 
+  const activeTab = getTabFromPath(location);
+
+  function handleTabChange(tab: string) {
+    setLocation(`/metas-vendedor/${tab}`);
+  }
+
   return (
     <div className="h-full overflow-auto bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-5">
@@ -50,9 +64,9 @@ export default function MetasVendedor() {
         </div>
 
         {/* ── Tabs ── */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           {/* Tab bar — scrollable on mobile */}
-          <div className="overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-hide">
+          <div className="overflow-x-auto pb-0.5 -mx-1 px-1">
             <TabsList className="inline-flex w-max sm:w-full h-auto bg-card border border-border shadow-sm rounded-xl p-1 gap-0.5">
               {TABS.map(tab => {
                 const Icon = tab.icon;
@@ -66,9 +80,7 @@ export default function MetasVendedor() {
                       whitespace-nowrap flex-shrink-0 sm:flex-1 sm:justify-center"
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                    {/* Long label: visible ≥ sm */}
                     <span className="hidden sm:inline">{tab.label}</span>
-                    {/* Short label: visible < sm */}
                     <span className="sm:hidden">{tab.short}</span>
                   </TabsTrigger>
                 );
