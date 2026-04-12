@@ -501,17 +501,56 @@ export class PostgresStorage implements IStorage {
           WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany} ${teamFilter}
         `, [yoyD.toISOString().split('T')[0], new Date(yoyD.getFullYear(), yoyD.getMonth() + 1, 0).toISOString().split('T')[0]]);
 
-        const current = result?.total ?? 0;
-        const previous = yoyResult?.total ?? 0;
-        const yoyVariacao = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+        const current = Number(result?.total ?? 0);
+        const previous = Number(yoyResult?.total ?? 0);
+        const variacao = previous > 0 ? ((current - previous) / previous) * 100 : 0;
 
-        return { label: m.label, value: current, yoyValue: previous, yoyVariacao };
+        return { label: m.label, atual: current, anterior: previous, variacao };
       }));
 
-      return { monthly: monthlyData };
+      // Build weekly data: last 10 ISO weeks
+      const weeks: { label: string; start: string; end: string }[] = [];
+      for (let i = 9; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i * 7);
+        const day = d.getDay();
+        const weekStart = new Date(d);
+        weekStart.setDate(d.getDate() - day);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        const label = `S${weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+        weeks.push({
+          label,
+          start: weekStart.toISOString().split('T')[0],
+          end: weekEnd.toISOString().split('T')[0],
+        });
+      }
+
+      const weeklyData = await Promise.all(weeks.map(async (w) => {
+        const res = await pgGet<{ total: number }>(`
+          SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
+          FROM cache_vendas
+          WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany} ${teamFilter}
+        `, [w.start, w.end]);
+        const yoyStart = new Date(w.start);
+        yoyStart.setFullYear(yoyStart.getFullYear() - 1);
+        const yoyEnd = new Date(w.end);
+        yoyEnd.setFullYear(yoyEnd.getFullYear() - 1);
+        const resY = await pgGet<{ total: number }>(`
+          SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
+          FROM cache_vendas
+          WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany} ${teamFilter}
+        `, [yoyStart.toISOString().split('T')[0], yoyEnd.toISOString().split('T')[0]]);
+        const atual = Number(res?.total ?? 0);
+        const anterior = Number(resY?.total ?? 0);
+        const variacao = anterior > 0 ? ((atual - anterior) / anterior) * 100 : 0;
+        return { label: w.label, atual, anterior, variacao };
+      }));
+
+      return { monthly: monthlyData, weekly: weeklyData };
     } catch (err) {
       console.error("Error getting sales evolution:", err);
-      return { monthly: [] };
+      return { monthly: [], weekly: [] };
     }
   }
 

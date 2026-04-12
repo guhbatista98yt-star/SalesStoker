@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar } from "lucide-react";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import type { DateRange } from "react-day-picker";
 import { useToast } from "@/hooks/use-toast";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
@@ -41,8 +43,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -121,7 +121,7 @@ export default function Dashboard() {
     return d.toISOString().slice(0, 10);
   });
   const [customEnd, setCustomEnd] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [customDraft, setCustomDraft] = useState({ start: "", end: "" });
+  const [customDraft, setCustomDraft] = useState<DateRange | undefined>(undefined);
 
   const currentWeek = getCurrentWeekPeriod();
   const monthPeriod = useMemo(() => getCurrentMonthPeriod(), [today.getMonth(), today.getFullYear()]);
@@ -532,7 +532,12 @@ export default function Dashboard() {
 
             <Popover open={periodOpen} onOpenChange={open => {
               setPeriodOpen(open);
-              if (open) setCustomDraft({ start: customStart, end: customEnd });
+              if (open) {
+                setCustomDraft({
+                  from: customStart ? new Date(customStart + "T00:00:00") : undefined,
+                  to: customEnd ? new Date(customEnd + "T00:00:00") : undefined,
+                });
+              }
             }}>
               <PopoverTrigger asChild>
                 <Button
@@ -551,7 +556,7 @@ export default function Dashboard() {
                   <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 p-0" sideOffset={6}>
+              <PopoverContent align="end" className="w-80 p-0" sideOffset={6}>
                 {/* ── Presets ── */}
                 <div className="p-2 space-y-0.5">
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">Períodos rápidos</p>
@@ -595,45 +600,48 @@ export default function Dashboard() {
                 <Separator />
 
                 {/* ── Custom Range ── */}
-                <div className="p-3 space-y-3">
-                  <div className="flex items-center gap-2">
+                <div className="p-2 space-y-2">
+                  <div className="flex items-center gap-2 px-1">
                     <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Período personalizado</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Início</Label>
-                      <Input
-                        type="date"
-                        className="h-8 text-xs"
-                        value={customDraft.start}
-                        max={customDraft.end || undefined}
-                        onChange={e => setCustomDraft(d => ({ ...d, start: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Fim</Label>
-                      <Input
-                        type="date"
-                        className="h-8 text-xs"
-                        value={customDraft.end}
-                        min={customDraft.start || undefined}
-                        onChange={e => setCustomDraft(d => ({ ...d, end: e.target.value }))}
-                      />
-                    </div>
-                  </div>
+                  {customDraft?.from && (
+                    <p className="text-[11px] text-center text-muted-foreground px-1">
+                      {customDraft.from.toLocaleDateString("pt-BR")}
+                      {customDraft.to ? ` – ${customDraft.to.toLocaleDateString("pt-BR")}` : " → selecione o fim"}
+                    </p>
+                  )}
+                  <CalendarPicker
+                    mode="range"
+                    selected={customDraft}
+                    onSelect={setCustomDraft}
+                    locale={ptBR}
+                    className="rounded-md p-0"
+                    numberOfMonths={1}
+                    disabled={{ after: new Date() }}
+                    classNames={{
+                      months: "flex flex-col",
+                      caption_label: "text-xs font-medium",
+                      head_cell: "text-muted-foreground w-8 font-normal text-[0.7rem]",
+                      cell: "h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                      day: "h-8 w-8 p-0 font-normal aria-selected:opacity-100 text-xs",
+                    }}
+                  />
                   <Button
                     size="sm"
                     className="w-full h-8 text-xs"
-                    disabled={!customDraft.start || !customDraft.end || customDraft.start > customDraft.end}
+                    disabled={!customDraft?.from || !customDraft?.to}
                     onClick={() => {
-                      setCustomStart(customDraft.start);
-                      setCustomEnd(customDraft.end);
+                      if (!customDraft?.from || !customDraft?.to) return;
+                      const start = customDraft.from.toISOString().slice(0, 10);
+                      const end = customDraft.to.toISOString().slice(0, 10);
+                      setCustomStart(start);
+                      setCustomEnd(end);
                       setPeriodMode("custom");
                       setPeriodOpen(false);
                       toast({
                         title: "Período personalizado aplicado",
-                        description: `${formatDateBR(customDraft.start)} até ${formatDateBR(customDraft.end)}`,
+                        description: `${formatDateBR(start)} até ${formatDateBR(end)}`,
                       });
                     }}
                   >
