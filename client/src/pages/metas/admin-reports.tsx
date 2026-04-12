@@ -57,8 +57,8 @@ export interface CampaignReportRow {
     isEligible: boolean;
 }
 
-function formatBRL(value: number) {
-    return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatBRL(value: number | undefined | null) {
+    return (value ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function AdminReports() {
@@ -98,9 +98,9 @@ export default function AdminReports() {
         const rows = reportData.map(r => [
             r.salespersonId,
             `"${r.salespersonName}"`,
-            r.targetTrigger.toFixed(2),
-            r.currentSales.toFixed(2),
-            r.percentAchieved.toFixed(2),
+            (r.targetTrigger ?? 0).toFixed(2),
+            (r.currentSales ?? 0).toFixed(2),
+            (r.percentAchieved ?? 0).toFixed(2),
             r.isEligible ? "SIM" : "NÃO",
         ]);
         const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
@@ -269,7 +269,7 @@ export default function AdminReports() {
                                                                     : "text-muted-foreground"
                                                             }`}
                                                         >
-                                                            {row.percentAchieved.toFixed(1)}%
+                                                            {(row.percentAchieved ?? 0).toFixed(1)}%
                                                         </span>
                                                     </div>
                                                 </TableCell>

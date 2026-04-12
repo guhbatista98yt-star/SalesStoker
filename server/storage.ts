@@ -1934,22 +1934,22 @@ export class SqliteStorage implements IStorage {
       try {
         if (campaignName === 'dtr_amanco') {
           data = await this.getMetasAmancoDTR(sp.id);
-          targetTrigger = data.gatilho_individual || data.base_comparacao || 0;
-          currentSales = data.vendedor_atual;
-          percentAchieved = data.atingimento_gatilho;
-          isEligible = percentAchieved >= 100 && data.trava_loja?.atingiu && data.mix?.atingiu;
+          targetTrigger = data.faturamento_amanco?.meta_gatilho || 0;
+          currentSales = data.faturamento_amanco?.valor_atual || 0;
+          percentAchieved = data.faturamento_amanco?.percentual || 0;
+          isEligible = data.elegibilidade?.participando === true;
         } else if (campaignName === 'tv_amanco') {
           data = await this.getMetasAmancoTV(sp.id);
-          targetTrigger = data.gatilho_individual || data.base_comparacao || 0;
-          currentSales = data.vendedor_atual;
-          percentAchieved = data.atingimento_gatilho;
-          isEligible = percentAchieved >= 100 && data.trava_global_loja?.atingiu && (data.mix?.percentual >= data.mix?.minimo);
+          targetTrigger = data.faturamento_amanco?.meta_gatilho || 0;
+          currentSales = data.faturamento_amanco?.valor_atual || 0;
+          percentAchieved = data.faturamento_amanco?.percentual || 0;
+          isEligible = data.elegibilidade?.participando === true;
         } else if (campaignName === 'elit') {
           data = await this.getMetasElit(sp.id);
-          targetTrigger = data.gatilho_minimo;
-          currentSales = data.vendas_campanha;
+          targetTrigger = data.gatilho_minimo || 0;
+          currentSales = data.valor_vendido || 0;
           percentAchieved = targetTrigger > 0 ? (currentSales / targetTrigger) * 100 : 0;
-          isEligible = percentAchieved >= 100;
+          isEligible = data.participando === true;
         } else {
           continue;
         }
