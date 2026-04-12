@@ -300,6 +300,7 @@ function CommandPalette() {
 /* ── Top Header ───────────────────────────────────────────────────────────────── */
 function TopHeader() {
   const { user, logout } = useAuth();
+  const role = user?.role ?? "";
 
   const initials = user?.firstName && user?.lastName
     ? `${user.firstName[0]}${user.lastName[0]}`
@@ -330,8 +331,10 @@ function TopHeader() {
       <div className="flex items-center gap-1">
         <ThemeToggle />
 
-        {/* Purchase Notifications */}
-        <PurchaseNotificationCenter />
+        {/* Purchase Notifications — somente admin e comprador */}
+        {(role === "admin" || role === "supervisor" || role === "comprador") && (
+          <PurchaseNotificationCenter />
+        )}
 
         {/* User menu */}
         <DropdownMenu>

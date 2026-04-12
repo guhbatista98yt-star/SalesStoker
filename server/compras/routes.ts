@@ -12,7 +12,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
-import { isAuthenticated, isAdmin, type AuthRequest } from "../auth";
+import { isAuthenticated, isAdmin, isCompradorOuAdmin, type AuthRequest } from "../auth";
 import * as service from "./service";
 import { pgGet, pgAll, pgRun } from "../pg-client";
 import { db } from "../db";
@@ -41,6 +41,11 @@ router.get("/sse", async (req: AuthRequest, res) => {
     userId = decoded.userId;
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) { res.status(401).end(); return; }
+    const role = user.role ?? "";
+    if (role !== "admin" && role !== "supervisor" && role !== "comprador") {
+      res.status(403).end();
+      return;
+    }
   } catch {
     res.status(401).end();
     return;
@@ -197,7 +202,7 @@ router.post("/simulacao", isAuthenticated, async (req: AuthRequest, res) => {
 // Purchase Alerts — CRUD (user-scoped, new schema)
 // ---------------------------------------------------------------------------
 
-router.get("/alertas/unread-count", isAuthenticated, async (req: AuthRequest, res) => {
+router.get("/alertas/unread-count", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const row = await pgGet<{ total: number }>(
@@ -211,7 +216,7 @@ router.get("/alertas/unread-count", isAuthenticated, async (req: AuthRequest, re
   }
 });
 
-router.get("/alertas", isAuthenticated, async (req: AuthRequest, res) => {
+router.get("/alertas", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { status, severity, limit = "50", offset = "0" } = req.query as Record<string, string>;
@@ -267,7 +272,7 @@ router.get("/alertas", isAuthenticated, async (req: AuthRequest, res) => {
   }
 });
 
-router.patch("/alertas/:id/status", isAuthenticated, async (req: AuthRequest, res) => {
+router.patch("/alertas/:id/status", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { id } = req.params;
@@ -302,7 +307,7 @@ router.patch("/alertas/:id/status", isAuthenticated, async (req: AuthRequest, re
   }
 });
 
-router.post("/alertas/marcar-todos-lidos", isAuthenticated, async (req: AuthRequest, res) => {
+router.post("/alertas/marcar-todos-lidos", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const now = new Date().toISOString();
@@ -327,7 +332,7 @@ router.post("/alertas/marcar-todos-lidos", isAuthenticated, async (req: AuthRequ
   }
 });
 
-router.get("/alertas/:id/eventos", isAuthenticated, async (req: AuthRequest, res) => {
+router.get("/alertas/:id/eventos", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { id } = req.params;
@@ -354,7 +359,7 @@ router.get("/alertas/:id/eventos", isAuthenticated, async (req: AuthRequest, res
 // User Alert Preferences
 // ---------------------------------------------------------------------------
 
-router.get("/preferencias", isAuthenticated, async (req: AuthRequest, res) => {
+router.get("/preferencias", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const row = await pgGet(
@@ -385,7 +390,7 @@ router.get("/preferencias", isAuthenticated, async (req: AuthRequest, res) => {
   }
 });
 
-router.put("/preferencias", isAuthenticated, async (req: AuthRequest, res) => {
+router.put("/preferencias", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { enabled, soundEnabled, onlyCriticalSound, mutedUntil } = req.body as {

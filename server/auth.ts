@@ -325,6 +325,15 @@ export function isAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   next();
 }
 
+/** Permite apenas administrador (admin/supervisor) e comprador */
+export function isCompradorOuAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  const role = req.userRole;
+  if (role !== "admin" && role !== "supervisor" && role !== "comprador") {
+    return res.status(403).json({ message: "Acesso restrito a administradores e compradores" });
+  }
+  next();
+}
+
 /**
  * requirePermission(module, action) — middleware factory
  * Admins bypass all checks. For all other roles, the role must have an explicit
