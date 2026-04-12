@@ -23,7 +23,7 @@ const VENDOR_MODULE_CODES = {
   "11704":   "C5834", // REJANE
 };
 
-const dbPath = path.join(__dirname, '..', 'database.db');
+const dbPath = path.join(__dirname, '..', '..', 'database.db');
 console.log('Conectando ao banco:', dbPath);
 
 const db = new Database(dbPath);

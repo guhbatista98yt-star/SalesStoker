@@ -1,12 +1,12 @@
 """
 Seed script: inserts campaign goals (gatilhos) directly into SQLite.
-Run from project root: python scripts/seed_campaign_goals.py
+Run from project root: python scripts/seed/seed_campaign_goals.py
 """
 import sqlite3
 import os
 import uuid
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "database.db")
 
 YEAR = 2026
 

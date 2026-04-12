@@ -103,32 +103,50 @@ Preferred communication style: Simple, everyday language.
 ├── shared/           # Shared code between client/server
 │   ├── schema.ts     # Business data TypeScript types
 │   └── models/auth.ts # Database schema for auth
-├── scripts/          # Scripts de sincronização
-│   ├── sync_db2.py   # Sincronizador DB2 → SQLite
-│   ├── database-schema.sql  # Schema do banco
+├── scripts/          # Scripts utilitários
+│   ├── build.ts             # Script de build (esbuild + vite)
+│   ├── database-schema.sql  # Schema do banco SQLite
+│   ├── query-vendors.js     # Query de consulta de vendedores
 │   ├── requirements.txt     # Dependências Python
-│   └── sql/          # Queries SQL
+│   ├── db/                  # Scripts de manutenção do banco
+│   │   ├── sync_db2.py      # Sincronizador DB2 → SQLite
+│   │   ├── recover_db.py    # Recuperação de banco corrompido
+│   │   ├── reset_db.py      # Limpeza de tabelas de cache
+│   │   ├── create-user.js   # Criar usuário no banco
+│   │   ├── update-user.cjs  # Atualizar dados de usuário
+│   │   └── seed-vendor-module-users.cjs  # Seed usuários vendedores
+│   ├── seed/                # Scripts de seed de dados
+│   │   └── seed_campaign_goals.py  # Seed de metas de campanha
+│   └── sql/          # Queries SQL de referência
 │       ├── vendas.sql
 │       ├── tubos_conexoes.sql
-│       └── vendas_pendentes.sql
-├── docs/             # Documentação
-│   └── API_INTEGRATION.md   # Guia de integração
+│       ├── tubos_conexoes_amanco.sql
+│       ├── vendas_pendentes.sql
+│       ├── vendas_produtos_campanhas.sql
+│       ├── estoque_geral.sql
+│       ├── lista_produtos.sql
+│       ├── movimentacoes_vendas.sql
+│       └── orcamentos.sql
+├── docs/             # Documentação e requisitos
+│   ├── API_INTEGRATION.md
+│   ├── requisitos-campanhas.md
+│   └── requisitos-configuracoes.md
 └── database.db       # Banco SQLite (criado automaticamente)
 ```
 
 ### Sincronização DB2 → SQLite
 
-O script `scripts/sync_db2.py` coleta dados do DB2 e salva no SQLite local:
+O script `scripts/db/sync_db2.py` coleta dados do DB2 e salva no SQLite local:
 
 ```bash
 # Sincroniza uma vez
-python scripts/sync_db2.py
+python scripts/db/sync_db2.py
 
 # Sincroniza em loop (a cada 5 minutos)
-python scripts/sync_db2.py --loop 300
+python scripts/db/sync_db2.py --loop 300
 
 # Sincroniza e inicia o servidor web
-python scripts/sync_db2.py --serve
+python scripts/db/sync_db2.py --serve
 ```
 
 **Tabelas de cache:**

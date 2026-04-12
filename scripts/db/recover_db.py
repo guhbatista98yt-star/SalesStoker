@@ -2,9 +2,11 @@ import sqlite3
 import os
 import sys
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 def main():
-    db_corrompido = "database.db"
-    db_novo = "database_novo.db"
+    db_corrompido = os.path.join(PROJECT_ROOT, "database.db")
+    db_novo = os.path.join(PROJECT_ROOT, "database_novo.db")
     
     if not os.path.exists(db_corrompido):
         print(f"ERRO: Arquivo {db_corrompido} não encontrado.")

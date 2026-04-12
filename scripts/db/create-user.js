@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, "..", "database.db");
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, "..", "..", "database.db");
 
 const db = new Database(dbPath);
 
@@ -23,9 +23,9 @@ db.exec(`
 const args = process.argv.slice(2);
 
 if (args.length < 2) {
-  console.log("\nUso: node scripts/create-user.js <email> <senha> [nome] [sobrenome]");
+  console.log("\nUso: node scripts/db/create-user.js <email> <senha> [nome] [sobrenome]");
   console.log("\nExemplo:");
-  console.log("  node scripts/create-user.js admin@empresa.com 123456 Admin Sistema\n");
+  console.log("  node scripts/db/create-user.js admin@empresa.com 123456 Admin Sistema\n");
   process.exit(1);
 }
 

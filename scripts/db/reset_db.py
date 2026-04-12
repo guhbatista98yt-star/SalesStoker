@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATABASE_PATH = os.path.join(PROJECT_ROOT, "database.db")
 
 def reset_db():

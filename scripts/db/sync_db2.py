@@ -33,7 +33,7 @@ except ImportError:
 
 # === CONFIGURAÇÃO ===
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 DATABASE_PATH = os.path.join(PROJECT_ROOT, "database.db")
 LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")
 
