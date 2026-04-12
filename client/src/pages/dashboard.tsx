@@ -222,7 +222,7 @@ export default function Dashboard() {
     }
   }
 
-  // Derive sparkline data from evolution data
+  // Derive sparkline data and YoY change from evolution data
   const weeklySparkline = useMemo(() =>
     (salesData?.weekly ?? []).slice(-10).map(w => w.atual),
     [salesData?.weekly]
@@ -231,6 +231,14 @@ export default function Dashboard() {
     (salesData?.monthly ?? []).slice(-8).map(m => m.atual),
     [salesData?.monthly]
   );
+  const weeklyVariacao = useMemo<number | null>(() => {
+    const last = salesData?.weekly?.at(-1);
+    return last != null ? last.variacao : null;
+  }, [salesData?.weekly]);
+  const monthlyVariacao = useMemo<number | null>(() => {
+    const last = salesData?.monthly?.at(-1);
+    return last != null ? last.variacao : null;
+  }, [salesData?.monthly]);
 
   const renderKpiCard = (id: string, dragHandle: React.ReactNode) => {
     switch (id) {
@@ -243,6 +251,7 @@ export default function Dashboard() {
             icon={DollarSign}
             loading={isLoading}
             subtitle="vs semana anterior"
+            yoyChange={weeklyVariacao}
             dragHandle={dragHandle}
             sparklineData={weeklySparkline}
             sparklineId="spark-semanal"
@@ -257,6 +266,7 @@ export default function Dashboard() {
             icon={Receipt}
             loading={isLoading}
             subtitle="vs mês anterior"
+            yoyChange={monthlyVariacao}
             dragHandle={dragHandle}
             sparklineData={monthlySparkline}
             sparklineId="spark-mensal"

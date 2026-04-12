@@ -1,4 +1,5 @@
 import { Switch, Route, Redirect, useLocation, Link } from "wouter";
+import { useState, useEffect, useCallback } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,8 +16,13 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  CommandDialog, CommandInput, CommandList, CommandEmpty,
+  CommandGroup, CommandItem, CommandSeparator,
+} from "@/components/ui/command";
+import {
   LogOut, Loader2, KeyRound, LayoutDashboard, Users, Target, Bell,
-  BarChart3, Settings, ChevronDown, Search,
+  BarChart3, Settings, ChevronDown, Search, CalendarDays, CalendarRange,
+  Store, AlertTriangle, Megaphone, BookOpen,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import NotFound from "@/pages/not-found";
@@ -144,27 +150,94 @@ function MobileBottomNav() {
   );
 }
 
-/* ── Premium Search Input ─────────────────────────────────────────────────────── */
-function TopSearchBar() {
+/* ── Command Palette (Search) ─────────────────────────────────────────────────── */
+function CommandPalette() {
+  const [open, setOpen] = useState(false);
+  const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const role = user?.role;
+
+  const go = useCallback((href: string) => {
+    setOpen(false);
+    navigate(href);
+  }, [navigate]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setOpen(v => !v);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  const adminItems = [
+    { label: "Dashboard",       href: "/",            icon: LayoutDashboard },
+    { label: "Vendedores",      href: "/vendedores",  icon: Users },
+    { label: "Metas",           href: "/metas",       icon: Target },
+    { label: "Alertas",         href: "/alertas",     icon: AlertTriangle },
+    { label: "Visão Semanal",   href: "/semanal",     icon: CalendarDays },
+    { label: "Visão Mensal",    href: "/mensal",      icon: CalendarRange },
+    { label: "Campanhas",       href: "/campanhas",   icon: Megaphone },
+    { label: "Configurações",   href: "/configuracoes", icon: Settings },
+  ];
+
+  const lojaItems = [
+    { label: "Visão em Loja",   href: "/analises/visao-em-loja", icon: Store },
+  ];
+
+  const vendedorItems = [
+    { label: "Metas e Campanhas", href: "/metas-vendedor", icon: BookOpen },
+  ];
+
+  const items = role === "loja"
+    ? lojaItems
+    : role === "vendedor"
+    ? vendedorItems
+    : adminItems;
+
   return (
-    <div className="relative hidden sm:flex items-center flex-1 max-w-xs xl:max-w-sm">
-      <Search className="absolute left-3 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-      <input
-        type="search"
-        placeholder="Pesquisar..."
+    <>
+      <button
+        onClick={() => setOpen(true)}
         className={cn(
+          "relative hidden sm:flex items-center flex-1 max-w-xs xl:max-w-sm",
           "h-9 w-full rounded-lg bg-muted/60 dark:bg-muted/30",
-          "pl-9 pr-10 text-sm text-foreground",
-          "border border-transparent",
-          "outline-none focus:border-primary/40 focus:bg-background",
-          "placeholder:text-muted-foreground/60",
-          "transition-all duration-150",
+          "pl-9 pr-10 text-sm text-muted-foreground/60",
+          "border border-transparent hover:border-primary/30 hover:bg-muted/80",
+          "transition-all duration-150 text-left cursor-pointer",
         )}
-      />
-      <kbd className="absolute right-3 hidden sm:flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-        ⌘K
-      </kbd>
-    </div>
+        data-testid="command-palette-trigger"
+      >
+        <Search className="absolute left-3 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <span className="select-none">Pesquisar...</span>
+        <kbd className="absolute right-3 flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+          ⌘K
+        </kbd>
+      </button>
+
+      <CommandDialog open={open} onOpenChange={setOpen}>
+        <CommandInput placeholder="Pesquisar páginas..." />
+        <CommandList>
+          <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+          <CommandGroup heading="Navegar para">
+            {items.map(item => (
+              <CommandItem
+                key={item.href}
+                value={item.label}
+                onSelect={() => go(item.href)}
+                className="gap-3 cursor-pointer"
+              >
+                <item.icon className="h-4 w-4 text-muted-foreground" />
+                {item.label}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+    </>
   );
 }
 
@@ -192,9 +265,9 @@ function TopHeader() {
         className="h-8 w-8 rounded-lg hover:bg-muted transition-colors shrink-0"
       />
 
-      {/* Center: search */}
+      {/* Center: command palette */}
       <div className="flex-1 flex">
-        <TopSearchBar />
+        <CommandPalette />
       </div>
 
       {/* Right: actions */}
