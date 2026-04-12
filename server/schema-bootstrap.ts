@@ -818,6 +818,16 @@ async function bootstrapCompras(): Promise<void> {
       updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await exec(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='purchase_settings' AND column_name='key') THEN
+        ALTER TABLE purchase_settings RENAME COLUMN "key" TO chave;
+      END IF;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='purchase_settings' AND column_name='value') THEN
+        ALTER TABLE purchase_settings RENAME COLUMN "value" TO valor;
+      END IF;
+    END $$
+  `).catch(() => {});
   await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_settings_key ON purchase_settings (chave)`).catch(() => {});
 
   // ── Configuração de Fornecedores ──────────────────────────────────────────
