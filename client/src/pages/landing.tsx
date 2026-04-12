@@ -232,6 +232,9 @@ export default function LandingPage() {
           <span className="mx-2">·</span>
           CONECTUBOS © {new Date().getFullYear()}
         </p>
+        <p className="text-[10px] text-muted-foreground/35 text-center mt-1 tracking-wide">
+          Developed by Gustavo Batista
+        </p>
       </div>
     </div>
   );
