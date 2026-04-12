@@ -306,79 +306,60 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className={cn(
-        "sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b transition-all duration-200 shrink-0",
-        isScrolled ? "h-14" : "h-20"
-      )}>
-        <div className="px-6 h-full flex items-center">
-          <div className="flex items-center justify-between gap-4 w-full">
-            <div className={cn(
-              "flex flex-col transition-opacity duration-200",
-              isScrolled ? "opacity-0 w-0 overflow-hidden sm:opacity-100 sm:w-auto" : "opacity-100"
-            )}>
-              <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-              {!isScrolled && (
-                <p className="text-xs text-muted-foreground">
-                  Visão executiva de vendas
-                </p>
-              )}
+      {/* ── Page header ── */}
+      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border shrink-0">
+        <div className="px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+          {/* Left: title */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div>
+              <h1 className="text-base font-semibold tracking-tight leading-none">Dashboard</h1>
+              <p className="text-[11px] text-muted-foreground leading-none mt-0.5 hidden sm:block">
+                Visão executiva de vendas
+              </p>
             </div>
+          </div>
 
-            <div className={cn(
-              "flex items-center gap-2 flex-1 justify-end"
-            )}>
-              {isScrolled && (
-                <span className="text-sm font-medium text-muted-foreground mr-auto hidden md:block">Dashboard</span>
-              )}
+          {/* Right: controls */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                resetLayout();
+                queryClient.invalidateQueries();
+              }}
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
+              data-testid="button-refresh-data"
+              title="Atualizar dados"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
 
-              <div className="flex items-center gap-2 justify-end">
-                {!isScrolled && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      resetLayout();
-                      queryClient.invalidateQueries();
-                    }}
-                    className="text-muted-foreground h-9 px-2 shrink-0"
-                    data-testid="button-refresh-data"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                    <span className="hidden xs:inline text-xs">Atualizar</span>
-                  </Button>
-                )}
+            <CompanySelector
+              companies={companies}
+              selectedId={companyId}
+              onChange={setCompanyId}
+              loading={companiesLoading}
+              compact={false}
+            />
 
-                <div className={cn(
-                  "flex items-center gap-2",
-                  !isScrolled && "flex-col sm:flex-row items-end sm:items-center"
-                )}>
-                  <CompanySelector
-                    companies={companies}
-                    selectedId={companyId}
-                    onChange={setCompanyId}
-                    loading={companiesLoading}
-                    compact={isScrolled}
-                  />
-                  <Button
-                    variant={useSemanaFechada ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUseSemanaFechada(!useSemanaFechada)}
-                    className="gap-2"
-                    data-testid="toggle-semana-fechada"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    <span className={isScrolled ? "hidden sm:inline" : ""}>
-                      {useSemanaFechada ? "Semana Fechada" : "Mês Atual"}
-                    </span>
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <Button
+              variant={useSemanaFechada ? "default" : "outline"}
+              size="sm"
+              onClick={() => setUseSemanaFechada(!useSemanaFechada)}
+              className="h-8 gap-1.5 text-xs font-medium rounded-lg"
+              data-testid="toggle-semana-fechada"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              <span className="hidden xs:inline">
+                {useSemanaFechada ? "S. Fechada" : "Mês Atual"}
+              </span>
+            </Button>
           </div>
         </div>
       </div>
 
-      <div onScroll={handleScroll} className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

@@ -1,0 +1,939 @@
+Quero uma reformulação completa e profunda do meu CRM de vendas com base nas referências visuais e comportamentais que enviei.
+
+ATENÇÃO:
+Antes de implementar, faça uma leitura aprofundada e criteriosa das referências anexadas e preserve a lógica principal do meu app, mas reconstrua o frontend com linguagem visual premium, moderna, limpa, escalável e consistente.
+
+============================================================
+1. REFERÊNCIAS E PRIORIDADE DE INSPIRAÇÃO
+============================================================
+
+Você deve usar as referências com esta prioridade:
+
+PRIORIDADE 1 — MODELO 1
+Essa deve ser a referência principal do projeto.
+Quero meu CRM claramente mais parecido com o MODELO 1 em:
+- identidade visual
+- estrutura do dashboard
+- organização dos cards
+- topbar
+- sidebar
+- leveza da interface
+- respiro visual
+- estilo dos botões
+- sistema de widgets
+- microinterações
+- sensação premium de produto SaaS moderno
+- comportamento de slide lateral ao adicionar widgets
+- refinamento visual geral
+
+PRIORIDADE 2 — MODELO 2
+Quero absorver do MODELO 2:
+- composição do dashboard com grande gráfico dominante
+- blocos executivos laterais
+- KPI cards bem distribuídos
+- relação entre tabela, gráfico e cards de resumo
+- boa hierarquia visual
+- composição elegante do conteúdo em áreas maiores
+- cards laterais como metas, donut chart, blocos de resumo e ranking
+
+PRIORIDADE 3 — MODELO 3
+Quero absorver do MODELO 3:
+- estrutura mais “CRM real”
+- bloco de leads recentes
+- bloco de tarefas
+- painel operacional lateral
+- agrupamento lógico dos menus
+- uso de filtros / import / export em área funcional
+- sensação de ferramenta de trabalho do dia a dia
+- navegação mais orientada a pipeline, leads, empresas, tarefas e agenda
+
+MODELO CELULAR
+Usar SOMENTE como referência de:
+- estrutura mobile
+- hierarquia compacta
+- organização dos blocos em telas pequenas
+- navegação adaptada para toque
+- áreas clicáveis maiores
+- empilhamento correto dos cards
+- adaptação de dashboard para smartphone
+
+NÃO usar do modelo celular:
+- cores escuras
+- visual dark
+- estilo gráfico
+- identidade visual
+- design de cor do mobile
+
+============================================================
+2. OBJETIVO DO REDESIGN
+============================================================
+
+Quero reconstruir o CRM para que ele fique:
+- mais bonito
+- mais moderno
+- mais premium
+- mais organizado
+- mais claro
+- mais analítico
+- mais agradável de usar
+- com melhor UX para trabalho real
+- com melhor leitura de dados
+- com melhor sensação de qualidade
+- com mais padronização visual
+- com microinterações elegantes
+- com excelente responsividade
+
+Quero que o sistema pareça um produto SaaS profissional, refinado e maduro.
+Não quero aparência de template genérico, ERP antigo, painel improvisado ou interface poluída.
+
+============================================================
+3. DIREÇÃO VISUAL PRINCIPAL
+============================================================
+
+A identidade visual geral deve seguir fortemente o MODELO 1.
+
+Quero:
+- fundo principal em tom gelo / cinza muito claro / off-white
+- cards brancos
+- contraste limpo
+- bordas sutis
+- sombras leves
+- respiro amplo
+- hierarquia tipográfica clara
+- design arejado
+- composição limpa
+- interface premium
+- ícones minimalistas
+- foco em produtividade e leitura
+
+Sensação visual desejada:
+- elegante
+- tecnológica
+- executiva
+- clara
+- rápida
+- confiável
+- premium
+- sem exagero
+
+Não quero:
+- excesso de brilho
+- excesso de gradiente
+- dark mode como padrão
+- neon
+- glassmorphism exagerado
+- poluição
+- excesso de informação sem hierarquia
+- cara de template cru
+
+============================================================
+4. PALETA DE CORES
+============================================================
+
+Usar como base principal a linguagem cromática do MODELO 1.
+
+Definir um sistema de cor claro, consistente e reutilizável.
+
+BASE:
+- Background principal: cinza muito claro / gelo
+- Surface / cards: branco
+- Border: cinza muito suave
+- Texto principal: cinza escuro quase preto
+- Texto secundário: cinza médio
+- Texto fraco: cinza claro
+- Primária: azul forte e limpo semelhante ao MODELO 1
+- Positivo: verde moderno e suave
+- Negativo: vermelho ou rosa suave
+- Atenção: laranja suave
+- Destaque secundário: roxo somente em elementos pontuais de gráfico ou badge, sem competir com o azul
+
+Regras:
+- azul deve ser a cor principal de ação
+- usar verde apenas para sucesso/crescimento/conclusão
+- vermelho/rosa para perda/queda/alerta
+- laranja para atenção
+- roxo apenas como apoio sutil em visualizações secundárias
+- não escurecer a interface
+- manter predominância clara
+
+============================================================
+5. DESIGN TOKENS / SISTEMA VISUAL
+============================================================
+
+Quero padronização real de design system.
+
+Definir tokens consistentes para:
+- cores
+- sombras
+- bordas
+- radius
+- espaçamentos
+- tipografia
+- tamanhos de ícone
+- estados de componentes
+- animações
+- grid
+- breakpoints
+
+Sugerir um sistema assim:
+- radius pequeno: 10px
+- radius médio: 14px
+- radius grande: 18px
+- radius extra: 22px
+- sombra leve para cards
+- sombra um pouco maior para drawers, popovers e modais
+- spacing modular consistente
+- grid de 12 colunas no desktop
+- breakpoints claros para desktop, laptop, tablet e mobile
+
+============================================================
+6. FORMAS, BORDAS E SOMBRAS
+============================================================
+
+Quero que a linguagem das formas seja muito inspirada no MODELO 1.
+
+Aplicar:
+- cards arredondados
+- inputs arredondados
+- botões arredondados
+- modais com cantos suaves
+- tabelas com containers arredondados
+- drawer lateral bem refinado
+- popovers leves
+- dropdowns elegantes
+
+Sombras:
+- leves
+- suaves
+- sem exagero
+- quase imperceptíveis, mas suficientes para separar camadas
+
+Bordas:
+- finas
+- sutis
+- modernas
+- sem peso excessivo
+
+============================================================
+7. TIPOGRAFIA E HIERARQUIA
+============================================================
+
+Quero uma tipografia muito bem hierarquizada.
+
+Estruturar:
+- título principal da página com peso forte
+- subtítulo e contexto com peso médio
+- labels discretas
+- métricas numéricas com forte destaque
+- texto auxiliar mais suave
+- tabela com excelente legibilidade
+- bom contraste em dashboards e formulários
+
+Aplicar hierarquia em:
+- page title
+- section title
+- card title
+- metric value
+- label
+- body text
+- caption
+- helper text
+
+Quero foco especial na leitura de:
+- números
+- indicadores
+- status
+- títulos de cards
+- linhas de tabela
+- filtros ativos
+
+============================================================
+8. ESTRUTURA GERAL DO APP
+============================================================
+
+Quero reestruturar o CRM inteiro com base em:
+
+A. Sidebar fixa ou colapsável à esquerda
+B. Topbar superior limpa
+C. Área central com grid de dashboard
+D. Coluna lateral de apoio quando fizer sentido
+E. Sistema de widgets configuráveis
+F. Tabelas analíticas bem desenhadas
+G. Páginas internas consistentes
+H. Responsividade real
+
+O layout inteiro deve ser pensado como uma plataforma única e consistente, não como páginas soltas.
+
+============================================================
+9. SIDEBAR — ESTRUTURA E COMPORTAMENTO
+============================================================
+
+A sidebar deve ter base visual do MODELO 1 e organização funcional do MODELO 3.
+
+Quero:
+- fundo claro
+- seção de logo no topo
+- menu principal com ícones e labels
+- item ativo destacado em azul
+- hover suave
+- separadores de grupo
+- menu bem organizado
+- possibilidade de colapsar
+- transição suave ao colapsar
+- boa leitura tanto expandida quanto recolhida
+
+Agrupamento sugerido:
+- Dashboard
+- Leads
+- Oportunidades
+- Pipeline
+- Clientes
+- Empresas
+- Vendedores
+- Metas
+- Comissões
+- Campanhas
+- Tarefas
+- Agenda
+- Relatórios
+- Configurações
+
+Quero também:
+- possibilidade de badges em itens específicos
+- por exemplo: tarefas pendentes, leads novos, campanhas ativas
+
+============================================================
+10. TOPBAR — ESTRUTURA E UX
+============================================================
+
+A topbar deve seguir fortemente o MODELO 1.
+
+Quero incluir:
+- campo de busca elegante
+- seletor de período
+- botão “Adicionar Widget”
+- botão “Exportar”
+- filtros rápidos
+- notificações
+- avatar do usuário
+- menu rápido do usuário
+- possíveis ações contextuais dependendo da página
+
+Visual da topbar:
+- leve
+- limpa
+- com boa separação
+- com espaçamentos consistentes
+- sem poluição
+- com alinhamento impecável
+
+============================================================
+11. DASHBOARD — ESTRUTURA EXATA
+============================================================
+
+Quero um dashboard principal altamente profissional e inspirado principalmente no MODELO 1, com reforços do MODELO 2 e 3.
+
+Estrutura sugerida no desktop:
+
+LINHA 1:
+- 4 a 5 KPI cards no topo
+Exemplos:
+- vendas totais
+- oportunidades abertas
+- taxa de conversão
+- ticket médio
+- comissão acumulada
+- meta do mês
+
+LINHA 2:
+- gráfico principal grande ocupando a maior parte da área central
+- ao lado, cards verticais de apoio com:
+  - meta x realizado
+  - donut de conversão ou distribuição
+  - previsão de fechamento
+  - resumo de desempenho
+
+LINHA 3:
+- bloco de comparação por vendedor / equipe
+- bloco de ranking
+- bloco de origem dos leads
+- bloco de campanhas ativas
+- ou widgets configuráveis
+
+LINHA 4:
+- tabela/listagem principal
+Exemplos:
+- leads recentes
+- oportunidades mais quentes
+- pedidos recentes
+- atividades do dia
+- follow-ups
+
+COLUNA LATERAL DIREITA opcional:
+- tarefas pendentes
+- leads recentes
+- agenda rápida
+- top vendedores
+- pipeline urgente
+- alertas operacionais
+
+Quero o dashboard com:
+- boa leitura
+- respiro
+- modularidade
+- densidade equilibrada
+- utilidade real
+
+============================================================
+12. KPI CARDS
+============================================================
+
+Quero KPI cards refinados no estilo do MODELO 1.
+
+Cada KPI card deve poder ter:
+- título pequeno
+- valor principal em destaque
+- variação percentual
+- micrográfico sparkline
+- tooltip
+- hover
+- skeleton loading
+- animação leve na entrada
+- ícone opcional
+
+Visual:
+- branco
+- arredondado
+- leve
+- premium
+- números em destaque
+- sem excesso de informação
+
+============================================================
+13. GRÁFICOS
+============================================================
+
+Quero gráficos muito bem trabalhados.
+
+Usar:
+- line chart
+- bar chart
+- donut / radial
+- area chart, quando fizer sentido
+- progress bars
+- comparativos por período
+
+Os gráficos devem:
+- ser limpos
+- ter tooltip refinado
+- ter grid discreto
+- ter animação sutil
+- usar paleta coerente
+- ter legendas discretas
+- destacar o dado importante
+- responder bem a hover
+- manter excelente leitura
+
+Puxar do MODELO 2:
+- gráfico central maior e dominante
+- composição com cards laterais de apoio
+
+Puxar do MODELO 3:
+- gráficos integrados a contexto operacional
+
+============================================================
+14. TABELAS
+============================================================
+
+As tabelas devem ser reformuladas completamente.
+
+Quero:
+- header limpo
+- linhas com altura confortável
+- alinhamento impecável
+- hover por linha
+- badges de status
+- ações por linha
+- filtros
+- ordenação
+- paginação
+- busca
+- estado vazio elegante
+- loading bem resolvido
+- seleção múltipla se fizer sentido
+- modo adaptado para telas menores
+
+Aplicar às tabelas de:
+- leads
+- oportunidades
+- clientes
+- vendedores
+- atividades
+- campanhas
+- comissões
+- relatórios
+- pedidos ou registros relacionados
+
+============================================================
+15. PAINEL LATERAL DE APOIO
+============================================================
+
+Quero um painel lateral inspirado no MODELO 3, mas desenhado com a estética clara do MODELO 1.
+
+Esse painel pode conter:
+- leads recentes
+- tarefas do dia
+- atividades recentes
+- compromissos
+- lembretes
+- campanhas em andamento
+- top vendedores
+- oportunidades críticas
+
+Visual:
+- cards compactos
+- avatares discretos
+- tags de status
+- blocos limpos
+- boa leitura
+- sensação de utilidade imediata
+
+============================================================
+16. SISTEMA DE WIDGETS — OBRIGATÓRIO
+============================================================
+
+Quero reproduzir no meu CRM a lógica funcional do vídeo do MODELO 1.
+
+Isso é obrigatório.
+
+Preciso de um sistema real de widgets no dashboard com:
+
+- botão “Adicionar Widget”
+- abertura de painel lateral em slide
+- painel lateral direito com animação suave
+- cards de widgets disponíveis
+- preview gráfico do widget
+- nome do widget
+- descrição curta
+- categoria/tag
+- botão de selecionar/adicionar
+- adição do widget ao dashboard
+- persistência por usuário
+- reordenação dos widgets
+- possibilidade de remover widget
+- possibilidade de editar o layout do widget
+- estado vazio bonito quando não houver widgets adicionados
+
+Se possível:
+- drag and drop para reorganização
+- redimensionamento de widgets
+- salvar layout personalizado por usuário
+
+Se drag and drop não for possível de imediato:
+- criar ao menos reorder funcional e persistente
+
+Exemplos de widgets:
+- ranking de vendedores
+- tarefas do dia
+- follow-ups pendentes
+- pipeline por etapa
+- metas do mês
+- comissão por vendedor
+- oportunidades abertas
+- leads por origem
+- clientes sem contato recente
+- previsão de fechamento
+- campanhas ativas
+- comparativo mensal
+- ticket médio
+- produtividade por equipe
+
+============================================================
+17. MICROINTERAÇÕES DO VÍDEO
+============================================================
+
+Quero absorver do vídeo do MODELO 1 a sensação de fluidez e refinamento.
+
+Aplicar:
+- slide lateral ao abrir painel de widget
+- transição suave ao adicionar/remover widget
+- hover refinado nos cards
+- microfeedback ao clicar
+- tooltips em métricas e gráficos
+- highlight sutil nos pontos do gráfico
+- números animando ao carregar
+- loading elegante
+- skeletons
+- fade + slide curto
+- hover inteligente em botões
+- foco visual em campos ativos
+- transição suave entre estados
+- drawer abrindo de forma premium
+- microanimações rápidas e funcionais
+
+Não quero:
+- animações longas
+- efeitos pesados
+- excesso de movimento
+- interface chamando atenção mais que o conteúdo
+
+============================================================
+18. BOTÕES
+============================================================
+
+Quero botões no estilo do MODELO 1:
+- arredondados
+- compactos
+- limpos
+- modernos
+- com boa hierarquia
+
+Tipos:
+- primário azul
+- secundário branco com borda sutil
+- terciário tipo ghost
+- ícone button
+- action button pequeno para tabelas e cards
+
+Aplicar em:
+- adicionar widget
+- exportar
+- criar lead
+- criar oportunidade
+- criar tarefa
+- salvar
+- editar
+- mover etapa
+- ver detalhes
+- aplicar filtro
+
+============================================================
+19. FILTROS, BUSCA E EXPORTAÇÃO
+============================================================
+
+Quero UX forte de produtividade.
+
+Implementar:
+- busca global bem posicionada
+- filtros por período
+- filtros contextuais por módulo
+- badges de filtros ativos
+- limpar filtros facilmente
+- dropdowns elegantes
+- calendário bonito
+- exportação clara
+- botão export visível, mas discreto
+- import/export onde fizer sentido
+
+Puxar do MODELO 3:
+- organização prática de filtros e ações
+
+Puxar do MODELO 1:
+- limpeza visual
+
+============================================================
+20. PÁGINAS QUE DEVEM SEGUIR A NOVA IDENTIDADE
+============================================================
+
+Não quero só o dashboard reformulado.
+Quero o CRM inteiro com a nova linguagem visual.
+
+Aplicar a mesma identidade em:
+- Dashboard
+- Leads
+- Oportunidades
+- Pipeline
+- Clientes
+- Empresas
+- Vendedores
+- Metas
+- Comissões
+- Campanhas
+- Tarefas
+- Agenda
+- Relatórios
+- Configurações
+
+Cada tela deve usar o mesmo design system.
+
+============================================================
+21. LEADS
+============================================================
+
+Na tela de Leads, quero:
+- lista/tabela premium
+- cards resumo no topo
+- filtros por origem, status, responsável, período
+- busca
+- ações rápidas
+- detalhe lateral ou modal elegante
+- boa leitura de status
+- painel de atividade do lead
+- timeline bonita e limpa
+- possibilidade de destaque para leads quentes
+
+============================================================
+22. OPORTUNIDADES E PIPELINE
+============================================================
+
+Quero pipeline mais moderno, organizado e claro.
+
+Preciso de:
+- colunas bem desenhadas
+- cards de oportunidade elegantes
+- badges de status
+- valor da oportunidade em destaque
+- nome do cliente
+- responsável
+- próxima ação
+- alertas de atraso
+- drag and drop se já existir e fizer sentido
+- interações suaves
+- visão de funil mais analítica
+- resumo de métricas no topo
+
+============================================================
+23. CLIENTES E EMPRESAS
+============================================================
+
+Quero páginas de clientes e empresas com:
+- busca forte
+- filtros
+- cards ou tabela premium
+- perfil detalhado
+- histórico de contato
+- negócios vinculados
+- tarefas relacionadas
+- visual limpo
+- cabeçalho bonito no detalhe
+- organização clara de informações
+
+============================================================
+24. TAREFAS E AGENDA
+============================================================
+
+Quero aproveitar a influência do MODELO 3.
+
+Preciso de:
+- bloco de tarefas pendentes
+- lista do dia
+- agenda visual
+- cards de tarefas
+- status visuais
+- lembretes
+- vencimento
+- prioridade
+- quick actions
+- design claro e moderno
+
+============================================================
+25. RELATÓRIOS E MÓDULOS ANALÍTICOS
+============================================================
+
+Os relatórios também precisam seguir o novo padrão.
+
+Quero:
+- cards de resumo
+- filtros avançados
+- tabelas refinadas
+- exportação
+- gráficos elegantes
+- comparativos
+- visualização clara para tomada de decisão
+
+============================================================
+26. MOBILE — USAR SÓ A ESTRUTURA DO MODELO CELULAR
+============================================================
+
+No mobile, usar apenas a lógica estrutural do MODELO CELULAR.
+
+Quero:
+- cards empilhados
+- espaçamento bom para toque
+- navegação simplificada
+- layout compacto e claro
+- adaptação de gráficos
+- filtros recolhíveis
+- bottom actions ou quick actions se fizer sentido
+- tabelas transformadas em listas/cards quando necessário
+- boa usabilidade em smartphone
+
+NÃO usar:
+- dark theme do modelo celular
+- cores escuras
+- estética visual do modelo celular
+
+A identidade precisa continuar clara e premium como no desktop.
+
+============================================================
+27. BREAKPOINTS E RESPONSIVIDADE
+============================================================
+
+Planejar e implementar responsividade real para:
+- desktop grande
+- notebook
+- tablet
+- celular
+
+No desktop:
+- máximo aproveitamento do espaço
+- grid bem distribuído
+- painel lateral útil
+
+No tablet:
+- redistribuição inteligente de blocos
+- menos colunas
+- manter legibilidade
+
+No celular:
+- empilhar corretamente
+- botões maiores
+- foco em leitura
+- navegação rápida
+
+============================================================
+28. COMPONENTIZAÇÃO / DESIGN SYSTEM
+============================================================
+
+Quero revisar ou criar componentes reutilizáveis e consistentes:
+
+- Sidebar
+- Topbar
+- SearchInput
+- FilterDropdown
+- DateRangePicker
+- PrimaryButton
+- SecondaryButton
+- GhostButton
+- IconButton
+- KPI Card
+- Chart Card
+- Donut Card
+- Progress Card
+- Table Card
+- Status Badge
+- Widget Card
+- Widget Drawer / Slide Panel
+- Empty State
+- Skeleton Loader
+- Tooltip
+- Modal
+- Drawer
+- Notification Item
+- Task Item
+- Lead Item
+- Ranking Item
+- Activity Timeline
+- Profile Header
+- Section Header
+
+Todos precisam seguir a mesma linguagem.
+
+============================================================
+29. UX STATES
+============================================================
+
+Quero atenção especial a estados de interface:
+
+- loading
+- empty
+- success
+- warning
+- error
+- disabled
+- hover
+- active
+- selected
+- focused
+- filtered
+- no data
+
+Quero estados bonitos, claros e consistentes.
+
+============================================================
+30. PERFORMANCE VISUAL E TÉCNICA
+============================================================
+
+A interface precisa ser bonita, mas também rápida.
+
+Quero:
+- frontend leve
+- sem animação pesada
+- sem re-render desnecessário
+- carregamento progressivo elegante
+- skeletons em vez de travar a UI
+- boa experiência mesmo com muitos dados
+
+============================================================
+31. O QUE NÃO QUERO
+============================================================
+
+Não quero:
+- cópia literal das referências
+- interface escura como padrão
+- excesso de gradiente
+- excesso de sombra
+- cards apertados
+- bordas duras
+- aparência genérica
+- visual infantil
+- ícones inconsistentes
+- widgets soltos sem padrão
+- tabela com cara de sistema antigo
+- dashboard bonito mas pouco útil
+- animações exageradas
+- visual pesado
+- design sem coerência entre as páginas
+
+============================================================
+32. DIREÇÃO FINAL OBRIGATÓRIA
+============================================================
+
+Quero que o resultado final fique aproximadamente assim:
+
+- 70% inspirado no MODELO 1
+- 15% inspirado no MODELO 2
+- 15% inspirado no MODELO 3
+
+No mobile:
+- usar a lógica estrutural do MODELO CELULAR
+- mantendo cores, estilo e identidade do desktop claro
+
+============================================================
+33. O QUE ESPERO COMO ENTREGA
+============================================================
+
+Quero que você:
+
+1. faça leitura profunda das referências
+2. reestruture visualmente o CRM inteiro
+3. preserve a lógica de negócio atual
+4. aplique uma nova linguagem visual consistente
+5. implemente design system interno reutilizável
+6. reformule dashboard, páginas internas, tabelas, formulários e modais
+7. implemente sistema de widgets com slide lateral semelhante ao vídeo
+8. implemente microinterações suaves e profissionais
+9. melhore responsividade desktop/tablet/mobile
+10. melhore hierarquia visual e legibilidade
+11. melhore UX de tabelas, filtros e busca
+12. revise alinhamentos, bordas, sombras, espaçamentos e consistência geral
+13. entregue frontend com aparência premium real
+
+============================================================
+34. CHECKLIST DE VALIDAÇÃO FINAL
+============================================================
+
+Antes de considerar concluído, valide se o resultado final:
+
+- está muito mais próximo do MODELO 1
+- absorveu os melhores pontos do MODELO 2 e 3 sem poluir
+- manteve mobile baseado só na estrutura do modelo celular
+- tem dashboard bonito e útil
+- tem widgets funcionais e elegantes
+- tem animações suaves e não exageradas
+- tem cards, filtros e tabelas premium
+- tem design system consistente
+- tem boa leitura de dados
+- tem excelente hierarquia visual
+- tem cara de produto SaaS profissional
+- está pronto para uso real no dia a dia

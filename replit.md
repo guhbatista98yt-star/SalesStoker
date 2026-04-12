@@ -22,6 +22,16 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 
 ## Recent Changes
 
+- **Premium UI Redesign (April 2026)**: Complete visual overhaul inspired by Model 1 (Shopeers) premium SaaS aesthetic:
+  - **Design System (index.css)**: New CSS tokens — refined off-white background (`210 22% 96%`), vivid blue primary (`217 93% 52%`), premium shadow scale (shadow-card, shadow-panel, shadow-modal), border-radius tokens (lg=14px, xl=18px, 2xl=22px), skeleton shimmer animations, fade-up/count-up transitions, consistent color palette for semantic states
+  - **Tailwind Config**: Updated `borderRadius` (lg=14px, xl=18px, 2xl=22px, 3xl=28px), new `boxShadow` utilities (card, card-hover, panel, modal) for precise elevation system
+  - **Card Component**: Uses new `shadow-card` with hover transition; `rounded-xl` (18px), refined `border-card-border`
+  - **Sidebar (app-sidebar.tsx)**: Complete redesign — blue rounded logo icon, `CONECTUBOS` brand text + subtitle, grouped navigation with uppercase labels, clean item height (h-9), shadcn `isActive` state for accent highlight, footer section with Campanhas + Configurações for admin
+  - **Topbar (App.tsx)**: Replaced plain header with premium `TopHeader` — dropdown user menu with avatar initials, display name, email, change password, logout with red styling; `ThemeToggle` integrated; compact h-14 design with `bg-card/80 backdrop-blur`
+  - **Mobile Bottom Nav**: New `MobileBottomNav` component (md:hidden) with 5-item bottom bar (Dashboard, Vendedores, Metas, Análises, Alertas) with active blue indicator; safe-area padding for iOS
+  - **KPI Card (kpi-card.tsx)**: Full redesign — trend badge with colored pill background (emerald/red/muted), skeleton loading with shimmer, icon in rounded container, `animate-count-up` on values, `animate-fade-in` on mount, `shadow-card hover:shadow-card-hover`
+  - **Dashboard Header**: Simplified to clean h-14 sticky bar with title, refresh icon button, CompanySelector, and period toggle button
+
 - **Campaigns Module**: Full commercial campaign management system at `/campanhas`:
   - Database: `campaigns`, `campaign_versions`, `campaign_audit_logs`, `campaign_simulations` tables (SQLite, JSON columns for flexible rule storage)
   - Backend engine: `server/campaigns/engine.ts` evaluates condition trees server-side (never client-side); supports nested AND/OR groups, all condition types, reward tiers

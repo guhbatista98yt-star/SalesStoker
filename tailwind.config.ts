@@ -9,12 +9,15 @@ export default {
         'xs': '480px',
       },
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        sm:   "0.375rem",   /* 6px */
+        md:   "0.625rem",   /* 10px */
+        lg:   "0.875rem",   /* 14px — cards */
+        xl:   "1.125rem",   /* 18px — panels */
+        "2xl": "1.375rem",  /* 22px — modals */
+        "3xl": "1.75rem",   /* 28px */
+        full: "9999px",
       },
       colors: {
-        // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",
         border: "hsl(var(--border) / <alpha-value>)",
@@ -90,6 +93,12 @@ export default {
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
       },
+      boxShadow: {
+        "card": "0 1px 4px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.04)",
+        "card-hover": "0 4px 12px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04)",
+        "panel": "0 8px 24px -4px rgb(0 0 0 / 0.1), 0 2px 8px -2px rgb(0 0 0 / 0.06)",
+        "modal": "0 20px 40px -8px rgb(0 0 0 / 0.12), 0 8px 16px -4px rgb(0 0 0 / 0.06)",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -99,10 +108,20 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "slide-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fade-in 0.25s ease",
+        "slide-up": "slide-up 0.3s ease",
       },
     },
   },
