@@ -1,0 +1,38 @@
+# Node
+node_modules/
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+
+# Banco de dados
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Arquivos compactados
+*.rar
+*.zip
+
+# Ambiente
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Replit / temporário
+.replit

@@ -1,0 +1,2 @@
+# Dependências Python para sync_db2.py
+pyodbc>=4.0.0
