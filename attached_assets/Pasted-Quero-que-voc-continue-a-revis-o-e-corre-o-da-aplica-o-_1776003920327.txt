@@ -1,0 +1,273 @@
+Quero que você continue a revisão e correção da aplicação com foco em estabilidade, confiabilidade e produção, mas com uma regra importante de execução e resposta:
+
+IMPORTANTE SOBRE A RESPOSTA:
+No último prompt, a resposta travou ao tentar detalhar excessivamente pontos remanescentes.
+Então agora NÃO quero uma resposta longa, nem extensa, nem excessivamente descritiva.
+Quero que você execute o trabalho primeiro e depois me devolva um resumo final OBJETIVO e ENXUTO.
+
+Formato obrigatório da resposta final:
+1. Problemas encontrados
+2. Correções aplicadas
+3. Pontos que ainda exigem atenção imediata
+
+Limite a resposta final ao essencial.
+Não quero relatório gigante.
+Não quero texto repetitivo.
+Não quero despejar muita saída.
+Quero foco em execução real e resumo objetivo.
+
+================================================================
+1. REVISÃO E CORREÇÃO NOVAMENTE
+================================================================
+
+Quero que você faça nova revisão da aplicação como programador sênior, procurando e corrigindo:
+- bugs
+- regressões
+- erros silenciosos
+- inconsistências
+- conflitos entre módulos
+- falhas de cálculo
+- problemas de dados
+- problemas de campanhas, metas e comissões
+- problemas de permissões
+- problemas de responsividade
+- problemas de mobile
+- problemas de performance
+- qualquer ponto que comprometa a produção
+
+Não fique só analisando.
+Corrija e endureça o sistema.
+
+================================================================
+2. NÃO TRAVAR NA RESPOSTA
+================================================================
+
+Quero que você evite gerar saída excessiva.
+Se encontrar muitos pontos:
+- corrija primeiro
+- registre internamente/logicamente
+- me devolva no final apenas o resumo essencial
+
+Não liste dezenas de observações irrelevantes.
+Não gere resposta enorme.
+Não perca tempo tentando escrever auditoria extensa demais.
+Faça o trabalho e me entregue o resultado resumido.
+
+================================================================
+3. CARGA INICIAL DE 2 ANOS NO PRIMEIRO START DO SERVIDOR
+================================================================
+
+Preciso de um comportamento novo e obrigatório:
+
+Na PRIMEIRA vez que o servidor for iniciado em um ambiente novo, ou quando o banco PostgreSQL ainda não tiver sido inicializado corretamente para histórico, a aplicação deve puxar do ERP DB2 os dados de 2 anos atrás até a data atual e salvar no PostgreSQL.
+
+Objetivo:
+ter base histórica suficiente para:
+- comparativos
+- crescimento
+- metas
+- campanhas
+- comissões
+- dashboards
+- análises mensais e semanais
+- relatórios históricos
+
+IMPORTANTE:
+Isso deve acontecer somente no bootstrap inicial ou quando o sistema detectar que o histórico base ainda não foi carregado.
+
+Depois da carga inicial:
+- a aplicação deve seguir com sync incremental normal
+- não deve ficar puxando 2 anos toda vez
+- deve existir controle claro de que a carga histórica inicial já foi concluída
+
+================================================================
+4. COMO IMPLEMENTAR A CARGA INICIAL
+================================================================
+
+Quero uma implementação robusta e profissional.
+
+Requisitos:
+- detectar se o ambiente é novo ou se ainda não existe carga histórica inicial concluída
+- criar controle em banco, por exemplo em tabela de estado de sincronização
+- registrar que a carga inicial começou
+- registrar progresso
+- registrar sucesso ou falha
+- registrar último período processado
+- permitir retomada em caso de interrupção
+- marcar como concluída somente ao terminar tudo com sucesso
+
+Essa carga histórica deve ser:
+- segura
+- idempotente
+- reiniciável sem duplicar dados
+- resiliente em caso de falha
+
+================================================================
+5. CARGA HISTÓRICA EM LOTES
+================================================================
+
+NÃO quero puxar os 2 anos de uma vez só se isso for pesado.
+
+Quero que você implemente a carga inicial em lotes inteligentes, por exemplo:
+- mês a mês
+ou
+- janelas menores, se fizer mais sentido
+
+Requisitos:
+- dividir a leitura do DB2 em períodos controlados
+- salvar lote por lote no PostgreSQL
+- commit por lote no PostgreSQL
+- encerrar corretamente a operação no DB2 a cada lote
+- não manter conexão ou transação do DB2 aberta por tempo maior que o necessário
+- permitir retomada do último lote concluído
+
+================================================================
+6. PROTEGER O ERP DB2
+================================================================
+
+A carga histórica NÃO pode ser feita de forma bruta e perigosa.
+
+O time do ERP já alertou corretamente sobre:
+- risco de lock
+- falta de commit
+- table scan
+- consultas sem filtro
+- lentidão
+- travamento de outras aplicações
+- excesso de uso de disco
+
+Então quero que a implementação siga obrigatoriamente estas regras:
+
+- usar filtros por período em todas as consultas históricas
+- buscar somente colunas necessárias
+- evitar SELECT *
+- evitar leituras abertas sem necessidade
+- usar janelas controladas
+- abrir conexão
+- aplicar schema DBA corretamente
+- consultar o lote filtrado
+- fechar cursor/conexão
+- só depois processar localmente o que for necessário
+- não deixar conexão DB2 aberta durante processamento local demorado
+- usar commit/rollback corretamente
+- registrar tempo de execução e volume por lote
+
+================================================================
+7. CONTROLE DE ESTADO DA CARGA INICIAL
+================================================================
+
+Quero uma estrutura confiável para controlar a carga inicial, por exemplo com uma tabela equivalente a:
+
+- rotina
+- tipo de carga
+- data inicial planejada
+- data final planejada
+- período atual em processamento
+- último período concluído
+- status
+- data/hora de início
+- data/hora de fim
+- quantidade de registros processados
+- mensagem de erro
+- flag de carga inicial concluída
+
+Quero também proteção para:
+- não rodar duas cargas iniciais ao mesmo tempo
+- evitar duplicidade se o servidor reiniciar
+- evitar que o processo recomece do zero sem necessidade
+
+================================================================
+8. APÓS A CARGA INICIAL
+================================================================
+
+Depois que o histórico de 2 anos for concluído com sucesso:
+- manter somente sincronização incremental
+- usar watermark / última data processada
+- puxar somente alterações novas
+- continuar protegendo o DB2 com filtros e lotes
+
+================================================================
+9. DADOS QUE DEVEM RESPEITAR O HISTÓRICO
+================================================================
+
+Quero que essa carga inicial contemple corretamente os dados necessários para comparativos reais, incluindo o que for relevante para:
+- vendas
+- pedidos
+- vendedores
+- produtos
+- fornecedores
+- categorias / segmentos / grupos
+- metas
+- campanhas
+- comissões
+- dashboards
+- relatórios comparativos
+
+Use o que realmente for necessário para o sistema funcionar com análise histórica forte.
+Não puxar dados inúteis só para dizer que puxou.
+
+================================================================
+10. CRIAÇÃO DE TABELAS E ESTRUTURA
+================================================================
+
+Aproveite esta etapa para garantir novamente que todas as tabelas, colunas, índices e estruturas necessárias existam no PostgreSQL.
+
+Se faltar estrutura para:
+- campanhas
+- comissões
+- metas
+- dashboards
+- histórico
+- sync_state
+- sync_logs
+- locks de execução
+- auditoria
+- resultados
+- relatórios
+- usuários e permissões
+
+quero que seja criada automaticamente de forma segura e idempotente.
+
+================================================================
+11. PERFORMANCE E ROBUSTEZ
+================================================================
+
+Quero que você revise a aplicação e já deixe isso preparado com:
+- logs claros
+- tratamento de erro robusto
+- rollback correto
+- retomada segura
+- idempotência
+- upsert confiável
+- prevenção de duplicidade
+- prevenção de travamento
+- prevenção de regressão
+
+================================================================
+12. ENTREGA ESPERADA
+================================================================
+
+Quero que você:
+
+1. revise novamente a aplicação com postura sênior
+2. corrija bugs, erros e fragilidades
+3. implemente a carga histórica inicial de 2 anos no primeiro start do servidor
+4. garanta que essa carga seja em lotes, segura e retomável
+5. proteja o ERP DB2 contra consultas pesadas e mal filtradas
+6. mantenha sync incremental depois do bootstrap
+7. garanta estrutura completa no PostgreSQL
+8. me entregue apenas um resumo final objetivo
+
+================================================================
+13. FORMATO FINAL DA RESPOSTA
+================================================================
+
+Responder SOMENTE com estas 3 seções curtas:
+
+1. Problemas encontrados
+2. Correções aplicadas
+3. Pontos que ainda exigem atenção imediata
+
+Se houver muitos detalhes técnicos, resuma.
+Não gerar resposta longa.
+Não travar tentando escrever relatório grande.
