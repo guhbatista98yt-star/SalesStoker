@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp,
-  Store, PaintBucket, Calendar, Megaphone, LineChart, DollarSign, ShieldCheck,
+  Store, PaintBucket, Calendar, Megaphone, LineChart, DollarSign, ShieldCheck, ShoppingCart,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,10 @@ const coreItems = [
   { title: "Vendedores",    url: "/vendedores", icon: Users },
   { title: "Metas",         url: "/metas",      icon: Target },
   { title: "Alertas",      url: "/alertas",    icon: Bell },
+];
+
+const comprasItems = [
+  { title: "Copiloto de Compras", url: "/compras", icon: ShoppingCart },
 ];
 
 const analysisItems = [
@@ -77,6 +81,8 @@ export function AppSidebar() {
         : analysisItems.filter(i => isModuleEnabled(i.title));
 
   const showCampanhas = role === "admin" && isModuleEnabled("Campanhas");
+  const COMPRAS_ROLES = ["admin", "supervisor", "gerente", "diretor", "comprador"];
+  const showCompras = COMPRAS_ROLES.includes(role) && isModuleEnabled("Compras");
 
   return (
     <Sidebar className="border-r border-sidebar-border bg-sidebar">
@@ -143,6 +149,22 @@ export function AppSidebar() {
               <SidebarMenu>
                 {filteredAnalysis.map(item => (
                   <NavItem key={item.title} item={item} active={location === item.url} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Compras */}
+        {showCompras && (
+          <SidebarGroup className="mb-2">
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 mb-1">
+              Compras
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {comprasItems.map(item => (
+                  <NavItem key={item.title} item={item} active={location.startsWith("/compras")} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>

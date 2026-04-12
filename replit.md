@@ -34,6 +34,25 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - **Configurações** — Nova aba "Alertas de Compras" na página `/configuracoes` com preferências do usuário + painel admin.
 - **Header** — Bell icon substituído pelo `PurchaseNotificationCenter` com badge vermelho de contagem não lida.
 
+## Recent Changes (April 2026 — Copiloto de Compras)
+
+- **Módulo Copiloto de Compras** — Nova rota `/compras` com dashboard completo e páginas de detalhe por fornecedor (`/compras/fornecedores/:id`) e produto (`/compras/produtos/:id`).
+- **KPIs do Dashboard**: 10 cards — fornecedores críticos, produtos críticos, itens zerados em 3/7 dias, abaixo do estoque de segurança, excesso, valor estimado, pedidos sugeridos, pedidos em aberto, fornecedores de maior risco.
+- **Alertas em tempo real**: painel com tipo, produto/fornecedor, criticidade, tempo estimado para ruptura, ação sugerida e botões de ação (ver, silenciar).
+- **Rankings**: tabelas de fornecedores e produtos críticos com filtros, ordenação e links para páginas de detalhe. Versão mobile em cards.
+- **Gráficos Recharts**: cobertura por fornecedor (BarChart), distribuição por criticidade (PieChart), previsão de ruptura por faixa de dias (BarChart).
+- **Sugestão consolidada por fornecedor** com urgência e valor estimado.
+- **Drawer de simulação rápida**: selecionar produto/fornecedor, informar quantidade, ver cobertura antes × depois, nova criticidade.
+- **Página de detalhe por fornecedor**: indicadores, gráfico de cobertura por produto, tabela de produtos.
+- **Página de detalhe por produto**: estoque, cobertura, consumo médio (diário/semanal/mensal), histórico de consumo (BarChart), simulação inline.
+- **Componentes de criticidade reutilizáveis**: `CriticidadeBadge` e `CriticidadeDot` com paleta padronizada (crítico=vermelho, alto=laranja, moderado=amarelo, atenção=azul, normal=verde).
+- **Sidebar**: novo grupo "Compras" com item "Copiloto de Compras" (ShoppingCart icon), visível para todos os roles exceto loja e vendedor.
+- **Command palette**: item "Copiloto de Compras" adicionado ao menu de busca admin.
+- **DEFAULT_MODULE_PERMISSIONS**: adicionado `Compras: true`.
+- **Dados**: API hooks com fallback para mock data (enquanto backend não implementado), com auto-refresh configurável via TanStack Query.
+- **Responsividade**: cards de KPI empilhados em 2 colunas no mobile, tabelas convertidas em cards, drawers adaptativos.
+
+
 ## Recent Changes (April 2026 — IAM Module: Usuários & Permissões)
 
 - **Módulo Usuários & Permissões** — Nova página `/usuarios` (admin-only) com 4 abas: Usuários, Perfis, Permissões, Auditoria. Acesso via sidebar e command palette.

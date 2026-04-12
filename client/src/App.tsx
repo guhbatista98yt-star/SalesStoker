@@ -24,7 +24,7 @@ import { DialogTitle } from "@/components/ui/dialog";
 import {
   LogOut, Loader2, KeyRound, LayoutDashboard, Users, Target,
   BarChart3, Settings, ChevronDown, Search, CalendarDays, CalendarRange,
-  Store, AlertTriangle, Megaphone, BookOpen, DollarSign,
+  Store, AlertTriangle, Megaphone, BookOpen, DollarSign, ShoppingCart,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import { PurchaseNotificationCenter } from "@/components/purchase-notification-center";
@@ -46,10 +46,15 @@ import CampaignView from "@/pages/campanhas/view";
 import Comissoes from "@/pages/comissoes/index";
 import ConfigurarComissoes from "@/pages/comissoes/configurar";
 import Usuarios from "@/pages/usuarios";
+import ComprasDashboard from "@/pages/compras/index";
+import FornecedorDetalhe from "@/pages/compras/fornecedor";
+import ProdutoDetalhe from "@/pages/compras/produto";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ── Guards ──────────────────────────────────────────────────────────────────── */
+const COMPRAS_ALLOWED_ROLES = ["admin", "supervisor", "gerente", "diretor", "comprador"];
+
 function VendedorGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user || user.role !== "vendedor") {
@@ -58,6 +63,25 @@ function VendedorGuard({ children }: { children: React.ReactNode }) {
         <div className="text-center text-muted-foreground flex flex-col items-center gap-4">
           <AlertCircle className="w-12 h-12 text-destructive" />
           <p className="text-lg font-medium">Acesso restrito a vendedores.</p>
+        </div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
+function ComprasGuard({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const role = user?.role ?? "";
+  const modPerms = user?.modulePermissions ?? null;
+  const comprasEnabled = modPerms ? modPerms["Compras"] !== false : true;
+  if (!COMPRAS_ALLOWED_ROLES.includes(role) || !comprasEnabled) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center text-muted-foreground flex flex-col items-center gap-4">
+          <AlertCircle className="w-12 h-12 text-destructive" />
+          <p className="text-lg font-medium">Acesso não autorizado.</p>
+          <p className="text-sm">Este módulo é restrito ao perfil de Compras.</p>
         </div>
       </div>
     );
@@ -99,6 +123,21 @@ function Router() {
       <Route path="/comissoes" component={Comissoes} />
       <Route path="/comissoes/configurar" component={ConfigurarComissoes} />
       <Route path="/usuarios" component={Usuarios} />
+      <Route path="/compras" component={() => <ComprasGuard><ComprasDashboard /></ComprasGuard>} />
+      <Route path="/compras/fornecedores/:id">
+        {(params) => (
+          <ComprasGuard>
+            <FornecedorDetalhe id={params?.id ?? ""} />
+          </ComprasGuard>
+        )}
+      </Route>
+      <Route path="/compras/produtos/:id">
+        {(params) => (
+          <ComprasGuard>
+            <ProdutoDetalhe id={params?.id ?? ""} />
+          </ComprasGuard>
+        )}
+      </Route>
       {(role === "admin" || role === "supervisor") && (
         <>
           <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
@@ -194,6 +233,7 @@ function CommandPalette() {
     { label: "Comissões",            href: "/comissoes",   icon: DollarSign },
     { label: "Usuários & Permissões", href: "/usuarios",   icon: Users },
     { label: "Configurações",        href: "/configuracoes", icon: Settings },
+    { label: "Copiloto de Compras",  href: "/compras",       icon: ShoppingCart },
   ];
 
   const lojaItems = [
