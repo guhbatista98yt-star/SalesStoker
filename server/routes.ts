@@ -583,8 +583,50 @@ export async function registerRoutes(
         vendedorId = await storage.getVendedorIdByEmail(vendedorId);
       }
 
-      const data = await storage.getMetasAmancoDTR(vendedorId);
-      res.json(data);
+      // ── Lógica de período com grace period ──────────────────────────────
+      const graceSetting = await storage.getAppSetting("dtrGracePeriodDays");
+      const graceDays = Math.max(0, parseInt(graceSetting ?? "5") || 5);
+
+      const now = new Date();
+      const currentQuarterIdx = Math.floor(now.getMonth() / 3);
+      const currentYear = now.getFullYear();
+
+      // Início do trimestre corrente (1º dia do mês inicial do trimestre)
+      const currentQuarterStart = new Date(currentYear, currentQuarterIdx * 3, 1);
+
+      // Fim do grace period
+      const gracePeriodEnd = new Date(currentQuarterStart);
+      gracePeriodEnd.setDate(gracePeriodEnd.getDate() + graceDays);
+
+      const inGracePeriod = graceDays > 0 && now >= currentQuarterStart && now < gracePeriodEnd;
+      const daysLeft = inGracePeriod
+        ? Math.ceil((gracePeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      // Trimestre anterior
+      const prevQuarterIdx = currentQuarterIdx === 0 ? 3 : currentQuarterIdx - 1;
+      const prevYear = currentQuarterIdx === 0 ? currentYear - 1 : currentYear;
+
+      const quarterNames = ["JAN/FEV/MAR", "ABR/MAI/JUN", "JUL/AGO/SET", "OUT/NOV/DEZ"];
+
+      // Qual trimestre exibir?
+      const viewPrev = req.query.view === "prev" && inGracePeriod;
+      const targetQuarter = viewPrev ? prevQuarterIdx : currentQuarterIdx;
+      const targetYear    = viewPrev ? prevYear       : currentYear;
+
+      const data = await storage.getMetasAmancoDTR(vendedorId, targetYear, targetQuarter);
+
+      const graceInfo = {
+        inGracePeriod,
+        daysLeft,
+        graceDays,
+        viewingPrev: viewPrev,
+        currentQuarterName: `${quarterNames[currentQuarterIdx]} ${currentYear}`,
+        prevQuarterName:    `${quarterNames[prevQuarterIdx]} ${prevYear}`,
+        gracePeriodEndDate: gracePeriodEnd.toISOString().split("T")[0],
+      };
+
+      res.json({ ...data, graceInfo });
     } catch (error) {
       console.error("Erro metas amanco dtr:", error);
       res.status(500).json({ error: "Erro ao buscar DTR" });

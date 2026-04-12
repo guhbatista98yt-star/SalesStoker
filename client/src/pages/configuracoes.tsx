@@ -725,6 +725,28 @@ function PermissoesSection() {
   const { data: settingTv }    = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTvAmancoTab"],       staleTime: 0 });
   const { data: settingElit }  = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTintasElitTab"],     staleTime: 0 });
 
+  const { data: settingGrace } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/dtrGracePeriodDays"],   staleTime: 0 });
+  const [graceDaysInput, setGraceDaysInput] = useState<string>("");
+
+  useEffect(() => {
+    const val = settingGrace?.value ?? "5";
+    setGraceDaysInput(val);
+  }, [settingGrace?.value]);
+
+  const saveGraceMutation = useMutation({
+    mutationFn: async (days: string) => {
+      const res = await apiRequest("POST", "/api/admin/app-settings", { key: "dtrGracePeriodDays", value: days });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/app-settings/dtrGracePeriodDays"] });
+      toast({ title: "Prazo de consulta salvo." });
+    },
+    onError: () => {
+      toast({ title: "Erro ao salvar prazo", variant: "destructive" });
+    },
+  });
+
   const TAB_FLAGS = [
     { key: "showAcompanhamentoTab", label: 'Aba "Acompanhamento"', description: "Visão geral de metas semanais e mensais.",                        defaultVisible: false, setting: settingAcomp },
     { key: "showDtrAmancoTab",      label: 'Aba "DTR Amanco"',     description: "Campanha trimestral de faturamento e mix Amanco.",                defaultVisible: true,  setting: settingDtr  },
@@ -820,6 +842,62 @@ function PermissoesSection() {
               />
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ── Configurações da campanha DTR Amanco ────────────── */}
+      <div>
+        <h2 className="text-lg font-semibold">Campanha DTR Amanco</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Parâmetros de exibição e renovação automática por trimestre.
+        </p>
+        <div className="border rounded-lg divide-y divide-border">
+          {/* Grace period */}
+          <div className="px-4 py-4">
+            <p className="text-sm font-medium">Prazo de consulta do trimestre anterior</p>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+              Número de dias após o início de um novo trimestre em que os vendedores podem consultar os resultados do trimestre anterior. Padrão: 5 dias. Use 0 para desativar.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                max="30"
+                className="w-20 h-8 text-sm"
+                value={graceDaysInput}
+                onChange={e => setGraceDaysInput(e.target.value)}
+              />
+              <span className="text-sm text-muted-foreground">dias</span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const days = Math.max(0, Math.min(30, parseInt(graceDaysInput) || 0));
+                  setGraceDaysInput(String(days));
+                  saveGraceMutation.mutate(String(days));
+                }}
+                disabled={saveGraceMutation.isPending}
+              >
+                {saveGraceMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span className="ml-1.5">Salvar</span>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Exemplo: com 5 dias, em 1 de abril os vendedores ainda podem ver os resultados de Janeiro-Março até o dia 5 de abril.
+            </p>
+          </div>
+
+          {/* Renovação automática — informativo */}
+          <div className="flex items-start gap-3 px-4 py-4">
+            <div className="mt-0.5 h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Renovação trimestral automática</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A cada novo trimestre (Jan, Abr, Jul, Out) os dados são exibidos automaticamente para o novo período. Nenhuma ação do administrador é necessária.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

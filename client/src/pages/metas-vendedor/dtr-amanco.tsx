@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, AlertCircle, Target, Percent, TrendingUp, Store, DollarSign, CheckCircle2, Gift, ShieldCheck, Zap } from "lucide-react";
+import { Loader2, AlertCircle, Target, Percent, TrendingUp, Store, CheckCircle2, Gift, ShieldCheck, Zap, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency, formatDateBR } from "@/lib/calendar-utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { CampaignHero } from "@/components/campanhas/campaign-hero";
@@ -7,6 +8,9 @@ import { CampaignStatusBanner, type Requirement } from "@/components/campanhas/c
 import { MetricCard } from "@/components/campanhas/metric-card";
 import { CalculationMemory } from "@/components/campanhas/calculation-memory";
 import { CampaignRules } from "@/components/campanhas/campaign-rules";
+import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 
 /* ── Skeleton ─────────────────────────────────────────────────────────────── */
 function Skeleton() {
@@ -25,10 +29,66 @@ function Skeleton() {
   );
 }
 
+/* ── Grace period banner ──────────────────────────────────────────────────── */
+interface GraceBannerProps {
+  graceInfo: {
+    inGracePeriod: boolean;
+    daysLeft: number;
+    viewingPrev: boolean;
+    currentQuarterName: string;
+    prevQuarterName: string;
+    gracePeriodEndDate: string;
+  };
+  viewPrev: boolean;
+  onToggle: () => void;
+}
+
+function GracePeriodBanner({ graceInfo, viewPrev, onToggle }: GraceBannerProps) {
+  if (!graceInfo.inGracePeriod) return null;
+
+  return (
+    <div className={cn(
+      "flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-xl border text-sm",
+      viewPrev
+        ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+        : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+    )}>
+      <Clock className={cn("w-4 h-4 shrink-0", viewPrev ? "text-amber-600" : "text-blue-600")} />
+      <p className={cn("flex-1 leading-snug", viewPrev ? "text-amber-800 dark:text-amber-200" : "text-blue-800 dark:text-blue-200")}>
+        {viewPrev
+          ? <>Visualizando <strong>{graceInfo.prevQuarterName}</strong> (trimestre anterior). Disponível por mais <strong>{graceInfo.daysLeft} {graceInfo.daysLeft === 1 ? "dia" : "dias"}</strong> até {graceInfo.gracePeriodEndDate}.</>
+          : <>Novo trimestre <strong>{graceInfo.currentQuarterName}</strong> iniciado. Você ainda pode consultar <strong>{graceInfo.prevQuarterName}</strong> por <strong>{graceInfo.daysLeft} {graceInfo.daysLeft === 1 ? "dia" : "dias"}</strong>.</>
+        }
+      </p>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onToggle}
+        className={cn(
+          "shrink-0 gap-1.5",
+          viewPrev
+            ? "border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200"
+            : "border-blue-300 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-200"
+        )}
+      >
+        {viewPrev
+          ? <><ChevronRight className="w-3.5 h-3.5" /> Ver trimestre atual</>
+          : <><ChevronLeft className="w-3.5 h-3.5" /> Ver trimestre anterior</>
+        }
+      </Button>
+    </div>
+  );
+}
+
 /* ── Main ─────────────────────────────────────────────────────────────────── */
 export default function DtrAmancoTab() {
+  const [viewPrev, setViewPrev] = useState(false);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["/api/metas/amanco/dtr"],
+    queryKey: ["/api/metas/amanco/dtr", viewPrev ? "prev" : "current"],
+    queryFn: () =>
+      apiRequest("GET", `/api/metas/amanco/dtr${viewPrev ? "?view=prev" : ""}`)
+        .then(r => r.json()),
     refetchInterval: 300000,
   });
 
@@ -54,7 +114,10 @@ export default function DtrAmancoTab() {
     mix_amanco: mx,
     crescimento_loja: cl,
     elegibilidade: el,
+    graceInfo,
   } = data as any;
+
+  const isViewingPrev = graceInfo?.viewingPrev === true;
 
   /* ── Helpers ── */
   const safeDiv = (num: number, den: number, fallback = 0) =>
@@ -145,6 +208,16 @@ export default function DtrAmancoTab() {
 
   return (
     <div className="space-y-5">
+
+      {/* ── Grace Period Banner ── */}
+      {graceInfo && (
+        <GracePeriodBanner
+          graceInfo={graceInfo}
+          viewPrev={viewPrev}
+          onToggle={() => setViewPrev(v => !v)}
+        />
+      )}
+
       {/* ── Hero ── */}
       <CampaignHero
         supplierName="Amanco Wavin"
@@ -152,12 +225,14 @@ export default function DtrAmancoTab() {
         brandColor="#0057A8"
         brandColorDark="#003D80"
         campaignName="Campanha DTR Amanco"
-        subtitle="Desenvolvimento e Treinamento de Revendas"
+        subtitle={isViewingPrev
+          ? `Resultados do trimestre anterior · ${graceInfo?.prevQuarterName}`
+          : "Desenvolvimento e Treinamento de Revendas"}
         periodStart={periodo.inicio}
         periodEnd={periodo.fim}
-        status="ativa"
+        status={isViewingPrev ? "encerrada" : "ativa"}
         type="atingimento"
-        typeLabel="Atingimento"
+        typeLabel={isViewingPrev ? "Consulta Anterior" : "Atingimento"}
         eligible={el.participando}
         metrics={[
           {
