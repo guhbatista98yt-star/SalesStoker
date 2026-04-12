@@ -14,8 +14,9 @@ import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle, Package, ShoppingCart, Clock, TrendingDown, TrendingUp,
   DollarSign, FileText, Building2, ChevronRight, Eye, BellOff, RefreshCw,
-  BarChart3, Filter, ArrowUpDown,
+  BarChart3, Filter, ArrowUpDown, HelpCircle, CheckCircle2, Info,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -223,6 +224,7 @@ export default function ComprasDashboard() {
   const [sortFornecedor, setSortFornecedor] = useState<"criticidade" | "valor" | "itens">("criticidade");
   const [sortProduto, setSortProduto] = useState<"criticidade" | "cobertura" | "sugestao">("criticidade");
   const [showTodosAlertas, setShowTodosAlertas] = useState(false);
+  const [showInstrucoes, setShowInstrucoes] = useState(false);
 
   function handleAlertaAcao(id: string, acao: "ver" | "silenciar" | "detalhe") {
     if (acao === "ver") setAlertasVisto(s => { const n = new Set(s); n.add(id); return n; });
@@ -296,6 +298,9 @@ export default function ComprasDashboard() {
             <p className="text-sm text-muted-foreground">Visão em tempo real do estoque crítico e sugestões de compra</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => setShowInstrucoes(true)} className="gap-2">
+              <HelpCircle className="h-3.5 w-3.5" /> Instruções
+            </Button>
             <Button size="sm" variant="outline" onClick={() => refetchDash()} className="gap-2">
               <RefreshCw className="h-3.5 w-3.5" /> Atualizar
             </Button>
@@ -681,6 +686,82 @@ export default function ComprasDashboard() {
         onClose={() => setSimulacaoOpen(false)}
         produtos={produtos}
       />
+
+      {/* Dialog de Instruções */}
+      <Dialog open={showInstrucoes} onOpenChange={setShowInstrucoes}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="h-5 w-5 text-primary" />
+              Como funciona o Copiloto de Compras
+            </DialogTitle>
+            <DialogDescription>
+              Guia rápido para entender os indicadores e tomar decisões de compra com mais segurança.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 mt-2">
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Info className="h-4 w-4 text-blue-500 shrink-0" /> O que é o Copiloto?
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                O Copiloto analisa automaticamente as vendas dos últimos meses e o estoque atual para indicar quais produtos precisam ser comprados e em qual quantidade — antes que faltem na prateleira.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /> Alertas em tempo real
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Os alertas aparecem automaticamente quando um produto está prestes a zerar o estoque ou já está abaixo do mínimo de segurança. Clique em <strong>Detalhe</strong> para ver o produto específico, ou <strong>Silenciar</strong> para ocultar um alerta já tratado.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Package className="h-4 w-4 text-orange-500 shrink-0" /> Criticidade dos produtos
+              </h3>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p><span className="font-medium text-red-600">Crítico</span> — cobertura menor ou igual ao prazo de entrega do fornecedor. Compre imediatamente.</p>
+                <p><span className="font-medium text-orange-500">Alto</span> — cobertura próxima do ponto de reposição. Compre em breve.</p>
+                <p><span className="font-medium text-yellow-600">Moderado</span> — atenção, mas ainda há margem de alguns dias.</p>
+                <p><span className="font-medium text-blue-500">Atenção</span> — monitorar de perto.</p>
+                <p><span className="font-medium text-green-600">Normal</span> — estoque saudável, sem necessidade imediata de compra.</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-purple-500 shrink-0" /> Ranking de fornecedores
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Mostra quais fornecedores têm mais produtos em situação crítica. Clique em <strong>Ver</strong> para abrir o detalhe do fornecedor e ver todos os produtos dele com sugestão de quantidade e data estimada de ruptura.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-green-600 shrink-0" /> Simular Compra
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Antes de fechar um pedido, use o botão <strong>Simular Compra</strong> para ver o impacto de uma quantidade específica na cobertura do produto — sem precisar comprar de verdade para descobrir se vale a pena.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> Cobertura em dias
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Indica por quantos dias o estoque atual aguenta, com base no consumo médio dos últimos 90 dias. Por exemplo, <strong>15d</strong> significa que em 15 dias o produto vai zerar se não houver reposição.
+              </p>
+            </div>
+
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

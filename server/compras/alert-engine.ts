@@ -381,15 +381,18 @@ async function runBIEvaluationCycle(): Promise<void> {
     }
 
     for (const s of sugestoes) {
+      const nomeProduto = s.produtoNome || s.produtoId;
+      const dadosBase = { produtoId: s.produtoId, produtoNome: nomeProduto, fabricante: s.fabricante };
+
       if (s.coberturaDias <= 0 || (s.leadTimeDias > 0 && s.coberturaDias <= s.leadTimeDias)) {
         await dispararAlertaPorUsuarios(
           "ruptura_iminente",
           s.produtoId,
           s.fabricante,
-          `Ruptura iminente: ${s.produtoId}`,
-          `Produto ${s.produtoId} (${s.fabricante}) tem cobertura de ${s.coberturaDias.toFixed(1)} dias, menor ou igual ao lead time de ${s.leadTimeDias} dias.`,
+          `Ruptura iminente: ${nomeProduto}`,
+          `${nomeProduto} (${s.fabricante}) tem cobertura de ${s.coberturaDias.toFixed(1)} dias, menor ou igual ao lead time de ${s.leadTimeDias} dias.`,
           "critical",
-          { coberturaDias: s.coberturaDias, leadTimeDias: s.leadTimeDias },
+          { ...dadosBase, coberturaDias: s.coberturaDias, leadTimeDias: s.leadTimeDias },
         );
       }
 
@@ -398,10 +401,10 @@ async function runBIEvaluationCycle(): Promise<void> {
           "abaixo_seguranca",
           s.produtoId,
           s.fabricante,
-          `Abaixo do estoque de segurança: ${s.produtoId}`,
-          `Estoque atual (${s.estoqueAtual}) abaixo do estoque de segurança (${s.estoqueSeguranca}) para o produto ${s.produtoId}.`,
+          `Abaixo do estoque de segurança: ${nomeProduto}`,
+          `Estoque atual (${s.estoqueAtual}) abaixo do mínimo (${s.estoqueSeguranca}) para ${nomeProduto}.`,
           "warning",
-          { estoqueAtual: s.estoqueAtual, estoqueSeguranca: s.estoqueSeguranca },
+          { ...dadosBase, estoqueAtual: s.estoqueAtual, estoqueSeguranca: s.estoqueSeguranca },
         );
       }
 
@@ -410,10 +413,10 @@ async function runBIEvaluationCycle(): Promise<void> {
           "lead_time_maior_cobertura",
           s.produtoId,
           s.fabricante,
-          `Lead time maior que cobertura: ${s.produtoId}`,
-          `Lead time (${s.leadTimeDias} dias) é maior que a cobertura atual (${s.coberturaDias.toFixed(1)} dias) para ${s.produtoId}.`,
+          `Lead time maior que cobertura: ${nomeProduto}`,
+          `Lead time (${s.leadTimeDias}d) maior que cobertura atual (${s.coberturaDias.toFixed(1)}d) para ${nomeProduto}.`,
           "warning",
-          { leadTimeDias: s.leadTimeDias, coberturaDias: s.coberturaDias },
+          { ...dadosBase, leadTimeDias: s.leadTimeDias, coberturaDias: s.coberturaDias },
         );
       }
 
@@ -423,10 +426,10 @@ async function runBIEvaluationCycle(): Promise<void> {
           "excesso_estoque",
           s.produtoId,
           s.fabricante,
-          `Excesso de estoque: ${s.produtoId}`,
-          `Produto ${s.produtoId} tem cobertura de ${s.coberturaDias.toFixed(0)} dias (${(s.coberturaDias / s.coberturaAlvoDias).toFixed(1)}x acima do alvo).`,
+          `Excesso de estoque: ${nomeProduto}`,
+          `${nomeProduto} tem cobertura de ${s.coberturaDias.toFixed(0)} dias (${(s.coberturaDias / s.coberturaAlvoDias).toFixed(1)}x acima do alvo).`,
           "info",
-          { coberturaDias: s.coberturaDias, coberturaAlvoDias: s.coberturaAlvoDias },
+          { ...dadosBase, coberturaDias: s.coberturaDias, coberturaAlvoDias: s.coberturaAlvoDias },
         );
       }
 
@@ -436,10 +439,10 @@ async function runBIEvaluationCycle(): Promise<void> {
           "pedido_insuficiente",
           s.produtoId,
           s.fabricante,
-          `Pedido em aberto insuficiente: ${s.produtoId}`,
-          `Pedidos em aberto (${s.pedidosAbertos}) insuficientes para atingir ponto de reposição (${pontoReposicao.toFixed(0)}) do produto ${s.produtoId}.`,
+          `Pedido insuficiente: ${nomeProduto}`,
+          `Pedidos em aberto (${s.pedidosAbertos}) insuficientes para o ponto de reposição (${pontoReposicao.toFixed(0)}) de ${nomeProduto}.`,
           "warning",
-          { pedidosAbertos: s.pedidosAbertos, pontoReposicao },
+          { ...dadosBase, pedidosAbertos: s.pedidosAbertos, pontoReposicao },
         );
       }
     }

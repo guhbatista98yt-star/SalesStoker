@@ -157,7 +157,11 @@ export async function calcularSugestoesPorFornecedor(
   ]);
 
   const periodoAnalise = fornConf ? Number(fornConf.periodo_compra_dias) : cfg.periodoAnalise;
-  const dataInicio = new Date(now.getTime() - periodoAnalise * 86400000).toISOString().split("T")[0];
+  const maxPeriodoFromProds = produtosConf.length > 0
+    ? Math.max(...produtosConf.map(p => Number(p.giro_periodo_dias) || periodoAnalise))
+    : periodoAnalise;
+  const maxPeriodo = Math.max(periodoAnalise, maxPeriodoFromProds, cfg.periodoAnalise);
+  const dataInicio = new Date(now.getTime() - maxPeriodo * 86400000).toISOString().split("T")[0];
   const prodMap = new Map(produtosConf.map(p => [p.produto_id, p]));
 
   const [rows, ultimasCompras] = await Promise.all([
