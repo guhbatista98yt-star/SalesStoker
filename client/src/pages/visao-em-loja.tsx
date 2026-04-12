@@ -254,6 +254,7 @@ export default function VisaoEmLoja() {
                 l03: (v.sales.loja03 / goalL03) * 100,
                 salesL01: v.sales.loja01,
                 salesL03: v.sales.loja03,
+                salesLMatriz: v.sales.lojaMatriz ?? 0,
                 salesYoY: v.yoy.value,
                 salesTotal: v.sales.total
             };
@@ -330,6 +331,10 @@ export default function VisaoEmLoja() {
                                 <stop offset="0%" stopColor="rgb(254,0,104)" stopOpacity={1} />
                                 <stop offset="100%" stopColor="rgb(255,0,66)" stopOpacity={1} />
                             </linearGradient>
+                            <linearGradient id="goldGrad" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor="rgb(160,100,0)" stopOpacity={1} />
+                                <stop offset="100%" stopColor="rgb(234,170,0)" stopOpacity={1} />
+                            </linearGradient>
                             {/* SVG glow filter for blue bars — contained region */}
                             <filter id="blueGlowFilter" x="-12%" y="-4%" width="124%" height="108%">
                                 <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
@@ -340,6 +345,14 @@ export default function VisaoEmLoja() {
                             </filter>
                             {/* SVG glow filter for red bars — contained region */}
                             <filter id="redGlowFilter" x="-12%" y="-4%" width="124%" height="108%">
+                                <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+                                <feMerge>
+                                    <feMergeNode in="blur" />
+                                    <feMergeNode in="SourceGraphic" />
+                                </feMerge>
+                            </filter>
+                            {/* SVG glow filter for gold bars — contained region */}
+                            <filter id="goldGlowFilter" x="-12%" y="-4%" width="124%" height="108%">
                                 <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
                                 <feMerge>
                                     <feMergeNode in="blur" />
@@ -395,6 +408,26 @@ export default function VisaoEmLoja() {
                                 position="top"
                                 content={(props: any) => (
                                     <CustomBarLabel {...props} fill="rgba(255,255,255,0.9)" />
+                                )}
+                            />
+                        </Bar>
+
+                        <Bar
+                            dataKey="salesLMatriz"
+                            name="Matriz (hoje)"
+                            fill="url(#goldGrad)"
+                            radius={[0, 0, 0, 0]}
+                            shape={(props: any) => <GlossyBar {...props} gradId="goldGrad" filterId="goldGlowFilter" />}
+                            background={(props: any) => {
+                                const { x, y, width, height } = props;
+                                return <rect x={x} y={y} width={width} height={height} fill="rgba(255,255,255,0.04)" rx={0} />;
+                            }}
+                        >
+                            <LabelList
+                                dataKey="salesLMatriz"
+                                position="top"
+                                content={(props: any) => (
+                                    <CustomBarLabel {...props} fill="rgba(255,230,100,0.95)" />
                                 )}
                             />
                         </Bar>

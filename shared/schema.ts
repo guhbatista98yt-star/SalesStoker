@@ -238,6 +238,7 @@ export interface TVDashboardData {
     sales: {
       loja01: number;
       loja03: number;
+      lojaMatriz: number;
       total: number;
     };
     goal: {
@@ -245,6 +246,7 @@ export interface TVDashboardData {
       isSingle: boolean; // true if Supervisor (Single Stacked Bar)
       loja01?: number; // For Manager
       loja03?: number; // For Manager
+      lojaMatriz?: number; // Today's goal for matriz (weekly/6)
     };
     yoy: {
       value: number;

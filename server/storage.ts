@@ -961,11 +961,24 @@ export class PostgresStorage implements IStorage {
     const yoyStartStr = yoyStart.toISOString().split('T')[0];
     const yoyEndStr = yoyEnd.toISOString().split('T')[0];
 
+    // Descobre o IDEMPRESA da loja matriz (CNPJ 05.443.069/0001-03) uma única vez
+    const MATRIZ_CNPJ = '05.443.069/0001-03';
+    let matrizEmpresaId: number | null = null;
+    try {
+      const matrizRow = await pgGet<{ id: number }>(`
+        SELECT "IDEMPRESA" as id FROM cache_vendas
+        WHERE "CNPJ_EMPRESA" = ? LIMIT 1
+      `, [MATRIZ_CNPJ]);
+      matrizEmpresaId = matrizRow?.id ?? null;
+    } catch { }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
     const vendorsData = (await Promise.all(salespersons.map(async (sp) => {
       const setting = settings.find(s => s.vendorId === sp.id);
       if (setting?.isHidden) return null;
 
-      let l01Sales = 0, l03Sales = 0;
+      let l01Sales = 0, l03Sales = 0, lMatrizSales = 0;
       try {
         const rowL01 = await pgGet<{ total: number }>(`
           SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
@@ -980,6 +993,15 @@ export class PostgresStorage implements IStorage {
           WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = 3
         `, [sp.id, weekStart, weekEnd]);
         l03Sales = rowL03?.total ?? 0;
+
+        if (matrizEmpresaId !== null) {
+          const rowMatriz = await pgGet<{ total: number }>(`
+            SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
+            FROM cache_vendas
+            WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" = ? AND "IDEMPRESA" = ?
+          `, [sp.id, todayStr, matrizEmpresaId]);
+          lMatrizSales = rowMatriz?.total ?? 0;
+        }
       } catch (e) { }
 
       const totalSales = l01Sales + l03Sales;
@@ -1001,7 +1023,7 @@ export class PostgresStorage implements IStorage {
         WHERE "salespersonId" = ? AND type = 'weekly' AND month = ? AND year = ?
       `, [sp.id, (new Date(weekEnd)).getMonth() + 1, (new Date(weekEnd)).getFullYear()]);
 
-      let goalValue = 0, goalL01 = 0, goalL03 = 0;
+      let goalValue = 0, goalL01 = 0, goalL03 = 0, goalLMatriz = 0;
       const isSingle = userRole === 'supervisor';
 
       if (userRole === 'supervisor') {
@@ -1009,8 +1031,11 @@ export class PostgresStorage implements IStorage {
       } else {
         const g01 = goals.find(g => g.companyId === '1');
         const g03 = goals.find(g => g.companyId === '3');
+        const gMatriz = matrizEmpresaId !== null ? goals.find(g => g.companyId === String(matrizEmpresaId)) : undefined;
         goalL01 = g01?.targetValue ?? 0;
         goalL03 = g03?.targetValue ?? 0;
+        // Meta diária da matriz: meta semanal / 6 dias úteis
+        goalLMatriz = gMatriz ? Math.round(gMatriz.targetValue / 6) : Math.round(goalValue / 12);
         goalValue = goalL01 + goalL03;
       }
 
@@ -1020,8 +1045,8 @@ export class PostgresStorage implements IStorage {
         id: sp.id,
         displayCode: setting?.displayCode || sp.id.slice(0, 4),
         displayName: setting?.displayName || sp.name.split(' ')[0],
-        sales: { loja01: l01Sales, loja03: l03Sales, total: totalSales },
-        goal: { value: goalValue, isSingle, loja01: goalL01, loja03: goalL03 },
+        sales: { loja01: l01Sales, loja03: l03Sales, lojaMatriz: lMatrizSales, total: totalSales },
+        goal: { value: goalValue, isSingle, loja01: goalL01, loja03: goalL03, lojaMatriz: goalLMatriz },
         yoy: { value: yoyValue, percentage: yoyPercentage },
         achievement,
       };
