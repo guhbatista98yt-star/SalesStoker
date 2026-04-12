@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   AlertTriangle, Building2, Check, ChevronRight, CircleAlert, Clock,
   Download, EyeOff, Filter, HelpCircle, Info, Layers,
-  Loader2, Package, PackageX, Save, Search, Settings2, ShoppingCart,
+  Loader2, Package, PackageX, RefreshCw, Save, Search, Settings2, ShoppingCart,
   ToggleLeft, TrendingDown, Users, X, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -556,7 +556,7 @@ function AbaFornecedores({
         {filtered.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             {fornecedores.length === 0
-              ? "Nenhum fornecedor encontrado. Sincronize o ERP primeiro."
+              ? "Nenhum fornecedor encontrado. Execute o sync do ERP e clique em \"Sincronizar ERP\" no cabeçalho."
               : "Nenhum fornecedor corresponde aos filtros."}
           </div>
         ) : (
@@ -995,6 +995,31 @@ export default function ComprasConfiguracoes() {
     staleTime: 60_000,
   });
 
+  /* ── Sync ERP mutation ─────────────────────────────────────────── */
+  const syncFornecedores = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/compras/fornecedores-config/sync", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Erro desconhecido" }));
+        throw new Error(err.error || "Erro ao sincronizar fornecedores");
+      }
+      return res.json() as Promise<{ created: number; updated: number; total: number }>;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/compras/fornecedores-config"] });
+      qc.invalidateQueries({ queryKey: ["/api/compras/produtos-config"] });
+      toast({
+        title: "Fornecedores sincronizados",
+        description: `${data.created} criados, ${data.updated} atualizados (total: ${data.total})`,
+      });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Erro na sincronização", description: e.message, variant: "destructive" }),
+  });
+
   /* ── Mutations ─────────────────────────────────────────────────── */
   const saveFornecedor = useMutation({
     mutationFn: async (data: FornecedorConfig) => {
@@ -1066,17 +1091,39 @@ export default function ComprasConfiguracoes() {
                 </p>
               </div>
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 mt-0.5">
-                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs" side="left">
-                Fornecedor define a regra padrão. Produto só foge do padrão quando necessário.
-                Fornecedores inativos não geram sugestões de compra.
-              </TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs shrink-0"
+                    onClick={() => syncFornecedores.mutate()}
+                    disabled={syncFornecedores.isPending}
+                  >
+                    {syncFornecedores.isPending
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <RefreshCw className="h-3.5 w-3.5" />}
+                    <span className="hidden sm:inline">Sincronizar ERP</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs" side="left">
+                  Importa todos os fabricantes do cache do ERP para a configuração.
+                  Execute após rodar o sync do ERP (erp_sync.py campanhas).
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
+                    <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs" side="left">
+                  Fornecedor define a regra padrão. Produto só foge do padrão quando necessário.
+                  Fornecedores inativos não geram sugestões de compra.
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </div>
       </div>

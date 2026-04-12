@@ -20,6 +20,13 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (April 2026 — Configuração de Compras: Botão Sincronizar ERP)
+
+- **Novo endpoint** `POST /api/compras/fornecedores-config/sync` — materializa todos os FABRICANTEs distintos de `cache_campanhas` para `compras_fornecedores_config` (upsert idempotente, preserva configs manuais); retorna `{ created, updated, total }`.
+- **Botão "Sincronizar ERP"** adicionado no cabeçalho de `configuracoes.tsx` — chama o endpoint acima, invalida caches React Query, exibe toast com contagem de criados/atualizados; desabilitado durante a operação.
+- **Mensagem de estado vazio** melhorada: orienta o usuário a executar o sync do ERP (`erp_sync.py campanhas`) e clicar no botão "Sincronizar ERP".
+- **Windows setup para Configuração de Compras**: após `erp_sync.py all` (ou `erp_sync.py campanhas`), o `cache_campanhas` é populado com FABRICANTEs reais; clicar em "Sincronizar ERP" cria entradas em `compras_fornecedores_config` para cada fabricante.
+
 ## Recent Changes (April 2026 — Configuração de Compras: Redesign UX Premium)
 
 - **Redesign completo** de `client/src/pages/compras/configuracoes.tsx` — nova UX premium com 4 zonas: header fixo, summary cards clicáveis, 3 abas (Fornecedores, Produtos/Exceções, Visão Operacional)

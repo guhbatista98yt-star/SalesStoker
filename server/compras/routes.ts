@@ -517,6 +517,66 @@ router.put("/configuracoes", isAuthenticated, async (req: AuthRequest, res) => {
 // Configuração de Fornecedores (Admin)
 // ---------------------------------------------------------------------------
 
+/**
+ * POST /fornecedores-config/sync
+ * Materialises distinct FABRICANTE values from cache_campanhas into
+ * compras_fornecedores_config (upsert — preserves existing configurations).
+ * Returns { created, updated, total } counts.
+ */
+router.post("/fornecedores-config/sync", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
+  try {
+    const fabricantes = await pgAll<{ FABRICANTE: string; ultimo_movimento: string; total_skus: number }>(
+      `SELECT "FABRICANTE",
+              MAX("DTMOVIMENTO") as ultimo_movimento,
+              COUNT(DISTINCT "IDPRODUTO") as total_skus
+       FROM cache_campanhas
+       WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != ''
+       GROUP BY "FABRICANTE"
+       ORDER BY "FABRICANTE"`,
+    );
+
+    if (fabricantes.length === 0) {
+      return res.status(400).json({
+        error: "cache_campanhas está vazio. Execute a sincronização do ERP (erp_sync.py campanhas) primeiro.",
+      });
+    }
+
+    const now = new Date().toISOString();
+    let created = 0;
+    let updated = 0;
+
+    for (const f of fabricantes) {
+      const existing = await pgGet<{ id: string }>(
+        `SELECT id FROM compras_fornecedores_config WHERE fabricante_nome = ?`,
+        [f.FABRICANTE],
+      );
+
+      if (!existing) {
+        await pgRun(
+          `INSERT INTO compras_fornecedores_config
+             (id, fabricante_nome, codigo, razao_social, nome_fantasia, ativo,
+              periodo_compra_dias, lead_time_dias, pedido_minimo_valor, observacoes, created_at, updated_at)
+           VALUES (?, ?, '', '', ?, 1, 30, 7, 0, '', ?, ?)`,
+          [randomUUID(), f.FABRICANTE, f.FABRICANTE, now, now],
+        );
+        created++;
+      } else {
+        // Only bump updated_at — never overwrite user-configured values
+        await pgRun(
+          `UPDATE compras_fornecedores_config SET updated_at = ? WHERE fabricante_nome = ?`,
+          [now, f.FABRICANTE],
+        );
+        updated++;
+      }
+    }
+
+    res.json({ created, updated, total: fabricantes.length });
+  } catch (err: any) {
+    console.error("[compras/fornecedores-config/sync POST]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     // Return all supplier configs merged with distinct FABRICANTEs from cache_campanhas
