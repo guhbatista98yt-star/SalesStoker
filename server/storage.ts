@@ -1447,12 +1447,21 @@ export class SqliteStorage implements IStorage {
 
   async getVendedorIdByEmail(email: string): Promise<string> {
     try {
-      // Buscar o usuário pelo email/username (pode ser C#### ou nome)
+      // 1. Se o email já é numérico, é o próprio IDVENDEDOR — retorna direto
+      if (/^\d+$/.test(email.trim())) return email.trim();
+
+      // 2. Buscar o usuário pelo email/username (login via nome próprio)
       const user = sqlite.prepare("SELECT first_name FROM users WHERE lower(email) = lower(?)").get(email) as { first_name: string } | undefined;
       if (!user || !user.first_name) return email;
 
-      // first_name guarda o NOME COMPLETO do vendedor (ex: "JOANES SILVA")
-      // Buscar o IDVENDEDOR pelo nome no cache_vendas
+      // 3. Cada vendedor tem dois registros: um com email=NOME e outro com email=IDVENDEDOR (numérico).
+      //    Buscar o registro irmão com email numérico — esse é o IDVENDEDOR real.
+      const numericUser = sqlite.prepare(
+        "SELECT email FROM users WHERE UPPER(first_name) = UPPER(?) AND email GLOB '[0-9]*' LIMIT 1"
+      ).get(user.first_name) as { email: string } | undefined;
+      if (numericUser?.email) return numericUser.email;
+
+      // 4. Fallback: buscar IDVENDEDOR pelo nome em cache_vendas
       const row = sqlite.prepare(`
         SELECT CAST(IDVENDEDOR AS TEXT) as IDVENDEDOR 
         FROM cache_vendas 
