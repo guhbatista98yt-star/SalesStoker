@@ -12,7 +12,7 @@ import { SalespersonCard } from "@/components/dashboard/salesperson-card";
 import { Search, Grid3X3, List, Users, Eye, EyeOff } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
-import { VendorVisibilityDialog } from "@/components/admin/vendor-visibility-dialog";
+import { Badge } from "@/components/ui/badge";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
 
 interface VendorGroup {
@@ -39,9 +39,23 @@ export default function Vendedores() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
   const [showHidden, setShowHidden] = useState(false);
 
+  const canManageVisibility = isAdmin || isSupervisor;
+
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
   });
+
+  const { data: hiddenVendors = [] } = useQuery<{ id: string; isHidden: boolean }[]>({
+    queryKey: ["/api/admin/vendor-visibility"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/vendor-visibility", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: canManageVisibility,
+    staleTime: 60_000,
+  });
+  const hiddenCount = hiddenVendors.filter(v => v.isHidden).length;
 
   const { data: salespersons = [], isLoading: salespersonsLoading } = useQuery<SalespersonWithStats[]>({
     queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate, showHidden],
@@ -87,7 +101,6 @@ export default function Vendedores() {
   }
 
   const showGroupFilter = (isAdmin || isSupervisor) && groups.length > 0;
-  const canManageVisibility = isAdmin || isSupervisor;
 
   return (
     <div className="h-full overflow-auto">
@@ -100,21 +113,23 @@ export default function Vendedores() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {canManageVisibility && (
-              <VendorVisibilityDialog />
-            )}
-            {canManageVisibility && (
               <Button
                 variant={showHidden ? "secondary" : "ghost"}
                 size="sm"
                 className="h-8 gap-1.5 text-xs"
                 onClick={() => setShowHidden(v => !v)}
-                title={showHidden ? "Ocultando inativos" : "Inativos ocultos"}
+                title={showHidden ? "Clique para ocultar os inativos" : "Clique para exibir os inativos"}
               >
                 {showHidden
                   ? <Eye className="h-3.5 w-3.5 text-amber-500" />
                   : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
                 }
-                {showHidden ? "Exibindo inativos" : "Inativos ocultos"}
+                Inativos
+                {hiddenCount > 0 && (
+                  <Badge variant={showHidden ? "default" : "secondary"} className="ml-0.5 h-4 px-1 text-[10px]">
+                    {hiddenCount}
+                  </Badge>
+                )}
               </Button>
             )}
             {showGroupFilter && (
