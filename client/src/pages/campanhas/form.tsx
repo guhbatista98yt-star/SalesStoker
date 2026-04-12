@@ -23,13 +23,15 @@ import {
 import {
   ChevronLeft, Save, Loader2, AlertTriangle, CheckCircle2,
   Info, Plus, Trash2, Layers, ClipboardList, Zap,
-  Users, GitBranch, Trophy, Shield, FlaskConical,
+  Users, GitBranch, Trophy, Shield, FlaskConical, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RuleBuilder } from "./components/rule-builder";
 import { RewardForm } from "./components/reward-form";
 import { SimulatorPanel } from "./components/simulator-panel";
 import { AuditLog } from "./components/audit-log";
+import { GatilhosTab } from "./components/gatilhos-tab";
+import { RelatorioTab } from "./components/relatorio-tab";
 import {
   type Campaign, type ConditionGroup, type Trigger, type CampaignException,
   type CampaignLimits, type TargetSegment,
@@ -38,14 +40,16 @@ import {
 } from "./types";
 
 const TABS = [
-  { id: "geral",      label: "Dados Gerais",  Icon: Info },
-  { id: "publico",    label: "Público-Alvo",  Icon: Users },
-  { id: "condicoes",  label: "Condições",     Icon: GitBranch },
-  { id: "premiacao",  label: "Premiação",     Icon: Trophy },
-  { id: "limites",    label: "Limites",       Icon: Shield },
-  { id: "gatilhos",   label: "Gatilhos",      Icon: Zap },
-  { id: "simulacao",  label: "Simulação",     Icon: FlaskConical },
-  { id: "auditoria",  label: "Auditoria",     Icon: ClipboardList },
+  { id: "geral",             label: "Dados Gerais",        Icon: Info },
+  { id: "publico",           label: "Público-Alvo",        Icon: Users },
+  { id: "condicoes",         label: "Condições",           Icon: GitBranch },
+  { id: "premiacao",         label: "Premiação",           Icon: Trophy },
+  { id: "limites",           label: "Limites",             Icon: Shield },
+  { id: "gatilhos",          label: "Gatilhos (Campanha)", Icon: Zap },
+  { id: "gatilhos_vendas",   label: "Metas Vendedor",      Icon: Users },
+  { id: "relatorio",         label: "Relatório",           Icon: BarChart3 },
+  { id: "simulacao",         label: "Simulação",           Icon: FlaskConical },
+  { id: "auditoria",         label: "Auditoria",           Icon: ClipboardList },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -901,6 +905,20 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
                     />
                 }
               </TabsContent>
+
+              {/* ── Metas por Vendedor (Gatilhos) ── */}
+              {isEditing && (
+                <TabsContent value="gatilhos_vendas" className="mt-0">
+                  <GatilhosTab campaignId={campaignId!} />
+                </TabsContent>
+              )}
+
+              {/* ── Relatório de Performance ── */}
+              {isEditing && (
+                <TabsContent value="relatorio" className="mt-0">
+                  <RelatorioTab campaignId={campaignId!} />
+                </TabsContent>
+              )}
 
               {/* ── Simulação ── */}
               {isEditing && (

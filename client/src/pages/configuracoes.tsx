@@ -795,6 +795,27 @@ function GatilhosSection({ salespeople }: { salespeople: Salesperson[] }) {
         </p>
       </div>
 
+      <Card className="border-blue-200 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20">
+        <CardContent className="pt-4 pb-3">
+          <div className="flex items-start gap-3">
+            <div className="p-1.5 rounded-md bg-blue-100 dark:bg-blue-900/40 shrink-0 mt-0.5">
+              <Megaphone className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                Módulo de Campanhas
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5 leading-relaxed">
+                Para campanhas criadas no módulo de Campanhas, configure gatilhos diretamente em cada campanha — com filtros por equipe, aplicação em lote e controle por ano.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline" className="shrink-0 text-xs h-8 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40">
+              <Link href="/campanhas">Ver campanhas →</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -989,6 +1010,27 @@ function RelatoriosSection() {
           Analise elegibilidade, atingimento e ganhadores por período.
         </p>
       </div>
+
+      <Card className="border-blue-200 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20">
+        <CardContent className="pt-4 pb-3">
+          <div className="flex items-start gap-3">
+            <div className="p-1.5 rounded-md bg-blue-100 dark:bg-blue-900/40 shrink-0 mt-0.5">
+              <Megaphone className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                Relatórios no Módulo de Campanhas
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5 leading-relaxed">
+                Cada campanha criada no módulo de Campanhas possui um relatório de performance individual — com ranking de vendedores, barras de atingimento, cards de resumo e exportação CSV.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline" className="shrink-0 text-xs h-8 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40">
+              <Link href="/campanhas">Ver campanhas →</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card>
