@@ -1,0 +1,253 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+[1G[0KCampaign tables initialized
+[Comissões] Regras padrão criadas.
+[Comissões] Tabelas inicializadas.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+[AlertEngine] Evaluation cycle complete.
+12:50:25 PM [express] serving on http://localhost:5000
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m12:56:42 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/comissoes/vendedor.tsx[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m12:56:43 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/comissoes/gestor.tsx[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m12:56:53 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/comissoes/vendedor.tsx[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m12:57:04 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/comissoes/gestor.tsx[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m12:57:12 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/comissoes/gestor.tsx[22m [33m(x2)[39m
+[replit-cartographer] Error processing /home/runner/workspace/client/src/pages/comissoes/gestor.tsx: SyntaxError: Identifier 'useMemo' has already been declared. (20:9)
+    at toParseError [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parse-error.ts:95:45[90m)[39m
+    at raise [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/tokenizer/index.ts:1503:19[90m)[39m
+    at declareName [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/scope.ts:72:21[90m)[39m
+    at declareNameFromIdentifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/lval.ts:818:16[90m)[39m
+    at checkIdentifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/lval.ts:813:12[90m)[39m
+    at checkLVal [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/lval.ts:713:12[90m)[39m
+    at finishImportSpecifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3223:10[90m)[39m
+    at parseImportSpecifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3480:17[90m)[39m
+    at parseImportSpecifier [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:4359:20[90m)[39m
+    at parseNamedImportSpecifiers [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3441:36[90m)[39m
+    at parseImportSpecifiersAndAfter [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3173:37[90m)[39m
+    at parseImport [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:3142:17[90m)[39m
+    at parseImport [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3011:28[90m)[39m
+    at parseStatementContent [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:642:25[90m)[39m
+    at parseStatementContent [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3185:20[90m)[39m
+    at parseStatementLike [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:477:17[90m)[39m
+    at parseModuleItem [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:414:17[90m)[39m
+    at parseBlockOrModuleBlockBody [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:1438:16[90m)[39m
+    at parseBlockBody [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:1412:10[90m)[39m
+    at parseProgram [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:229:10[90m)[39m
+    at parseTopLevel [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/statement.ts:203:25[90m)[39m
+    at parse [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/index.ts:93:10[90m)[39m
+    at parse [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:4309:20[90m)[39m
+    at parse [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/index.ts:92:38[90m)[39m
+    at TransformPluginContext.handler [90m(/home/runner/workspace/[39mnode_modules/[4m@replit/vite-plugin-cartographer[24m/dist/index.mjs:74:23[90m)[39m
+    at EnvironmentPluginContainer.transform [90m(/home/runner/workspace/[39mnode_modules/[4mvite[24m/dist/node/chunks/config.js:28796:51[90m)[39m
+    at loadAndTransform [90m(/home/runner/workspace/[39mnode_modules/[4mvite[24m/dist/node/chunks/config.js:22669:48[90m)[39m
+    at async viteTransformMiddleware [90m(/home/runner/workspace/[39mnode_modules/[4mvite[24m/dist/node/chunks/config.js:24541:20[90m)[39m {
+  code: [32m'BABEL_PARSER_SYNTAX_ERROR'[39m,
+  reasonCode: [32m'VarRedeclaration'[39m,
+  loc: Position { line: [33m20[39m, column: [33m9[39m, index: [33m851[39m },
+  pos: [33m851[39m,
+  syntaxPlugin: [90mundefined[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m12:57:13 PM[22m [31m[1m[vite][22m[39m [31mInternal server error: /home/runner/workspace/client/src/pages/comissoes/gestor.tsx: Identifier 'useMemo' has already been declared. (20:9)
+
+[0m [90m 18 |[31m [36mimport[31m { [33mLink[31m } [36mfrom[31m [32m"wouter"[31m[33m;[31m
+ [90m 19 |[31m [36mimport[31m { useAuth } [36mfrom[31m [32m"@/lib/auth-context"[31m[33m;[31m
+[31m[1m>[22m[31m[90m 20 |[31m [36mimport[31m { useMemo } [36mfrom[31m [32m"react"[31m[33m;[31m
+ [90m    |[31m          [31m[1m^[22m[31m
+ [90m 21 |[31m [36mimport[31m type { [33mCommissionResult[31m } [36mfrom[31m [32m"@shared/schema"[31m[33m;[31m
+ [90m 22 |[31m
+ [90m 23 |[31m [36mfunction[31m fmtBRL(v[33m:[31m number) {[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36m/home/runner/workspace/client/src/pages/comissoes/gestor.tsx[39m:20:9
+[33m  18 |  import { Link } from "wouter";
+  19 |  import { useAuth } from "@/lib/auth-context";
+  20 |  import { useMemo } from "react";
+     |           ^
+  21 |  import type { CommissionResult } from "@shared/schema";
+  22 |  [39m
+      at toParseError (/home/runner/workspace/node_modules/@babel/parser/src/parse-error.ts:95:45)
+      at raise (/home/runner/workspace/node_modules/@babel/parser/src/tokenizer/index.ts:1503:19)
+      at declareName (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/scope.ts:72:21)
+      at declareNameFromIdentifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/lval.ts:818:16)
+      at checkIdentifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/lval.ts:813:12)
+      at checkLVal (/home/runner/workspace/node_modules/@babel/parser/src/parser/lval.ts:713:12)
+      at finishImportSpecifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3223:10)
+      at parseImportSpecifier (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3480:17)
+      at parseImportSpecifier (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:4359:20)
+      at parseNamedImportSpecifiers (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3441:36)
+      at parseImportSpecifiersAndAfter (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3173:37)
+      at parseImport (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:3142:17)
+      at parseImport (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3011:28)
+      at parseStatementContent (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:642:25)
+      at parseStatementContent (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3185:20)
+      at parseStatementLike (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:477:17)
+      at parseModuleItem (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:414:17)
+      at parseBlockOrModuleBlockBody (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:1438:16)
+      at parseBlockBody (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:1412:10)
+      at parseProgram (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:229:10)
+      at parseTopLevel (/home/runner/workspace/node_modules/@babel/parser/src/parser/statement.ts:203:25)
+      at parse (/home/runner/workspace/node_modules/@babel/parser/src/parser/index.ts:93:10)
+      at parse (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:4309:20)
+      at parse (/home/runner/workspace/node_modules/@babel/parser/src/index.ts:92:38)
+      at parser (/home/runner/workspace/node_modules/@babel/core/src/parser/index.ts:28:19)
+      at parser.next (<anonymous>)
+      at normalizeFile (/home/runner/workspace/node_modules/@babel/core/src/transformation/normalize-file.ts:49:24)
+      at normalizeFile.next (<anonymous>)
+      at run (/home/runner/workspace/node_modules/@babel/core/src/transformation/index.ts:40:36)
+      at run.next (<anonymous>)
+      at transform (/home/runner/workspace/node_modules/@babel/core/src/transform.ts:29:20)
+      at transform.next (<anonymous>)
+      at step (/home/runner/workspace/node_modules/gensync/index.js:261:32)
+      at /home/runner/workspace/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/home/runner/workspace/node_modules/gensync/index.js:223:11)
+      at /home/runner/workspace/node_modules/gensync/index.js:189:28
+      at <anonymous> (/home/runner/workspace/node_modules/@babel/core/src/gensync-utils/async.ts:90:7)
+      at /home/runner/workspace/node_modules/gensync/index.js:113:33
+      at step (/home/runner/workspace/node_modules/gensync/index.js:287:14)
+      at /home/runner/workspace/node_modules/gensync/index.js:273:13
+      at async.call.result.err.err (/home/runner/workspace/node_modules/gensync/index.js:223:11)
+[1G[0K⠙[1G[0K

@@ -1,0 +1,19 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+[1G[0K[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...
+[schema-bootstrap] Schema OK — 28 tabelas verificadas em 229ms
+[Campanhas] Módulo inicializado.
+[Comissões] Módulo inicializado.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+[AlertEngine] Evaluation cycle complete.
+1:52:48 PM [express] serving on http://localhost:5000
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
