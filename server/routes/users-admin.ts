@@ -34,7 +34,7 @@ async function writeAudit(opts: {
         opts.ip ?? null,
       ]
     );
-  } catch { /* audit must not break requests */ }
+  } catch (e) { console.error("[audit] Falha ao gravar log de auditoria:", e); }
 }
 
 function onlyAdmin(req: AuthRequest, res: Response): boolean {

@@ -142,7 +142,7 @@ function mergeModulePermissions(raw: string | null): Record<string, boolean> {
 export function createAuthRouter(): Router {
   const router = Router();
 
-  router.post("/register", async (req: Request, res: Response) => {
+  router.post("/register", isAuthenticated, isAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const { email, password, firstName, lastName } = req.body;
 
@@ -297,6 +297,15 @@ export async function isAuthenticated(req: AuthRequest, res: Response, next: Nex
       return res.status(401).json({ message: "Usuário não encontrado" });
     }
 
+    // Real-time status enforcement — catches users blocked after token was issued
+    const status = user.status ?? "ativo";
+    if (status === "bloqueado") {
+      return res.status(403).json({ message: "Conta bloqueada. Contate o administrador." });
+    }
+    if (status === "inativo") {
+      return res.status(403).json({ message: "Conta inativa. Contate o administrador." });
+    }
+
     req.userRole = user.role || "admin";
     req.userEmail = user.email;
     req.userFirstName = user.firstName ?? undefined;
@@ -315,4 +324,34 @@ export function isAdmin(req: AuthRequest, res: Response, next: NextFunction) {
     return res.status(403).json({ message: "Acesso restrito a administradores" });
   }
   next();
+}
+
+/**
+ * requirePermission(module, action) — middleware factory
+ * Admins bypass all checks. For all other roles, the role must have an explicit
+ * entry in the role_permissions table for the given module+action.
+ */
+export function requirePermission(module: string, action: string) {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.userRole === "admin") return next();
+
+    try {
+      const perm = await pgGet<{ scope: string }>(
+        `SELECT rp.scope
+         FROM role_permissions rp
+         JOIN roles r ON r.id = rp.role_id
+         WHERE r.name = $1 AND rp.module = $2 AND rp.action = $3`,
+        [req.userRole, module, action]
+      );
+
+      if (!perm) {
+        return res.status(403).json({ message: `Permissão insuficiente: ${module}/${action}` });
+      }
+
+      next();
+    } catch (err) {
+      console.error("[requirePermission] Erro ao verificar permissão:", err);
+      return res.status(500).json({ message: "Erro ao verificar permissões" });
+    }
+  };
 }
