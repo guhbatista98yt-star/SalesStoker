@@ -594,18 +594,25 @@ router.post("/fornecedores-config/sync", isAuthenticated, isAdmin, async (req: A
 
 router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    // Return all supplier configs merged with distinct FABRICANTEs from cache_campanhas
-    const [configs, fabricantes, excecoesPorForn] = await Promise.all([
+    // Primary source: compras_fornecedores_config (populated by sync).
+    // Augment with ERP movement data from both cache tables.
+    const [configs, movimentosCampanhas, estoqueFabricantes, excecoesPorForn] = await Promise.all([
       pgAll<Record<string, unknown>>(`SELECT * FROM compras_fornecedores_config ORDER BY fabricante_nome`),
-      pgAll<{ FABRICANTE: string; ultimo_movimento: string; total_skus: number }>(
-        `SELECT "FABRICANTE",
+      pgAll<{ fabricante: string; ultimo_movimento: string; total_skus: number }>(
+        `SELECT "FABRICANTE" as fabricante,
                 MAX("DTMOVIMENTO") as ultimo_movimento,
                 COUNT(DISTINCT "IDPRODUTO") as total_skus
          FROM cache_campanhas
          WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != ''
-         GROUP BY "FABRICANTE"
-         ORDER BY "FABRICANTE"`
-      ),
+         GROUP BY "FABRICANTE"`
+      ).catch(() => [] as { fabricante: string; ultimo_movimento: string; total_skus: number }[]),
+      pgAll<{ fabricante: string; total_skus: number }>(
+        `SELECT "FABRICANTE" as fabricante,
+                COUNT(DISTINCT "IDPRODUTO") as total_skus
+         FROM cache_estoque_sugestao
+         WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != ''
+         GROUP BY "FABRICANTE"`
+      ).catch(() => [] as { fabricante: string; total_skus: number }[]),
       pgAll<{ fornecedor_nome: string; total_excecoes: number }>(
         `SELECT fornecedor_nome, COUNT(*) as total_excecoes
          FROM compras_produtos_config
@@ -613,29 +620,65 @@ router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res
       ).catch(() => [] as { fornecedor_nome: string; total_excecoes: number }[]),
     ]);
 
-    const configMap = new Map(configs.map(c => [c.fabricante_nome as string, c]));
+    // Build lookup maps
+    const movMap = new Map(movimentosCampanhas.map(m => [m.fabricante, m]));
+    const estoqueSkuMap = new Map(estoqueFabricantes.map(e => [e.fabricante, Number(e.total_skus)]));
     const excecoesMap = new Map(excecoesPorForn.map(e => [e.fornecedor_nome, Number(e.total_excecoes)]));
 
-    const result = fabricantes.map(f => {
-      const cfg = configMap.get(f.FABRICANTE);
+    // If compras_fornecedores_config is populated (after sync), use it as the list.
+    // Otherwise fall back to building from ERP caches directly.
+    if (configs.length > 0) {
+      const result = configs.map(cfg => {
+        const nome = cfg.fabricante_nome as string;
+        const mov = movMap.get(nome);
+        const skusCampanhas = mov ? Number(mov.total_skus) : 0;
+        const skusEstoque = estoqueSkuMap.get(nome) ?? 0;
+        return {
+          id: cfg.id,
+          fabricante_nome: nome,
+          codigo: cfg.codigo,
+          razao_social: cfg.razao_social,
+          nome_fantasia: cfg.nome_fantasia ?? nome,
+          ativo: Boolean(cfg.ativo),
+          periodo_compra_dias: cfg.periodo_compra_dias,
+          lead_time_dias: cfg.lead_time_dias,
+          pedido_minimo_valor: cfg.pedido_minimo_valor,
+          observacoes: cfg.observacoes,
+          ultimo_movimento: mov?.ultimo_movimento ?? null,
+          total_skus: Math.max(skusCampanhas, skusEstoque),
+          total_excecoes: excecoesMap.get(nome) ?? 0,
+          configurado: true,
+        };
+      });
+      return res.json(result);
+    }
+
+    // Pre-sync fallback: build list from ERP caches so the page isn't blank.
+    const allFabricantes = new Set([
+      ...movimentosCampanhas.map(m => m.fabricante),
+      ...estoqueFabricantes.map(e => e.fabricante),
+    ]);
+    const result = Array.from(allFabricantes).sort().map(nome => {
+      const mov = movMap.get(nome);
+      const skusCampanhas = mov ? Number(mov.total_skus) : 0;
+      const skusEstoque = estoqueSkuMap.get(nome) ?? 0;
       return {
-        id: cfg?.id ?? null,
-        fabricante_nome: f.FABRICANTE,
-        codigo: cfg?.codigo ?? "",
-        razao_social: cfg?.razao_social ?? "",
-        nome_fantasia: cfg?.nome_fantasia ?? f.FABRICANTE,
-        ativo: cfg !== undefined ? Boolean(cfg.ativo) : true,
-        periodo_compra_dias: cfg?.periodo_compra_dias ?? 30,
-        lead_time_dias: cfg?.lead_time_dias ?? 7,
-        pedido_minimo_valor: cfg?.pedido_minimo_valor ?? 0,
-        observacoes: cfg?.observacoes ?? "",
-        ultimo_movimento: f.ultimo_movimento,
-        total_skus: Number(f.total_skus),
-        total_excecoes: excecoesMap.get(f.FABRICANTE) ?? 0,
-        configurado: cfg !== undefined,
+        id: null,
+        fabricante_nome: nome,
+        codigo: "",
+        razao_social: "",
+        nome_fantasia: nome,
+        ativo: true,
+        periodo_compra_dias: 30,
+        lead_time_dias: 7,
+        pedido_minimo_valor: 0,
+        observacoes: "",
+        ultimo_movimento: mov?.ultimo_movimento ?? null,
+        total_skus: Math.max(skusCampanhas, skusEstoque),
+        total_excecoes: excecoesMap.get(nome) ?? 0,
+        configurado: false,
       };
     });
-
     res.json(result);
   } catch (err: any) {
     console.error("[compras/fornecedores-config GET]", err);
