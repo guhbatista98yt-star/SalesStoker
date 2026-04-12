@@ -31,7 +31,6 @@ import sys
 import time
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
-from dateutil.relativedelta import relativedelta
 from typing import Generator, Iterator
 
 import psycopg2
@@ -214,15 +213,22 @@ def _get_meses_pendentes(pg: psycopg2.extensions.connection, rotina: str) -> lis
     return [(r[0], r[1]) for r in rows]
 
 
+def _next_month(d: date) -> date:
+    """Returns the first day of the next month."""
+    if d.month == 12:
+        return date(d.year + 1, 1, 1)
+    return date(d.year, d.month + 1, 1)
+
+
 def _plan_meses(rotina: str, data_inicio: date, data_fim: date) -> list[tuple[date, date]]:
     """Generates month-by-month windows from data_inicio to data_fim."""
     meses: list[tuple[date, date]] = []
     cur = data_inicio.replace(day=1)
     while cur <= data_fim:
-        fim_mes = (cur + relativedelta(months=1)) - timedelta(days=1)
+        fim_mes = _next_month(cur) - timedelta(days=1)
         fim_mes = min(fim_mes, data_fim)
         meses.append((cur, fim_mes))
-        cur += relativedelta(months=1)
+        cur = _next_month(cur)
     return meses
 
 

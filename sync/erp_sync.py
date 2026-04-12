@@ -39,7 +39,7 @@ import socket
 import sys
 import time
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Generator, Iterator
 
 import psycopg2
@@ -132,7 +132,7 @@ def _acquire_lock(pg: psycopg2.extensions.connection, routine: str) -> bool:
     Stale locks (expired) are automatically cleared.
     """
     host = socket.gethostname()
-    now  = datetime.utcnow()
+    now  = datetime.now(timezone.utc)
     exp  = now + timedelta(seconds=LOCK_TTL_SECONDS)
 
     with pg.cursor() as cur:
@@ -233,7 +233,7 @@ def _log_run(
     message: str,
     params: dict,
 ) -> None:
-    ended_at    = datetime.utcnow()
+    ended_at    = datetime.now(timezone.utc)
     duration_ms = int((ended_at - started_at).total_seconds() * 1000)
     with pg.cursor() as cur:
         cur.execute(
@@ -284,7 +284,7 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
       - Watermark updated ONLY after full success
     """
     routine = "cache_vendas"
-    started = datetime.utcnow()
+    started = datetime.now(timezone.utc)
 
     watermark = _get_watermark(pg, routine)
     if watermark is None:
@@ -356,7 +356,7 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                    "DT_MOVIMENTO","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.utcnow()) for r in all_rows],
+                [(*r, datetime.now(timezone.utc)) for r in all_rows],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
@@ -439,7 +439,7 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                    "VALOR_LIQUIDO","QTD","DTMOVIMENTO", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.utcnow()) for r in all_rows],
+                [(*r, datetime.now(timezone.utc)) for r in all_rows],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
@@ -511,7 +511,7 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                    "DT_MOVIMENTO","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.utcnow()) for r in all_rows],
+                [(*r, datetime.now(timezone.utc)) for r in all_rows],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
@@ -582,7 +582,7 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                   ("NOME_VENDEDOR","IDEMPRESA","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.utcnow()) for r in all_rows],
+                [(*r, datetime.now(timezone.utc)) for r in all_rows],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
@@ -604,7 +604,7 @@ ROUTINES: dict[str, Any] = {
 
 
 def run_routine(name: str) -> None:
-    started = datetime.utcnow()
+    started = datetime.now(timezone.utc)
     log.info(f"=== Iniciando routine: {name} ===")
 
     with pg_connection() as pg:
@@ -646,7 +646,7 @@ def run_routine(name: str) -> None:
         if not success:
             sys.exit(1)
 
-    log.info(f"=== Routine {name} concluída em {int((datetime.utcnow()-started).total_seconds())}s ===")
+    log.info(f"=== Routine {name} concluída em {int((datetime.now(timezone.utc)-started).total_seconds())}s ===")
 
 
 # ─── SCHEDULE GUIDANCE ────────────────────────────────────────────────────────
