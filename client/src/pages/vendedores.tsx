@@ -2,15 +2,32 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard } from "@/components/dashboard/salesperson-card";
 import { Search, Grid3X3, List } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { useAuth } from "@/lib/auth-context";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
 
+const MOVIMT_STORAGE_KEY = "vendedores:showMovimentacoes";
+
+function readMovimtSetting(): boolean {
+  try {
+    const v = localStorage.getItem(MOVIMT_STORAGE_KEY);
+    return v === null ? true : v === "true";
+  } catch {
+    return true;
+  }
+}
+
 export default function Vendedores() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const isSupervisor = user?.role === "supervisor";
+
   const today = new Date();
   const [period, setPeriod] = useState<DatePeriod>({
     startDate: format(startOfMonth(today), "yyyy-MM-dd"),
@@ -20,6 +37,7 @@ export default function Vendedores() {
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [showMovimentacoes, setShowMovimentacoes] = useState<boolean>(readMovimtSetting);
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -34,6 +52,11 @@ export default function Vendedores() {
     (salesperson.email ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
+  function handleMovimtToggle(checked: boolean) {
+    setShowMovimentacoes(checked);
+    try { localStorage.setItem(MOVIMT_STORAGE_KEY, String(checked)); } catch {}
+  }
+
   return (
     <div className="h-full overflow-auto">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
@@ -42,7 +65,7 @@ export default function Vendedores() {
             <h1 className="text-xl font-bold tracking-tight text-foreground">Vendedores</h1>
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <CompanySelector
               companies={companies}
               selectedId={companyId}
@@ -55,7 +78,7 @@ export default function Vendedores() {
       </div>
 
       <div className="p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -66,7 +89,25 @@ export default function Vendedores() {
               data-testid="input-search-salesperson"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Movimentações visibility toggle — admin + supervisor only */}
+            {(isAdmin || isSupervisor) && (
+              <div className="flex items-center gap-2 border border-border rounded-lg px-3 py-1.5 bg-card">
+                <Switch
+                  id="toggle-movimt"
+                  checked={showMovimentacoes}
+                  onCheckedChange={handleMovimtToggle}
+                  data-testid="toggle-movimentacoes"
+                />
+                <Label
+                  htmlFor="toggle-movimt"
+                  className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap"
+                >
+                  Movimentações
+                </Label>
+              </div>
+            )}
+
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
               size="icon"
@@ -89,7 +130,7 @@ export default function Vendedores() {
         {salespersonsLoading ? (
           <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-48 bg-card rounded-md animate-pulse" />
+              <div key={i} className="h-44 bg-card rounded-md animate-pulse" />
             ))}
           </div>
         ) : filteredSalespersons.length === 0 ? (
@@ -98,13 +139,14 @@ export default function Vendedores() {
             <p className="text-sm">Tente ajustar os filtros ou período</p>
           </div>
         ) : (
-          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
+          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 max-w-2xl"}`}>
             {filteredSalespersons.map(({ salesperson, stats }) => (
               <SalespersonCard
                 key={salesperson.id}
                 salesperson={salesperson}
                 stats={stats}
                 period={{ startDate: period.startDate, endDate: period.endDate }}
+                showMovimentacoesButton={showMovimentacoes}
               />
             ))}
           </div>
