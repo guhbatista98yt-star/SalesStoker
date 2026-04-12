@@ -27,12 +27,12 @@ export interface CampaignFilters {
 
 interface RawCampaign {
   id: string; code: string; name: string; description: string | null;
-  objective: string | null; campaign_type: string; sub_type: string | null;
+  objective: string | null; campaign_type: string; campaign_mode: string; sub_type: string | null;
   status: string; priority: number; is_cumulative: number; is_exclusive: number;
   parent_id: string | null; current_version: number;
   starts_at: string; ends_at: string; time_start: string | null; time_end: string | null;
   valid_weekdays: string; recurrence: string | null;
-  targets: string; conditions: string; triggers: string;
+  targets: string; bases: string; conditions: string; triggers: string;
   rewards: string; limits: string; exceptions: string;
   natural_language: string | null; internal_notes: string | null;
   created_by: string; updated_by: string | null; change_reason: string | null;
@@ -44,7 +44,9 @@ function parseCampaign(row: RawCampaign) {
     ...row,
     is_cumulative: Boolean(row.is_cumulative),
     is_exclusive: Boolean(row.is_exclusive),
+    campaign_mode: row.campaign_mode || "atingimento",
     targets: safeJson(row.targets, {}),
+    bases: safeJson(row.bases, {}),
     conditions: safeJson(row.conditions, {}),
     triggers: safeJson(row.triggers, []),
     rewards: safeJson(row.rewards, {}),
@@ -154,17 +156,17 @@ export function createCampaign(data: any, actor: string) {
 
   sqlite.prepare(`
     INSERT INTO campaigns (
-      id, code, name, description, objective, campaign_type, sub_type,
+      id, code, name, description, objective, campaign_type, campaign_mode, sub_type,
       status, priority, is_cumulative, is_exclusive, parent_id, current_version,
       starts_at, ends_at, time_start, time_end, valid_weekdays, recurrence,
-      targets, conditions, triggers, rewards, limits, exceptions,
+      targets, bases, conditions, triggers, rewards, limits, exceptions,
       natural_language, internal_notes, created_by, updated_by, change_reason
     ) VALUES (
-      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
     )
   `).run(
     id, code, data.name, data.description || null, data.objective || null,
-    data.campaign_type || "padrao", data.sub_type || null,
+    data.campaign_type || "padrao", data.campaign_mode || "atingimento", data.sub_type || null,
     "rascunho", data.priority ?? 50,
     data.is_cumulative !== false ? 1 : 0,
     data.is_exclusive ? 1 : 0,
@@ -174,6 +176,7 @@ export function createCampaign(data: any, actor: string) {
     JSON.stringify(data.valid_weekdays || []),
     data.recurrence || null,
     JSON.stringify(data.targets || {}),
+    JSON.stringify(data.bases || {}),
     JSON.stringify(data.conditions || {}),
     JSON.stringify(data.triggers || []),
     JSON.stringify(data.rewards || {}),
@@ -201,16 +204,18 @@ export function updateCampaign(id: string, data: any, actor: string, reason?: st
 
   sqlite.prepare(`
     UPDATE campaigns SET
-      name=?, description=?, objective=?, campaign_type=?, sub_type=?,
+      name=?, description=?, objective=?, campaign_type=?, campaign_mode=?, sub_type=?,
       priority=?, is_cumulative=?, is_exclusive=?,
       starts_at=?, ends_at=?, time_start=?, time_end=?, valid_weekdays=?, recurrence=?,
-      targets=?, conditions=?, triggers=?, rewards=?, limits=?, exceptions=?,
+      targets=?, bases=?, conditions=?, triggers=?, rewards=?, limits=?, exceptions=?,
       natural_language=?, internal_notes=?,
       current_version=?, updated_by=?, change_reason=?, updated_at=CURRENT_TIMESTAMP
     WHERE id=?
   `).run(
     data.name, data.description || null, data.objective || null,
-    data.campaign_type || existing.campaign_type, data.sub_type || null,
+    data.campaign_type || (existing as any).campaign_type,
+    data.campaign_mode || (existing as any).campaign_mode || "atingimento",
+    data.sub_type || null,
     data.priority ?? existing.priority,
     data.is_cumulative !== false ? 1 : 0, data.is_exclusive ? 1 : 0,
     data.starts_at || existing.starts_at, data.ends_at || existing.ends_at,
@@ -218,6 +223,7 @@ export function updateCampaign(id: string, data: any, actor: string, reason?: st
     JSON.stringify(data.valid_weekdays || []),
     data.recurrence || null,
     JSON.stringify(data.targets || {}),
+    JSON.stringify(data.bases || {}),
     JSON.stringify(data.conditions || {}),
     JSON.stringify(data.triggers || []),
     JSON.stringify(data.rewards || {}),

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated, isAdmin, type AuthRequest } from "../auth";
 import * as service from "./service";
+import * as apuracao from "./apuracao";
 import { sqlite } from "../db";
 import { storage } from "../storage";
 
@@ -337,6 +338,96 @@ router.get("/:id/groups", isAuthenticated, async (_req, res) => {
   try {
     const groups = await storage.getVendorGroups();
     res.json(groups);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Apuração: run full calculation against sales data ────────────────────────
+router.post("/:id/apurar", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+  try {
+    const actor = req.user?.email || "sistema";
+    const result = apuracao.apurarCampanha(req.params.id, actor);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Resultados: get latest apuração result ───────────────────────────────────
+router.get("/:id/resultados", isAuthenticated, (req, res) => {
+  try {
+    const result = apuracao.getLatestResult(req.params.id);
+    if (!result) return res.status(404).json({ error: "Nenhuma apuração encontrada para esta campanha" });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Resultados histórico ─────────────────────────────────────────────────────
+router.get("/:id/resultados/historico", isAuthenticated, (req, res) => {
+  try {
+    const results = apuracao.listResults(req.params.id);
+    res.json(results);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Export: resultados como CSV ──────────────────────────────────────────────
+router.get("/:id/resultados/export.csv", isAuthenticated, (req, res) => {
+  try {
+    const result = apuracao.getLatestResult(req.params.id);
+    if (!result) return res.status(404).json({ error: "Nenhuma apuração disponível" });
+
+    const campaign = service.getCampaignById(req.params.id);
+    const lines: string[] = [];
+    lines.push(`"Campanha";"${result.campaignName}";"${result.campaignCode}"`);
+    lines.push(`"Período";"${result.periodoInicio} a ${result.periodoFim}"`);
+    lines.push(`"Modo";"${result.campaignMode}"`);
+    lines.push(`"Apurado em";"${new Date(result.apuradoEm).toLocaleString("pt-BR")}"`);
+    lines.push(`"Apurado por";"${result.apuradoPor}"`);
+    lines.push(``);
+    lines.push(
+      `"Posição";"Vendedor";"ID";"Elegível";"Participou";"Gatilho Atingido";"Atingiu";"Premiado";"Valor Apurado (R$)";"Valor Pagamento (R$)";"Qtd";"Mix (produtos)";"Gatilho Alvo (R$)";"Prêmio Calculado (R$)";"Prêmio Final (R$)";"Fórmula";"Motivos Não Participação"`,
+    );
+
+    const sorted = [...result.detalhes].sort((a, b) => {
+      if (a.posicao && b.posicao) return a.posicao - b.posicao;
+      if (a.posicao) return -1;
+      if (b.posicao) return 1;
+      return b.valorApuracao - a.valorApuracao;
+    });
+
+    for (const d of sorted) {
+      const boolStr = (v: boolean) => v ? "Sim" : "Não";
+      const numStr = (v: number) => v.toFixed(2).replace(".", ",");
+      lines.push(
+        `"${d.posicao ?? "-"}";"${d.vendedorNome}";"${d.vendedorId}";` +
+        `"${boolStr(d.elegivel)}";"${boolStr(d.participou)}";"${boolStr(d.gatilhoAtingido)}";` +
+        `"${boolStr(d.atingiu)}";"${boolStr(d.premiado)}";"${numStr(d.valorApuracao)}";` +
+        `"${numStr(d.valorPagamento)}";"${d.qtdTotal.toFixed(0)}";"${d.mixCount}";` +
+        `"${numStr(d.gatilhoValor)}";"${numStr(d.premioCalculado)}";"${numStr(d.premioFinal)}";` +
+        `"${(d.memoriaCalculo?.formulaPremio || "").replace(/"/g, "'")}";"${(d.motivosNaoParticipacao || []).join("; ").replace(/"/g, "'")}"`,
+      );
+    }
+
+    lines.push(``);
+    lines.push(`"RESUMO"`);
+    lines.push(`"Total elegíveis";"${result.totalElegiveis}"`);
+    lines.push(`"Total participantes";"${result.totalParticipantes}"`);
+    lines.push(`"Total atingidos";"${result.totalAtingidos}"`);
+    lines.push(`"Total premiados";"${result.totalPremiados}"`);
+    lines.push(`"Valor total apurado (R$)";"${result.valorTotalApuracao.toFixed(2).replace(".", ",")}"`);
+    lines.push(`"Valor total premiação (R$)";"${result.valorTotalPremio.toFixed(2).replace(".", ",")}"`);
+
+    const csv = lines.join("\r\n");
+    const filename = `apuracao_${campaign?.code || req.params.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send("\uFEFF" + csv);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

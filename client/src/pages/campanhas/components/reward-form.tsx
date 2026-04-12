@@ -5,12 +5,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { type Rewards, type RewardTier, type RewardType, REWARD_TYPE_LABEL } from "../types";
+import { type Rewards, type RewardTier, type RewardPosition, type RewardType, REWARD_TYPE_LABEL } from "../types";
 
 function newTier(): RewardTier {
   return { id: crypto.randomUUID(), label: "", min: 0, max: null, value: 0, unit: "R$" };
+}
+
+function newPosition(posicao: number): RewardPosition {
+  return { id: crypto.randomUUID(), posicao, label: `${posicao}º lugar`, valor: 0 };
 }
 
 interface RewardFormProps {
@@ -35,7 +39,25 @@ export function RewardForm({ value, onChange }: RewardFormProps) {
     update({ tiers: value.tiers.filter((_, i) => i !== idx) });
   }
 
+  function addPosition() {
+    const posicoes = value.posicoes || [];
+    const nextPos = posicoes.length > 0 ? Math.max(...posicoes.map(p => p.posicao)) + 1 : 1;
+    update({ posicoes: [...posicoes, newPosition(nextPos)] });
+  }
+
+  function updatePosition(idx: number, patch: Partial<RewardPosition>) {
+    const posicoes = [...(value.posicoes || [])];
+    posicoes[idx] = { ...posicoes[idx], ...patch };
+    update({ posicoes });
+  }
+
+  function removePosition(idx: number) {
+    update({ posicoes: (value.posicoes || []).filter((_, i) => i !== idx) });
+  }
+
   const isTiered = value.type === "FAIXA" || value.type === "PROGRESSAO";
+  const isRanking = value.type === "RANKING";
+  const isPercentual = value.type === "PERCENTUAL" || value.type === "COMISSAO_PERCENTUAL";
 
   return (
     <div className="space-y-5">
@@ -48,8 +70,8 @@ export function RewardForm({ value, onChange }: RewardFormProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.entries(REWARD_TYPE_LABEL) as [RewardType, string][]).map(([k, v]) => (
-                <SelectItem key={k} value={k} className="text-xs">{v}</SelectItem>
+              {(Object.entries(REWARD_TYPE_LABEL) as [RewardType, string][]).map(([k, label]) => (
+                <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -66,7 +88,20 @@ export function RewardForm({ value, onChange }: RewardFormProps) {
         </div>
       </div>
 
-      {/* Simple types */}
+      {/* Dica contextual */}
+      {value.type === "COMISSAO_PERCENTUAL" && (
+        <div className="text-[10px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 rounded px-3 py-2 border border-blue-200 dark:border-blue-800">
+          A comissão será calculada sobre o valor total da <strong>base de pagamento</strong> acumulada no período.
+          Configure a base de pagamento na aba "Bases de Cálculo".
+        </div>
+      )}
+      {isRanking && (
+        <div className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded px-3 py-2 border border-amber-200 dark:border-amber-800">
+          Configure abaixo o prêmio para cada posição no ranking. O critério de ranking é definido na aba "Bases de Cálculo".
+        </div>
+      )}
+
+      {/* Valor fixo */}
       {value.type === "VALOR_FIXO" && (
         <div className="space-y-1.5">
           <Label className="text-xs">Valor Fixo (R$)</Label>
@@ -77,25 +112,35 @@ export function RewardForm({ value, onChange }: RewardFormProps) {
             value={value.baseValue ?? ""}
             onChange={e => update({ baseValue: Number(e.target.value) })}
           />
+          <p className="text-[10px] text-muted-foreground">Todos os elegíveis que cumprirem as condições recebem este valor.</p>
         </div>
       )}
 
-      {value.type === "PERCENTUAL" && (
+      {/* Percentual / Comissão */}
+      {isPercentual && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Percentual (%)</Label>
+          <Label className="text-xs">
+            {value.type === "COMISSAO_PERCENTUAL" ? "Percentual de comissão (%)" : "Percentual (%)"}
+          </Label>
           <div className="flex items-center gap-2">
             <Input
               type="number"
               className="h-8 text-xs w-28"
               placeholder="0"
+              step="0.1"
               value={value.basePercent ?? ""}
               onChange={e => update({ basePercent: Number(e.target.value) })}
             />
-            <span className="text-xs text-muted-foreground">% sobre o valor da venda</span>
+            <span className="text-xs text-muted-foreground">
+              {value.type === "COMISSAO_PERCENTUAL"
+                ? "% sobre base de pagamento acumulada"
+                : "% sobre o valor da venda"}
+            </span>
           </div>
         </div>
       )}
 
+      {/* Pontos */}
       {value.type === "PONTOS" && (
         <div className="space-y-1.5">
           <Label className="text-xs">Pontos por ocorrência</Label>
@@ -109,7 +154,74 @@ export function RewardForm({ value, onChange }: RewardFormProps) {
         </div>
       )}
 
-      {/* Tiered types */}
+      {/* Ranking: prêmio por posição */}
+      {isRanking && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs flex items-center gap-1.5">
+              <Trophy className="h-3.5 w-3.5 text-amber-500" />
+              Prêmio por Posição
+            </Label>
+            <Button size="sm" variant="outline" className="h-6 text-xs gap-1" onClick={addPosition}>
+              <Plus className="h-3 w-3" /> Adicionar Posição
+            </Button>
+          </div>
+
+          {(!value.posicoes || value.posicoes.length === 0) && (
+            <p className="text-xs text-muted-foreground italic">Nenhuma posição definida. Clique em "Adicionar Posição".</p>
+          )}
+
+          <div className="space-y-2">
+            {(value.posicoes || [])
+              .sort((a, b) => a.posicao - b.posicao)
+              .map((pos, idx) => (
+                <div key={pos.id} className="flex flex-wrap gap-2 items-center p-2 rounded-md bg-muted/40 border">
+                  <Badge
+                    className={cn(
+                      "text-[10px] h-5 shrink-0",
+                      pos.posicao === 1 ? "bg-amber-500 text-white" :
+                      pos.posicao === 2 ? "bg-zinc-400 text-white" :
+                      pos.posicao === 3 ? "bg-amber-700 text-white" : "",
+                    )}
+                    variant={pos.posicao <= 3 ? "default" : "outline"}
+                  >
+                    {pos.posicao}º
+                  </Badge>
+
+                  <Input
+                    type="text"
+                    className="h-7 text-xs w-32"
+                    placeholder="Rótulo (ex: 1º lugar)"
+                    value={pos.label ?? ""}
+                    onChange={e => updatePosition(idx, { label: e.target.value })}
+                  />
+
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground">→ R$</span>
+                    <Input
+                      type="number"
+                      className="h-7 text-xs w-28"
+                      placeholder="0,00"
+                      value={pos.valor ?? ""}
+                      onChange={e => updatePosition(idx, { valor: Number(e.target.value) })}
+                    />
+                  </div>
+
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 text-red-400 hover:text-red-600"
+                    onClick={() => removePosition(idx)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Faixas / Progressão */}
       {isTiered && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">

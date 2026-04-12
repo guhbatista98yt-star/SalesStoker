@@ -210,6 +210,15 @@ export function calculateReward(rewards: any, ctx: EvaluationContext): RewardRes
       const pts = rewards.baseValue || 0;
       return { value: pts, description: `${pts} pontos` };
     }
+    case "COMISSAO_PERCENTUAL": {
+      const base = ctx.acumuladoValor ?? ctx.valor ?? 0;
+      const pct = rewards.basePercent || 0;
+      const result = (base * pct) / 100;
+      return { value: result, description: `Comissão ${pct}% sobre R$ ${base.toFixed(2)} = R$ ${result.toFixed(2)}` };
+    }
+    case "RANKING": {
+      return { value: 0, description: "Prêmio por posição — calculado na apuração" };
+    }
     case "FAIXA":
     case "PROGRESSAO": {
       const ref = ctx.valor ?? ctx.quantidade ?? 0;

@@ -2,6 +2,13 @@
 
 export type CampaignStatus = "rascunho" | "ativa" | "pausada" | "encerrada" | "cancelada";
 export type CampaignType = "padrao" | "avancado";
+export type CampaignMode =
+  | "atingimento"
+  | "comissao"
+  | "ranking_volume"
+  | "ranking_crescimento"
+  | "faixa";
+
 export type CampaignSubType =
   | "fornecedor" | "produto" | "mix" | "combo" | "faixa"
   | "meta" | "volume" | "faturamento" | "periodo" | "customizado";
@@ -18,7 +25,9 @@ export type ConditionOperator =
 
 export type GroupConnector = "AND" | "OR";
 
-export type RewardType = "VALOR_FIXO" | "PERCENTUAL" | "PONTOS" | "FAIXA" | "PROGRESSAO";
+export type RewardType =
+  | "VALOR_FIXO" | "PERCENTUAL" | "COMISSAO_PERCENTUAL"
+  | "PONTOS" | "FAIXA" | "PROGRESSAO" | "RANKING";
 
 // ─── Rule structures ──────────────────────────────────────────────────────────
 
@@ -63,6 +72,33 @@ export interface TargetSegment {
   };
 }
 
+// ─── Bases de Cálculo (separate layers for eligibility, ranking, payment) ────
+
+export interface ProductBase {
+  mode: "all" | "supplier" | "category" | "specific";
+  suppliers?: string[];
+  categories?: string[];
+  ids?: string[];
+}
+
+export interface Bases {
+  elegibilidade?: {
+    mix_minimo?: number;
+    produtos?: ProductBase | null;
+  };
+  apuracao?: {
+    produtos?: ProductBase | null;
+  };
+  ranking?: {
+    tipo?: "volume" | "crescimento" | "mix";
+    criterio_desempate?: "valor" | "quantidade" | "data";
+    periodo_comparativo?: { starts_at: string; ends_at: string } | null;
+  };
+  pagamento?: {
+    produtos?: ProductBase | null;
+  };
+}
+
 // ─── Rewards ──────────────────────────────────────────────────────────────────
 
 export interface RewardTier {
@@ -74,12 +110,20 @@ export interface RewardTier {
   unit?: string;
 }
 
+export interface RewardPosition {
+  id: string;
+  posicao: number;
+  label?: string;
+  valor: number;
+}
+
 export interface Rewards {
   type: RewardType;
   scope: "individual" | "coletivo";
   baseValue?: number;
   basePercent?: number;
   tiers: RewardTier[];
+  posicoes?: RewardPosition[];
   maxBonus?: number | null;
   minCutoff?: number | null;
   rounding?: "none" | "up" | "down";
@@ -127,6 +171,7 @@ export interface Campaign {
   description?: string;
   objective?: string;
   campaign_type: CampaignType;
+  campaign_mode: CampaignMode;
   sub_type?: CampaignSubType;
   status: CampaignStatus;
   priority: number;
@@ -141,6 +186,7 @@ export interface Campaign {
   valid_weekdays?: number[];
   recurrence?: string;
   targets: TargetSegment;
+  bases: Bases;
   conditions: ConditionGroup;
   triggers: Trigger[];
   rewards: Rewards;
@@ -175,6 +221,60 @@ export interface CampaignAuditEntry {
   change_reason?: string;
   created_at: string;
 }
+
+// ─── Apuração result types ────────────────────────────────────────────────────
+
+export interface MemoriaCalculo {
+  passos: string[];
+  baseApuracao: string;
+  basePagamento: string;
+  criterioRanking?: string;
+  formulaPremio: string;
+  periodo: string;
+}
+
+export interface VendedorApuracao {
+  vendedorId: string;
+  vendedorNome: string;
+  elegivel: boolean;
+  participou: boolean;
+  gatilhoAtingido: boolean;
+  atingiu: boolean;
+  premiado: boolean;
+  posicao?: number;
+  valorApuracao: number;
+  valorPagamento: number;
+  qtdTotal: number;
+  mixCount: number;
+  gatilhoValor: number;
+  premioCalculado: number;
+  premioFinal: number;
+  crescimentoPerc?: number;
+  motivosNaoParticipacao: string[];
+  memoriaCalculo: MemoriaCalculo;
+}
+
+export interface ApuracaoResult {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  campaignCode: string;
+  apuradoEm: string;
+  apuradoPor: string;
+  periodoInicio: string;
+  periodoFim: string;
+  campaignMode: string;
+  totalElegiveis: number;
+  totalParticipantes: number;
+  totalAtingidos: number;
+  totalPremiados: number;
+  valorTotalApuracao: number;
+  valorTotalPagamento: number;
+  valorTotalPremio: number;
+  detalhes: VendedorApuracao[];
+}
+
+// ─── Simulation ───────────────────────────────────────────────────────────────
 
 export interface SimulationInput {
   vendedorId?: string;
@@ -223,6 +323,22 @@ export const STATUS_COLOR: Record<CampaignStatus, string> = {
   cancelada:"bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 };
 
+export const CAMPAIGN_MODE_LABEL: Record<CampaignMode, string> = {
+  atingimento:        "Atingimento (todos que cumprirem ganham)",
+  comissao:           "Comissão (% sobre valor vendido)",
+  ranking_volume:     "Ranking por Volume (maior venda)",
+  ranking_crescimento:"Ranking por Crescimento (maior % de crescimento)",
+  faixa:              "Por Faixa (prêmio escalonado pelo valor)",
+};
+
+export const CAMPAIGN_MODE_DESC: Record<CampaignMode, string> = {
+  atingimento:        "Todos os vendedores que atingirem as condições recebem o prêmio fixo.",
+  comissao:           "Cada vendedor recebe um percentual calculado sobre o valor da base de pagamento.",
+  ranking_volume:     "Os vendedores são ranqueados pelo volume apurado. Os primeiros colocados recebem prêmios por posição.",
+  ranking_crescimento:"Os vendedores são ranqueados pelo crescimento em relação ao período comparativo. Os primeiros colocados recebem prêmios por posição.",
+  faixa:              "O prêmio é determinado por faixas de valor apurado. Cada faixa tem um prêmio correspondente.",
+};
+
 export const CONDITION_TYPE_LABEL: Record<ConditionType, string> = {
   FORNECEDOR: "Fornecedor", PRODUTO: "Produto", GRUPO_PRODUTO: "Grupo de Produto",
   SECAO: "Seção", CATEGORIA: "Categoria", SUBCATEGORIA: "Subcategoria",
@@ -245,8 +361,13 @@ export const OPERATOR_LABEL: Record<ConditionOperator, string> = {
 };
 
 export const REWARD_TYPE_LABEL: Record<RewardType, string> = {
-  VALOR_FIXO: "Valor Fixo (R$)", PERCENTUAL: "Percentual (%)",
-  PONTOS: "Pontos", FAIXA: "Bonificação por Faixa", PROGRESSAO: "Progressão",
+  VALOR_FIXO:         "Valor Fixo (R$)",
+  PERCENTUAL:         "Percentual sobre transação (%)",
+  COMISSAO_PERCENTUAL:"Comissão sobre base de pagamento (%)",
+  PONTOS:             "Pontos",
+  FAIXA:              "Bonificação por Faixa",
+  PROGRESSAO:         "Progressão",
+  RANKING:            "Prêmio por Posição no Ranking",
 };
 
 export const TRIGGER_EVENT_LABEL: Record<TriggerEvent, string> = {
@@ -280,8 +401,17 @@ export function defaultTargets(): TargetSegment {
   };
 }
 
+export function defaultBases(): Bases {
+  return {
+    elegibilidade: { mix_minimo: 0, produtos: null },
+    apuracao: { produtos: null },
+    ranking: { tipo: "volume", criterio_desempate: "valor", periodo_comparativo: null },
+    pagamento: { produtos: null },
+  };
+}
+
 export function defaultRewards(): Rewards {
-  return { type: "VALOR_FIXO", scope: "individual", tiers: [], maxBonus: null, minCutoff: null, rounding: "none" };
+  return { type: "VALOR_FIXO", scope: "individual", tiers: [], posicoes: [], maxBonus: null, minCutoff: null, rounding: "none" };
 }
 
 export function defaultLimits(): CampaignLimits {
@@ -291,11 +421,13 @@ export function defaultLimits(): CampaignLimits {
 export function defaultCampaign(): Partial<Campaign> {
   return {
     campaign_type: "padrao",
+    campaign_mode: "atingimento",
     status: "rascunho",
     priority: 50,
     is_cumulative: true,
     is_exclusive: false,
     targets: defaultTargets(),
+    bases: defaultBases(),
     conditions: defaultConditionGroup(),
     triggers: [],
     rewards: defaultRewards(),

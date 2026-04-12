@@ -32,22 +32,26 @@ import { SimulatorPanel } from "./components/simulator-panel";
 import { AuditLog } from "./components/audit-log";
 import { GatilhosTab } from "./components/gatilhos-tab";
 import { RelatorioTab } from "./components/relatorio-tab";
+import { ResultadosTab } from "./components/resultados-tab";
 import {
   type Campaign, type ConditionGroup, type Trigger, type CampaignException,
-  type CampaignLimits, type TargetSegment,
-  defaultConditionGroup, defaultTargets, defaultRewards, defaultLimits,
+  type CampaignLimits, type TargetSegment, type Bases, type ProductBase, type CampaignMode,
+  defaultConditionGroup, defaultTargets, defaultRewards, defaultLimits, defaultBases,
   TRIGGER_EVENT_LABEL, ACTION_LABEL, STATUS_COLOR, STATUS_LABEL,
+  CAMPAIGN_MODE_LABEL, CAMPAIGN_MODE_DESC,
 } from "./types";
 
 const TABS = [
   { id: "geral",             label: "Dados Gerais",        Icon: Info },
   { id: "publico",           label: "Público-Alvo",        Icon: Users },
+  { id: "bases",             label: "Bases de Cálculo",    Icon: Layers },
   { id: "condicoes",         label: "Condições",           Icon: GitBranch },
   { id: "premiacao",         label: "Premiação",           Icon: Trophy },
   { id: "limites",           label: "Limites",             Icon: Shield },
   { id: "gatilhos",          label: "Gatilhos (Campanha)", Icon: Zap },
   { id: "gatilhos_vendas",   label: "Metas Vendedor",      Icon: Users },
-  { id: "relatorio",         label: "Relatório",           Icon: BarChart3 },
+  { id: "relatorio",         label: "Acompanhamento",      Icon: BarChart3 },
+  { id: "apuracao",          label: "Apuração",            Icon: Trophy },
   { id: "simulacao",         label: "Simulação",           Icon: FlaskConical },
   { id: "auditoria",         label: "Auditoria",           Icon: ClipboardList },
 ] as const;
@@ -439,6 +443,256 @@ function TriggerForm({ value, onChange }: { value: Trigger[]; onChange: (v: Trig
   );
 }
 
+// ─── Bases de Cálculo form ────────────────────────────────────────────────────
+
+function ProductBaseSelector({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: ProductBase | null | undefined;
+  onChange: (v: ProductBase | null) => void;
+}) {
+  const [input, setInput] = useState("");
+  const cur: ProductBase = value || { mode: "all", suppliers: [], categories: [], ids: [] };
+
+  function update(patch: Partial<ProductBase>) {
+    onChange({ ...cur, ...patch });
+  }
+
+  function addItem(field: "suppliers" | "categories" | "ids") {
+    if (!input.trim()) return;
+    update({ [field]: [...(cur[field] || []), input.trim()] });
+    setInput("");
+  }
+
+  function removeItem(field: "suppliers" | "categories" | "ids", i: number) {
+    update({ [field]: (cur[field] || []).filter((_, j) => j !== i) });
+  }
+
+  return (
+    <div className="space-y-2 p-3 rounded-lg border bg-muted/20">
+      <div>
+        <p className="text-xs font-medium">{label}</p>
+        {description && <p className="text-[10px] text-muted-foreground">{description}</p>}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onChange(null)}
+          className={cn(
+            "text-[10px] px-2 py-0.5 rounded border transition-colors",
+            value === null ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted",
+          )}
+        >
+          Igual ao público-alvo
+        </button>
+        {(["all", "supplier", "category", "specific"] as const).map(m => (
+          <button
+            key={m}
+            onClick={() => onChange({ ...cur, mode: m })}
+            className={cn(
+              "text-[10px] px-2 py-0.5 rounded border transition-colors",
+              value !== null && cur.mode === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:bg-muted",
+            )}
+          >
+            {m === "all" ? "Todos" : m === "supplier" ? "Fornecedor" : m === "category" ? "Categoria" : "Produtos específicos"}
+          </button>
+        ))}
+      </div>
+
+      {value !== null && cur.mode !== "all" && (
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <Input
+              className="h-7 text-xs flex-1"
+              placeholder={cur.mode === "supplier" ? "Nome do fornecedor..." : cur.mode === "category" ? "Categoria..." : "ID do produto..."}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  const f = cur.mode === "supplier" ? "suppliers" : cur.mode === "category" ? "categories" : "ids";
+                  addItem(f as any);
+                }
+              }}
+            />
+            <Button
+              size="sm" variant="outline" className="h-7 text-xs"
+              onClick={() => {
+                const f = cur.mode === "supplier" ? "suppliers" : cur.mode === "category" ? "categories" : "ids";
+                addItem(f as any);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {(cur.mode === "supplier" ? (cur.suppliers || []) : cur.mode === "category" ? (cur.categories || []) : (cur.ids || []))
+              .map((item, i) => (
+                <Badge key={i} variant="secondary" className="text-[10px] gap-1 pr-1">
+                  {item}
+                  <button
+                    onClick={() => {
+                      const f = cur.mode === "supplier" ? "suppliers" : cur.mode === "category" ? "categories" : "ids";
+                      removeItem(f as any, i);
+                    }}
+                    className="hover:text-red-500"
+                  >×</button>
+                </Badge>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BasesForm({ value, onChange, campaignMode }: {
+  value: Bases;
+  onChange: (v: Bases) => void;
+  campaignMode: CampaignMode;
+}) {
+  const update = (patch: Partial<Bases>) => onChange({ ...value, ...patch });
+
+  const isRanking = campaignMode === "ranking_volume" || campaignMode === "ranking_crescimento";
+
+  return (
+    <div className="space-y-5">
+      <div className="p-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground">
+        <strong>O que são Bases de Cálculo?</strong> Cada base define <em>quais produtos/fornecedores</em> são considerados
+        em cada etapa do cálculo. Você pode usar filtros diferentes para apuração, ranking e pagamento,
+        permitindo campanhas como "rankear por crescimento geral mas pagar apenas sobre conexões".
+        "Igual ao público-alvo" usa os mesmos produtos configurados no Público-Alvo.
+      </div>
+
+      <Section title="Base de Elegibilidade" description="Produtos considerados para verificar participação e mix mínimo.">
+        <ProductBaseSelector
+          label="Filtro de produtos"
+          value={value.elegibilidade?.produtos}
+          onChange={p => update({ elegibilidade: { ...value.elegibilidade, produtos: p } })}
+        />
+        <div className="space-y-1.5">
+          <Label className="text-xs">Mix mínimo (mínimo de produtos distintos para participar)</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              className="h-7 text-xs w-24"
+              min={0}
+              placeholder="0"
+              value={value.elegibilidade?.mix_minimo ?? 0}
+              onChange={e => update({ elegibilidade: { ...value.elegibilidade, mix_minimo: Number(e.target.value) } })}
+            />
+            <span className="text-[10px] text-muted-foreground">produto(s) distintos (0 = sem exigência de mix)</span>
+          </div>
+        </div>
+      </Section>
+
+      <Separator />
+
+      <Section title="Base de Apuração" description="Produtos usados para medir a performance (base do ranking, quando aplicável).">
+        <ProductBaseSelector
+          label="Filtro de produtos para apuração"
+          value={value.apuracao?.produtos}
+          onChange={p => update({ apuracao: { ...value.apuracao, produtos: p } })}
+        />
+      </Section>
+
+      <Separator />
+
+      {isRanking && (
+        <>
+          <Section title="Critério de Ranking" description="Como os vendedores serão ordenados para o ranking.">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tipo de ranking</Label>
+                <Select
+                  value={value.ranking?.tipo || "volume"}
+                  onValueChange={v => update({ ranking: { ...value.ranking, tipo: v as any } })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="volume" className="text-xs">Por volume (maior valor apurado)</SelectItem>
+                    <SelectItem value="crescimento" className="text-xs">Por crescimento (% em relação ao período anterior)</SelectItem>
+                    <SelectItem value="mix" className="text-xs">Por mix (mais produtos distintos)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Critério de desempate</Label>
+                <Select
+                  value={value.ranking?.criterio_desempate || "valor"}
+                  onValueChange={v => update({ ranking: { ...value.ranking, criterio_desempate: v as any } })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="valor" className="text-xs">Maior valor apurado</SelectItem>
+                    <SelectItem value="quantidade" className="text-xs">Maior quantidade</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {(value.ranking?.tipo === "crescimento" || campaignMode === "ranking_crescimento") && (
+              <div className="space-y-1.5 pt-2">
+                <Label className="text-xs">Período comparativo (base para cálculo do crescimento)</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">Início</Label>
+                    <Input
+                      type="date"
+                      className="h-7 text-xs"
+                      value={value.ranking?.periodo_comparativo?.starts_at || ""}
+                      onChange={e => update({
+                        ranking: {
+                          ...value.ranking,
+                          periodo_comparativo: {
+                            starts_at: e.target.value,
+                            ends_at: value.ranking?.periodo_comparativo?.ends_at || "",
+                          },
+                        },
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">Fim</Label>
+                    <Input
+                      type="date"
+                      className="h-7 text-xs"
+                      value={value.ranking?.periodo_comparativo?.ends_at || ""}
+                      onChange={e => update({
+                        ranking: {
+                          ...value.ranking,
+                          periodo_comparativo: {
+                            starts_at: value.ranking?.periodo_comparativo?.starts_at || "",
+                            ends_at: e.target.value,
+                          },
+                        },
+                      })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </Section>
+
+          <Separator />
+        </>
+      )}
+
+      <Section title="Base de Pagamento" description="Produtos usados para calcular o valor do prêmio (pode ser diferente da base de apuração).">
+        <ProductBaseSelector
+          label="Filtro de produtos para pagamento"
+          description='Ex: "rankear por crescimento geral, pagar sobre conexões" → apuração = todos, pagamento = fornecedor Conexões'
+          value={value.pagamento?.produtos}
+          onChange={p => update({ pagamento: { ...value.pagamento, produtos: p } })}
+        />
+      </Section>
+    </div>
+  );
+}
+
 // ─── Validation badge ─────────────────────────────────────────────────────────
 
 function ValidationBar({ errors, conflicts }: { errors: string[]; conflicts: any[] }) {
@@ -473,9 +727,9 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
 
   const [activeTab, setActiveTab] = useState<TabId>("geral");
   const [form, setForm] = useState<Partial<Campaign>>({
-    name: "", description: "", objective: "", campaign_type: "padrao",
+    name: "", description: "", objective: "", campaign_type: "padrao", campaign_mode: "atingimento",
     priority: 50, is_cumulative: true, is_exclusive: false,
-    targets: defaultTargets(), conditions: defaultConditionGroup(),
+    targets: defaultTargets(), bases: defaultBases(), conditions: defaultConditionGroup(),
     triggers: [], rewards: defaultRewards(), limits: defaultLimits(), exceptions: [],
     valid_weekdays: [],
   });
@@ -789,6 +1043,33 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
 
                 <Separator />
 
+                <Section title="Modo de Apuração">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Como esta campanha funciona? <span className="text-red-500">*</span></Label>
+                      <Select
+                        value={form.campaign_mode ?? "atingimento"}
+                        onValueChange={v => update({ campaign_mode: v as CampaignMode })}
+                        disabled={isReadonly}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(CAMPAIGN_MODE_LABEL) as [CampaignMode, string][]).map(([k, label]) => (
+                            <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.campaign_mode && (
+                      <p className="text-[10px] text-muted-foreground bg-muted/40 px-3 py-2 rounded border">
+                        {CAMPAIGN_MODE_DESC[form.campaign_mode]}
+                      </p>
+                    )}
+                  </div>
+                </Section>
+
+                <Separator />
+
                 <Section title="Configurações de Campanha">
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-1.5">
@@ -863,6 +1144,18 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
                 }
               </TabsContent>
 
+              {/* ── Bases de Cálculo ── */}
+              <TabsContent value="bases" className="mt-0">
+                {isReadonly
+                  ? <div className="text-xs text-muted-foreground">Campanha somente leitura.</div>
+                  : <BasesForm
+                      value={form.bases || defaultBases()}
+                      onChange={bases => update({ bases })}
+                      campaignMode={(form.campaign_mode ?? "atingimento") as CampaignMode}
+                    />
+                }
+              </TabsContent>
+
               {/* ── Condições ── */}
               <TabsContent value="condicoes" className="mt-0">
                 {isReadonly
@@ -917,6 +1210,13 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
               {isEditing && (
                 <TabsContent value="relatorio" className="mt-0">
                   <RelatorioTab campaignId={campaignId!} />
+                </TabsContent>
+              )}
+
+              {/* ── Apuração ── */}
+              {isEditing && (
+                <TabsContent value="apuracao" className="mt-0">
+                  <ResultadosTab campaignId={campaignId!} />
                 </TabsContent>
               )}
 
