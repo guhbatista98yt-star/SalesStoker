@@ -49,6 +49,7 @@ import Usuarios from "@/pages/usuarios";
 import ComprasDashboard from "@/pages/compras/index";
 import FornecedorDetalhe from "@/pages/compras/fornecedor";
 import ProdutoDetalhe from "@/pages/compras/produto";
+import ComprasConfiguracoes from "@/pages/compras/configuracoes";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +125,7 @@ function Router() {
       <Route path="/comissoes/configurar" component={ConfigurarComissoes} />
       <Route path="/usuarios" component={Usuarios} />
       <Route path="/compras" component={() => <ComprasGuard><ComprasDashboard /></ComprasGuard>} />
+      <Route path="/compras/configuracoes" component={() => <ComprasGuard><ComprasConfiguracoes /></ComprasGuard>} />
       <Route path="/compras/fornecedores/:id">
         {(params) => (
           <ComprasGuard>
@@ -233,7 +235,8 @@ function CommandPalette() {
     { label: "Comissões",            href: "/comissoes",   icon: DollarSign },
     { label: "Usuários & Permissões", href: "/usuarios",   icon: Users },
     { label: "Configurações",        href: "/configuracoes", icon: Settings },
-    { label: "Copiloto de Compras",  href: "/compras",       icon: ShoppingCart },
+    { label: "Copiloto de Compras",       href: "/compras",                icon: ShoppingCart },
+    { label: "Configuração de Compras",   href: "/compras/configuracoes",  icon: Settings },
   ];
 
   const lojaItems = [

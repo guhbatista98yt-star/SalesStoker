@@ -116,27 +116,28 @@ function adaptProdutoCritico(raw: BackendProdutoItem): ProdutoCritico {
 
 interface BackendAlerta {
   id: string;
-  tipo: string;
-  produto_id: string | null;
-  fabricante: string | null;
-  severidade: string;
-  titulo: string;
-  mensagem: string;
+  type: string;
+  referenceKey?: string;
+  severity: string;
+  title: string;
+  message: string;
   status: string;
-  dados: Record<string, unknown>;
+  data: Record<string, unknown>;
+  createdAt?: string;
 }
 
 function adaptAlerta(raw: BackendAlerta): Alerta {
+  const dados = raw.data ?? {};
   return {
     id: raw.id,
-    tipo: raw.titulo ?? raw.tipo,
-    produto: raw.dados?.produtoNome as string | undefined ?? raw.produto_id ?? undefined,
-    produtoId: raw.produto_id ?? undefined,
-    fornecedor: raw.fabricante ?? undefined,
-    fornecedorId: raw.fabricante ? encodeURIComponent(raw.fabricante) : undefined,
-    criticidade: severidadeToCriticidade(raw.severidade),
-    tempoEstimadoRuptura: typeof raw.dados?.coberturaDias === "number" ? Math.round(raw.dados.coberturaDias as number) : undefined,
-    acaoSugerida: raw.mensagem ?? "",
+    tipo: raw.title ?? raw.type,
+    produto: dados.produtoNome as string | undefined ?? dados.produtoId as string | undefined,
+    produtoId: dados.produtoId as string | undefined,
+    fornecedor: dados.fabricante as string | undefined,
+    fornecedorId: dados.fabricante ? encodeURIComponent(dados.fabricante as string) : undefined,
+    criticidade: severidadeToCriticidade(raw.severity),
+    tempoEstimadoRuptura: typeof dados.coberturaDias === "number" ? Math.round(dados.coberturaDias as number) : undefined,
+    acaoSugerida: raw.message ?? "",
     visto: raw.status === "lido" || raw.status === "reconhecido",
     silenciado: raw.status === "silenciado",
   };

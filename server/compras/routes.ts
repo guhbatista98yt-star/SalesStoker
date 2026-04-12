@@ -245,8 +245,18 @@ router.get("/alertas", isAuthenticated, async (req: AuthRequest, res) => {
 
     res.json({
       alerts: rows.map(r => ({
-        ...r,
-        data: typeof r.data === "string" ? JSON.parse(r.data) : r.data,
+        id: r.id,
+        userId: r.user_id,
+        type: r.type,
+        referenceKey: r.reference_key,
+        severityBand: r.severity_band,
+        severity: r.severity,
+        title: r.title,
+        message: r.message,
+        status: r.status,
+        data: typeof r.data === "string" ? JSON.parse(r.data) : (r.data ?? {}),
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
       })),
       total: countRow?.total ?? 0,
       unreadCount: unreadRow?.total ?? 0,
@@ -440,8 +450,8 @@ router.put("/preferencias", isAuthenticated, async (req: AuthRequest, res) => {
 
 router.get("/configuracoes", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const rows = await pgAll<{ key: string; value: string }>(
-      `SELECT key, value FROM purchase_settings`
+    const rows = await pgAll<{ chave: string; valor: string }>(
+      `SELECT chave, valor FROM purchase_settings`
     );
 
     const defaults: Record<string, string> = {
@@ -456,7 +466,7 @@ router.get("/configuracoes", isAuthenticated, async (req: AuthRequest, res) => {
 
     const settings = { ...defaults };
     for (const r of rows) {
-      settings[r.key] = r.value;
+      settings[r.chave] = r.valor;
     }
 
     res.json(settings);
@@ -488,10 +498,10 @@ router.put("/configuracoes", isAuthenticated, async (req: AuthRequest, res) => {
     for (const key of allowed) {
       if (body[key] !== undefined) {
         await pgRun(
-          `INSERT INTO purchase_settings (id, key, value, updated_at)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
-          [randomUUID(), key, String(body[key]), now]
+          `INSERT INTO purchase_settings (chave, valor, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, updated_at = EXCLUDED.updated_at`,
+          [key, String(body[key]), now]
         );
       }
     }
@@ -500,6 +510,235 @@ router.put("/configuracoes", isAuthenticated, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error("[compras/configuracoes PUT]", err);
     res.status(500).json({ error: "Erro ao salvar configurações" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Configuração de Fornecedores (Admin)
+// ---------------------------------------------------------------------------
+
+router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res) => {
+  try {
+    // Return all supplier configs merged with distinct FABRICANTEs from cache_campanhas
+    const [configs, fabricantes] = await Promise.all([
+      pgAll<Record<string, unknown>>(`SELECT * FROM compras_fornecedores_config ORDER BY fabricante_nome`),
+      pgAll<{ FABRICANTE: string; ultimo_movimento: string; total_skus: number }>(
+        `SELECT "FABRICANTE",
+                MAX("DTMOVIMENTO") as ultimo_movimento,
+                COUNT(DISTINCT "IDPRODUTO") as total_skus
+         FROM cache_campanhas
+         WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != ''
+         GROUP BY "FABRICANTE"
+         ORDER BY "FABRICANTE"`
+      ),
+    ]);
+
+    const configMap = new Map(configs.map(c => [c.fabricante_nome as string, c]));
+
+    const result = fabricantes.map(f => {
+      const cfg = configMap.get(f.FABRICANTE);
+      return {
+        id: cfg?.id ?? null,
+        fabricante_nome: f.FABRICANTE,
+        codigo: cfg?.codigo ?? "",
+        razao_social: cfg?.razao_social ?? "",
+        nome_fantasia: cfg?.nome_fantasia ?? f.FABRICANTE,
+        ativo: cfg !== undefined ? Boolean(cfg.ativo) : true,
+        periodo_compra_dias: cfg?.periodo_compra_dias ?? 30,
+        lead_time_dias: cfg?.lead_time_dias ?? 7,
+        pedido_minimo_valor: cfg?.pedido_minimo_valor ?? 0,
+        observacoes: cfg?.observacoes ?? "",
+        ultimo_movimento: f.ultimo_movimento,
+        total_skus: f.total_skus,
+        configurado: cfg !== undefined,
+      };
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("[compras/fornecedores-config GET]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/fornecedores-config/:fabricante", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
+  try {
+    const fabricante = decodeURIComponent(req.params.fabricante);
+    const {
+      codigo, razao_social, nome_fantasia, ativo,
+      periodo_compra_dias, lead_time_dias, pedido_minimo_valor, observacoes,
+    } = req.body as Record<string, unknown>;
+
+    const now = new Date().toISOString();
+    const existing = await pgGet<{ id: string }>(
+      `SELECT id FROM compras_fornecedores_config WHERE fabricante_nome = ?`, [fabricante]
+    );
+
+    if (existing) {
+      await pgRun(
+        `UPDATE compras_fornecedores_config SET
+           codigo = ?, razao_social = ?, nome_fantasia = ?, ativo = ?,
+           periodo_compra_dias = ?, lead_time_dias = ?, pedido_minimo_valor = ?,
+           observacoes = ?, updated_at = ?
+         WHERE fabricante_nome = ?`,
+        [
+          String(codigo ?? ""), String(razao_social ?? ""), String(nome_fantasia ?? ""),
+          ativo !== false ? 1 : 0,
+          Number(periodo_compra_dias ?? 30), Number(lead_time_dias ?? 7),
+          Number(pedido_minimo_valor ?? 0), String(observacoes ?? ""),
+          now, fabricante,
+        ]
+      );
+    } else {
+      await pgRun(
+        `INSERT INTO compras_fornecedores_config
+           (id, fabricante_nome, codigo, razao_social, nome_fantasia, ativo,
+            periodo_compra_dias, lead_time_dias, pedido_minimo_valor, observacoes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          randomUUID(), fabricante,
+          String(codigo ?? ""), String(razao_social ?? ""), String(nome_fantasia ?? ""),
+          ativo !== false ? 1 : 0,
+          Number(periodo_compra_dias ?? 30), Number(lead_time_dias ?? 7),
+          Number(pedido_minimo_valor ?? 0), String(observacoes ?? ""),
+          now, now,
+        ]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[compras/fornecedores-config PUT]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Configuração de Produtos (Admin)
+// ---------------------------------------------------------------------------
+
+router.get("/produtos-config", isAuthenticated, async (req: AuthRequest, res) => {
+  try {
+    const { fabricante } = req.query as { fabricante?: string };
+
+    let where = `WHERE "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''`;
+    const params: unknown[] = [];
+    if (fabricante) {
+      where += ` AND "FABRICANTE" = ?`;
+      params.push(fabricante);
+    }
+
+    const [produtos, configs, ultimasCompras] = await Promise.all([
+      pgAll<{ IDPRODUTO: string; FABRICANTE: string; nome_produto: string; total_vendido: number }>(
+        `SELECT "IDPRODUTO", "FABRICANTE",
+                COALESCE("NOMEVENDEDOR", "IDPRODUTO") as nome_produto,
+                COALESCE(SUM("QTD"), 0) as total_vendido
+         FROM cache_campanhas ${where}
+         GROUP BY "IDPRODUTO", "FABRICANTE"
+         ORDER BY total_vendido DESC
+         LIMIT 500`,
+        params
+      ),
+      pgAll<Record<string, unknown>>(
+        fabricante
+          ? `SELECT * FROM compras_produtos_config WHERE fornecedor_nome = ?`
+          : `SELECT * FROM compras_produtos_config`,
+        fabricante ? [fabricante] : []
+      ),
+      pgAll<{ IDPRODUTO: string; FABRICANTE: string; ultima_compra: string; ultima_qtd: number }>(
+        `SELECT c."IDPRODUTO", c."FABRICANTE",
+                c."DTMOVIMENTO" as ultima_compra,
+                c."QTD" as ultima_qtd
+         FROM cache_campanhas c
+         INNER JOIN (
+           SELECT "IDPRODUTO", "FABRICANTE", MAX("DTMOVIMENTO") as max_dt
+           FROM cache_campanhas ${where}
+           GROUP BY "IDPRODUTO", "FABRICANTE"
+         ) m ON c."IDPRODUTO" = m."IDPRODUTO" AND c."FABRICANTE" = m."FABRICANTE" AND c."DTMOVIMENTO" = m.max_dt`,
+        [...params, ...params]
+      ),
+    ]);
+
+    const configMap = new Map(configs.map(c => [`${c.produto_id}::${c.fornecedor_nome}`, c]));
+    const ultimaMap = new Map(ultimasCompras.map(u => [`${u.IDPRODUTO}::${u.FABRICANTE}`, u]));
+
+    const result = produtos.map(p => {
+      const key = `${p.IDPRODUTO}::${p.FABRICANTE}`;
+      const cfg = configMap.get(key);
+      const ult = ultimaMap.get(key);
+      return {
+        id: cfg?.id ?? null,
+        produto_id: p.IDPRODUTO,
+        fornecedor_nome: p.FABRICANTE,
+        descricao: p.IDPRODUTO,
+        total_vendido: p.total_vendido,
+        estoque_minimo: cfg?.estoque_minimo ?? 0,
+        estoque_maximo: cfg?.estoque_maximo ?? 0,
+        lote_minimo: cfg?.lote_minimo ?? 1,
+        multiplo_embalagem: cfg?.multiplo_embalagem ?? 1,
+        giro_periodo_dias: cfg?.giro_periodo_dias ?? 90,
+        ativo: cfg !== undefined ? Boolean(cfg.ativo) : true,
+        ultima_compra: ult?.ultima_compra ?? null,
+        ultima_qtd: ult?.ultima_qtd ?? null,
+        configurado: cfg !== undefined,
+      };
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("[compras/produtos-config GET]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/produtos-config/:produtoId/:fornecedor", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
+  try {
+    const produtoId = decodeURIComponent(req.params.produtoId);
+    const fornecedorNome = decodeURIComponent(req.params.fornecedor);
+    const {
+      estoque_minimo, estoque_maximo, lote_minimo,
+      multiplo_embalagem, giro_periodo_dias, ativo,
+    } = req.body as Record<string, unknown>;
+
+    const now = new Date().toISOString();
+    const existing = await pgGet<{ id: string }>(
+      `SELECT id FROM compras_produtos_config WHERE produto_id = ? AND fornecedor_nome = ?`,
+      [produtoId, fornecedorNome]
+    );
+
+    if (existing) {
+      await pgRun(
+        `UPDATE compras_produtos_config SET
+           estoque_minimo = ?, estoque_maximo = ?, lote_minimo = ?,
+           multiplo_embalagem = ?, giro_periodo_dias = ?, ativo = ?, updated_at = ?
+         WHERE produto_id = ? AND fornecedor_nome = ?`,
+        [
+          Number(estoque_minimo ?? 0), Number(estoque_maximo ?? 0), Number(lote_minimo ?? 1),
+          Number(multiplo_embalagem ?? 1), Number(giro_periodo_dias ?? 90),
+          ativo !== false ? 1 : 0, now,
+          produtoId, fornecedorNome,
+        ]
+      );
+    } else {
+      await pgRun(
+        `INSERT INTO compras_produtos_config
+           (id, produto_id, fornecedor_nome, estoque_minimo, estoque_maximo,
+            lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          randomUUID(), produtoId, fornecedorNome,
+          Number(estoque_minimo ?? 0), Number(estoque_maximo ?? 0),
+          Number(lote_minimo ?? 1), Number(multiplo_embalagem ?? 1),
+          Number(giro_periodo_dias ?? 90), ativo !== false ? 1 : 0,
+          now, now,
+        ]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[compras/produtos-config PUT]", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

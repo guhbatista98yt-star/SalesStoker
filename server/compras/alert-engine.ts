@@ -58,8 +58,8 @@ interface DeliveryState {
 }
 
 interface PurchaseSetting {
-  key: string;
-  value: string;
+  chave: string;
+  valor: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,11 +92,11 @@ function mapSeveridade(severidade: string): AlertSeverity {
 
 async function getSettingValue(key: string, fallback: string): Promise<string> {
   try {
-    const row = await pgGet<PurchaseSetting>(
-      `SELECT value FROM purchase_settings WHERE key = ?`,
+    const row = await pgGet<{ valor: string }>(
+      `SELECT valor FROM purchase_settings WHERE chave = ?`,
       [key]
     );
-    return row?.value ?? fallback;
+    return row?.valor ?? fallback;
   } catch {
     return fallback;
   }
@@ -360,14 +360,14 @@ async function runBIEvaluationCycle(): Promise<void> {
   console.log("[ComprasAlertEngine] Iniciando ciclo de avaliação BI...");
 
   try {
-    const config = await pgGet<{ value: string }>(
-      `SELECT value FROM purchase_settings WHERE key = 'engine_config'`,
+    const config = await pgGet<{ valor: string }>(
+      `SELECT valor FROM purchase_settings WHERE chave = 'engine_config'`,
     );
 
     let engineCfg: Partial<SuggestionEngineConfig> = {};
-    if (config?.value) {
+    if (config?.valor) {
       try {
-        engineCfg = JSON.parse(config.value);
+        engineCfg = JSON.parse(config.valor);
       } catch {
         /* usa padrão */
       }

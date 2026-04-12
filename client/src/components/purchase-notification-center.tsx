@@ -18,9 +18,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
 import { usePurchaseAlerts, type PurchaseAlert } from "@/hooks/use-purchase-alerts";
+
+function safeTimeAgo(raw: string | undefined | null): string {
+  if (!raw) return "agora";
+  const d = new Date(raw);
+  return isValid(d) ? formatDistanceToNow(d, { addSuffix: true, locale: ptBR }) : "agora";
+}
 
 const SEVERITY_LABELS: Record<string, string> = {
   critico: "Crítico",
@@ -60,10 +67,7 @@ function AlertCard({
   onStatusChange: (id: string, status: string) => void;
 }) {
   const isUnread = alert.status === "nao_lido";
-  const timeAgo = formatDistanceToNow(new Date(alert.createdAt), {
-    addSuffix: true,
-    locale: ptBR,
-  });
+  const timeAgo = safeTimeAgo(alert.createdAt);
 
   return (
     <div

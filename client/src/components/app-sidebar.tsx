@@ -19,7 +19,8 @@ const coreItems = [
 ];
 
 const comprasItems = [
-  { title: "Copiloto de Compras", url: "/compras", icon: ShoppingCart },
+  { title: "Copiloto de Compras",     url: "/compras",               icon: ShoppingCart },
+  { title: "Configuração de Compras", url: "/compras/configuracoes", icon: Settings },
 ];
 
 const analysisItems = [
@@ -164,7 +165,15 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {comprasItems.map(item => (
-                  <NavItem key={item.title} item={item} active={location.startsWith("/compras")} />
+                  <NavItem
+                    key={item.title}
+                    item={item}
+                    active={
+                      item.url === "/compras"
+                        ? location === "/compras" || (location.startsWith("/compras/") && !location.startsWith("/compras/configuracoes"))
+                        : location.startsWith(item.url)
+                    }
+                  />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>

@@ -609,6 +609,8 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["users", "last_login_at",  "TEXT"],
     ["users", "notes",          "TEXT"],
     ["users", "created_by",     "INTEGER"],
+    // Vendor visibility — per-role restriction
+    ["vendor_display_settings", "allowed_roles", "TEXT NOT NULL DEFAULT ''"],
   ];
 
   for (const [table, col, def] of migrations) {
@@ -700,22 +702,38 @@ async function bootstrapCompras(): Promise<void> {
     CREATE TABLE IF NOT EXISTS purchase_alerts (
       id              TEXT PRIMARY KEY,
       user_id         INTEGER NOT NULL,
-      type            TEXT NOT NULL,
-      reference_key   TEXT NOT NULL,
+      type            TEXT NOT NULL DEFAULT 'geral',
+      reference_key   TEXT NOT NULL DEFAULT '',
       severity_band   TEXT NOT NULL DEFAULT '1',
       severity        TEXT NOT NULL DEFAULT 'info',
-      title           TEXT NOT NULL,
-      message         TEXT NOT NULL,
+      title           TEXT NOT NULL DEFAULT '',
+      message         TEXT NOT NULL DEFAULT '',
       status          TEXT NOT NULL DEFAULT 'nao_lido',
       data            TEXT NOT NULL DEFAULT '{}',
       created_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Migrate: add columns if they don't exist yet (safe idempotent ALTERs)
+  for (const col of [
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'geral'`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS reference_key TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS severity_band TEXT NOT NULL DEFAULT '1'`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS severity TEXT NOT NULL DEFAULT 'info'`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS message TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'nao_lido'`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS data TEXT NOT NULL DEFAULT '{}'`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE purchase_alerts ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  ]) {
+    await exec(col).catch(() => {});
+  }
   await exec(`CREATE INDEX IF NOT EXISTS idx_purchase_alerts_user
-    ON purchase_alerts (user_id, status, created_at DESC)`);
+    ON purchase_alerts (user_id, status, created_at DESC)`).catch(() => {});
   await exec(`CREATE INDEX IF NOT EXISTS idx_purchase_alerts_ref
-    ON purchase_alerts (user_id, type, reference_key)`);
+    ON purchase_alerts (user_id, type, reference_key)`).catch(() => {});
 
   await exec(`
     CREATE TABLE IF NOT EXISTS purchase_alert_events (
@@ -728,10 +746,21 @@ async function bootstrapCompras(): Promise<void> {
       created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Migrate: add columns for purchase_alert_events if missing
+  for (const col of [
+    `ALTER TABLE purchase_alert_events ADD COLUMN IF NOT EXISTS alert_id TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_alert_events ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE purchase_alert_events ADD COLUMN IF NOT EXISTS action TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_alert_events ADD COLUMN IF NOT EXISTS rule_name TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE purchase_alert_events ADD COLUMN IF NOT EXISTS details TEXT NOT NULL DEFAULT '{}'`,
+    `ALTER TABLE purchase_alert_events ADD COLUMN IF NOT EXISTS created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  ]) {
+    await exec(col).catch(() => {});
+  }
   await exec(`CREATE INDEX IF NOT EXISTS idx_pae_alert
-    ON purchase_alert_events (alert_id, created_at DESC)`);
+    ON purchase_alert_events (alert_id, created_at DESC)`).catch(() => {});
   await exec(`CREATE INDEX IF NOT EXISTS idx_pae_user
-    ON purchase_alert_events (user_id, created_at DESC)`);
+    ON purchase_alert_events (user_id, created_at DESC)`).catch(() => {});
 
   await exec(`
     CREATE TABLE IF NOT EXISTS user_alert_preferences (
@@ -745,7 +774,18 @@ async function bootstrapCompras(): Promise<void> {
       updated_at          TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_uap_user ON user_alert_preferences (user_id)`);
+  for (const col of [
+    `ALTER TABLE user_alert_preferences ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE user_alert_preferences ADD COLUMN IF NOT EXISTS enabled INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE user_alert_preferences ADD COLUMN IF NOT EXISTS sound_enabled INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE user_alert_preferences ADD COLUMN IF NOT EXISTS only_critical_sound INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE user_alert_preferences ADD COLUMN IF NOT EXISTS muted_until TEXT`,
+    `ALTER TABLE user_alert_preferences ADD COLUMN IF NOT EXISTS created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE user_alert_preferences ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+  ]) {
+    await exec(col).catch(() => {});
+  }
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_uap_user ON user_alert_preferences (user_id)`).catch(() => {});
 
   await exec(`
     CREATE TABLE IF NOT EXISTS alert_delivery_state (
@@ -758,18 +798,66 @@ async function bootstrapCompras(): Promise<void> {
       cooldown_until      TEXT
     )
   `);
+  for (const col of [
+    `ALTER TABLE alert_delivery_state ADD COLUMN IF NOT EXISTS dedupe_key TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE alert_delivery_state ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE alert_delivery_state ADD COLUMN IF NOT EXISTS last_alert_id TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE alert_delivery_state ADD COLUMN IF NOT EXISTS last_severity_band TEXT NOT NULL DEFAULT '1'`,
+    `ALTER TABLE alert_delivery_state ADD COLUMN IF NOT EXISTS last_triggered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE alert_delivery_state ADD COLUMN IF NOT EXISTS cooldown_until TEXT`,
+  ]) {
+    await exec(col).catch(() => {});
+  }
   await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ads_dedupe
-    ON alert_delivery_state (dedupe_key, user_id)`);
+    ON alert_delivery_state (dedupe_key, user_id)`).catch(() => {});
 
   await exec(`
     CREATE TABLE IF NOT EXISTS purchase_settings (
-      id          TEXT PRIMARY KEY,
-      key         TEXT NOT NULL UNIQUE,
-      value       TEXT NOT NULL DEFAULT '',
+      chave       TEXT PRIMARY KEY,
+      valor       TEXT NOT NULL DEFAULT '',
       updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_settings_key ON purchase_settings (key)`);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_settings_key ON purchase_settings (chave)`).catch(() => {});
+
+  // ── Configuração de Fornecedores ──────────────────────────────────────────
+  await exec(`
+    CREATE TABLE IF NOT EXISTS compras_fornecedores_config (
+      id                  TEXT PRIMARY KEY,
+      fabricante_nome     TEXT NOT NULL UNIQUE,
+      codigo              TEXT NOT NULL DEFAULT '',
+      razao_social        TEXT NOT NULL DEFAULT '',
+      nome_fantasia       TEXT NOT NULL DEFAULT '',
+      ativo               INTEGER NOT NULL DEFAULT 1,
+      periodo_compra_dias INTEGER NOT NULL DEFAULT 30,
+      lead_time_dias      INTEGER NOT NULL DEFAULT 7,
+      pedido_minimo_valor REAL    NOT NULL DEFAULT 0,
+      observacoes         TEXT    NOT NULL DEFAULT '',
+      created_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cfc_fabricante ON compras_fornecedores_config (fabricante_nome)`).catch(() => {});
+
+  // ── Configuração de Produtos ───────────────────────────────────────────────
+  await exec(`
+    CREATE TABLE IF NOT EXISTS compras_produtos_config (
+      id                  TEXT PRIMARY KEY,
+      produto_id          TEXT NOT NULL,
+      fornecedor_nome     TEXT NOT NULL,
+      estoque_minimo      REAL    NOT NULL DEFAULT 0,
+      estoque_maximo      REAL    NOT NULL DEFAULT 0,
+      lote_minimo         REAL    NOT NULL DEFAULT 1,
+      multiplo_embalagem  REAL    NOT NULL DEFAULT 1,
+      giro_periodo_dias   INTEGER NOT NULL DEFAULT 90,
+      ativo               INTEGER NOT NULL DEFAULT 1,
+      created_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (produto_id, fornecedor_nome)
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cpc_produto ON compras_produtos_config (produto_id)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cpc_fornecedor ON compras_produtos_config (fornecedor_nome)`).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -788,6 +876,7 @@ const REQUIRED_TABLES = [
   "roles", "role_permissions", "access_audit",
   "purchase_alerts", "purchase_alert_events", "purchase_settings",
   "user_alert_preferences", "alert_delivery_state",
+  "compras_fornecedores_config", "compras_produtos_config",
 ];
 
 async function validateSchema(): Promise<void> {
