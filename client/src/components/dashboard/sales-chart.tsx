@@ -11,7 +11,7 @@ interface SalesChartData {
   label: string;
   atual: number;
   anterior: number;
-  variacao: number;
+  variacao: number | null;
 }
 
 interface SalesChartProps {

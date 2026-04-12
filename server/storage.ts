@@ -608,7 +608,7 @@ export class PostgresStorage implements IStorage {
 
         const current = Number(result?.total ?? 0);
         const previous = Number(yoyResult?.total ?? 0);
-        const variacao = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+        const variacao = previous > 0 ? ((current - previous) / previous) * 100 : null;
 
         return { label: m.label, atual: current, anterior: previous, variacao };
       }));
@@ -648,7 +648,7 @@ export class PostgresStorage implements IStorage {
         `, [yoyStart.toISOString().split('T')[0], yoyEnd.toISOString().split('T')[0]]);
         const atual = Number(res?.total ?? 0);
         const anterior = Number(resY?.total ?? 0);
-        const variacao = anterior > 0 ? ((atual - anterior) / anterior) * 100 : 0;
+        const variacao = anterior > 0 ? ((atual - anterior) / anterior) * 100 : null;
         return { label: w.label, atual, anterior, variacao };
       }));
 

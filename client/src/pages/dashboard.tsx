@@ -414,7 +414,6 @@ export default function Dashboard() {
             title={periodoCardTitle}
             value={kpis?.totalVendasSemanal ?? 0}
             format="currency"
-            compact
             icon={DollarSign}
             loading={isLoading}
             subtitle={periodoCardSubtitle}
@@ -430,7 +429,6 @@ export default function Dashboard() {
             title="Mês Atual"
             value={kpis?.totalVendasMensal ?? 0}
             format="currency"
-            compact
             icon={Receipt}
             loading={isLoading}
             subtitle="acumulado do mês corrente"
@@ -446,7 +444,6 @@ export default function Dashboard() {
             title="A Faturar Total"
             value={kpis?.valorAFaturar ?? 0}
             format="currency"
-            compact
             icon={Package}
             loading={isLoading}
             subtitle="Pedidos em aberto"

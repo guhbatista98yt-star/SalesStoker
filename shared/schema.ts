@@ -188,8 +188,8 @@ export interface MonthlySalesperson {
 }
 
 export interface SalesEvolutionData {
-  weekly: Array<{ label: string; atual: number; anterior: number; variacao: number }>;
-  monthly: Array<{ label: string; atual: number; anterior: number; variacao: number }>;
+  weekly: Array<{ label: string; atual: number; anterior: number; variacao: number | null }>;
+  monthly: Array<{ label: string; atual: number; anterior: number; variacao: number | null }>;
 }
 
 export interface Alert {
