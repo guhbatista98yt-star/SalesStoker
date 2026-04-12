@@ -419,9 +419,9 @@ export class PostgresStorage implements IStorage {
       `);
 
       return {
-        totalVendasSemanal: weeklyResult?.total ?? 0,
-        totalVendasMensal: vendasResult?.total ?? 0,
-        valorAFaturar: aFaturarResult?.total ?? 0,
+        totalVendasSemanal: Number(weeklyResult?.total ?? 0),
+        totalVendasMensal: Number(vendasResult?.total ?? 0),
+        valorAFaturar: Number(aFaturarResult?.total ?? 0),
         pedidosAtendidos: Number(pedidosResult?.total ?? 0),
       };
     } catch (err) {
