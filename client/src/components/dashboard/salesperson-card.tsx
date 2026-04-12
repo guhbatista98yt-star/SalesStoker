@@ -76,7 +76,6 @@ function MovimentacoesModal({
 
   const totalVendas = data?.filter(m => !m.isDevolucao).reduce((s, m) => s + m.valContabil, 0) ?? 0;
   const totalDevol = data?.filter(m => m.isDevolucao).reduce((s, m) => s + m.valContabil, 0) ?? 0;
-  const totalLucro = data?.reduce((s, m) => s + m.lucro, 0) ?? 0;
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -115,12 +114,6 @@ function MovimentacoesModal({
                 <span className="text-muted-foreground">Devoluções: </span>
                 <span className="font-semibold text-red-700 dark:text-red-400">{formatCurrency(totalDevol)}</span>
               </div>
-              <div className="bg-muted rounded px-3 py-1.5">
-                <span className="text-muted-foreground">Lucro: </span>
-                <span className={`font-semibold ${totalLucro >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
-                  {formatCurrency(totalLucro)}
-                </span>
-              </div>
             </div>
 
             {data.length === 0 ? (
@@ -138,7 +131,6 @@ function MovimentacoesModal({
                       <TableHead>Nota/Cupom</TableHead>
                       <TableHead>Série</TableHead>
                       <TableHead className="text-right">Val. Contábil</TableHead>
-                      <TableHead className="text-right">Lucro</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -154,9 +146,6 @@ function MovimentacoesModal({
                         <TableCell className="text-xs text-muted-foreground">{mov.serieNota || "-"}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">
                           {formatCurrency(mov.valContabil)}
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          {formatCurrency(mov.lucro)}
                         </TableCell>
                       </TableRow>
                     ))}
