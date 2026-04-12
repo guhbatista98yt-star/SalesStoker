@@ -20,6 +20,20 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (April 2026 — Copiloto de Compras: Notificações e Som)
+
+- **5 novas tabelas PostgreSQL**: `purchase_alerts`, `purchase_alert_events`, `user_alert_preferences`, `alert_delivery_state`, `purchase_settings`. Schema 100% idempotente via `schema-bootstrap.ts`.
+- **SSE endpoint** `GET /api/compras/sse` — Conexão persistente com autenticação via query param (`?token=`), já que `EventSource` não suporta headers customizados. Broadcast de alertas em tempo real por usuário via mapa SSE em memória (`server/compras/sse-manager.ts`).
+- **Compras router** (`server/compras/routes.ts`) — CRUD completo: `GET /api/compras/alertas`, `PATCH /api/compras/alertas/:id/status`, `POST /api/compras/alertas/marcar-todos-lidos`, `GET/PUT /api/compras/preferencias`, `GET/PUT /api/compras/configuracoes`, `GET /api/compras/alertas/:id/eventos`.
+- **Purchase Alert Engine** (`server/compras/alert-engine.ts`) — Motor com anti-spam (cooldown), deduplicação por chave composta (tipo+referência+faixa), gestão de estados, limpeza de alertas expirados, broadcast SSE ao criar/atualizar.
+- **Hook React** `use-purchase-alerts.ts` — Conecta ao SSE, atualiza badge de contagem, dispara som ao receber alert, invalida cache do react-query, gerencia preferências do usuário.
+- **Sistema de som** (`client/src/lib/purchase-sounds.ts`) — Geração de áudio via Web Audio API (sem arquivos externos), dois sons distintos (crítico: triple-beep square wave; importante: double-beep sine), fila com debounce 300ms, fallback silencioso, respeita preferências do usuário.
+- **Central de notificações** (`purchase-notification-center.tsx`) — Sheet drawer no header com badge de contagem não lida, filtros por criticidade/status, ações por alerta (marcar lido, resolver, silenciar), botão "marcar todos como lidos", controle de som e silêncio temporário por duração.
+- **Preferências do usuário** (`purchase-alert-preferences.tsx`) — Card de configuração: ativar/desativar notificações, som, modo apenas crítico, silenciar temporariamente (15min/1h/4h/até amanhã).
+- **Configuração administrativa** (`purchase-alert-admin-settings.tsx`) — Card admin: habilitar sistema, cooldown, criticidade mínima para som, janela de repetição, política de agrupamento, expiração, retenção.
+- **Configurações** — Nova aba "Alertas de Compras" na página `/configuracoes` com preferências do usuário + painel admin.
+- **Header** — Bell icon substituído pelo `PurchaseNotificationCenter` com badge vermelho de contagem não lida.
+
 ## Recent Changes (April 2026 — IAM Module: Usuários & Permissões)
 
 - **Módulo Usuários & Permissões** — Nova página `/usuarios` (admin-only) com 4 abas: Usuários, Perfis, Permissões, Auditoria. Acesso via sidebar e command palette.

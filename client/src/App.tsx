@@ -22,11 +22,12 @@ import {
 } from "@/components/ui/command";
 import { DialogTitle } from "@/components/ui/dialog";
 import {
-  LogOut, Loader2, KeyRound, LayoutDashboard, Users, Target, Bell,
+  LogOut, Loader2, KeyRound, LayoutDashboard, Users, Target,
   BarChart3, Settings, ChevronDown, Search, CalendarDays, CalendarRange,
   Store, AlertTriangle, Megaphone, BookOpen, DollarSign,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
+import { PurchaseNotificationCenter } from "@/components/purchase-notification-center";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Vendedores from "@/pages/vendedores";
@@ -286,10 +287,8 @@ function TopHeader() {
       <div className="flex items-center gap-1">
         <ThemeToggle />
 
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg relative" title="Notificações">
-          <Bell className="h-4 w-4" />
-        </Button>
+        {/* Purchase Notifications */}
+        <PurchaseNotificationCenter />
 
         {/* User menu */}
         <DropdownMenu>

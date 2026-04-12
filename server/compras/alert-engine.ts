@@ -1,35 +1,28 @@
 /**
- * Copiloto de Compras — Motor de Alertas de Compras
+ * Copiloto de Compras — Motor de Alertas (unificado)
  *
- * Avalia periodicamente o estoque e gera alertas de compras com:
- *   - Deduplicação por hash
- *   - Cooldown configurável por tipo de alerta
- *   - Controle de estado: novo, lido, reconhecido, adiado, resolvido, reaberto
- *   - Silenciamento é por-usuário (alert_delivery_state.silenciado_em), não muda status global
+ * Combina:
+ *   - Infraestrutura de entrega SSE (createOrUpdateAlert, delivery state, broadcast)
+ *   - Ciclo de avaliação BI (calcularTodasSugestoes → alertas por produto/fornecedor)
  *
- * Regras implementadas:
- *   - ruptura_iminente: cobertura <= lead time
- *   - abaixo_seguranca: estoque < estoque de segurança
- *   - lead_time_maior_cobertura: lead time supera cobertura atual
- *   - fornecedor_critico: fornecedor com múltiplos SKUs críticos
- *   - excesso_estoque: cobertura > 3x a cobertura alvo (sem giro)
- *   - pedido_insuficiente: pedidos abertos não cobrem ponto de reposição
- *
- * Campos ausentes que viriam do ERP (documentados):
- *   - ESTOQUE_ATUAL: cache_estoque.QTDESTOQUE (tabela ainda não sincronizada)
- *   - LEAD_TIME_DIAS: cache_fornecedores.LEAD_TIME (tabela ainda não sincronizada)
- *   - ESTOQUE_SEGURANCA: purchase_settings.estoque_seguranca_padrao ou por produto
+ * Exporta:
+ *   startComprasAlertEngine()   — alias histórico (inicia o singleton)
+ *   startPurchaseAlertEngine()  — nome canônico (inicia o mesmo singleton)
+ *   createOrUpdateAlert()       — usado pelas rotas de teste/admin
  */
 
 import { pgGet, pgAll, pgRun } from "../pg-client";
 import { randomUUID, createHash } from "crypto";
+import { broadcastToUser } from "./sse-manager";
 import { calcularTodasSugestoes, type SuggestionEngineConfig } from "./suggestion-engine";
 
-const EVAL_INTERVAL_MS = 30 * 60 * 1000;
-let engineStarted = false;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-type AlertStatus =
+export type AlertStatus =
   | "novo"
+  | "nao_lido"
   | "lido"
   | "reconhecido"
   | "adiado"
@@ -37,184 +30,344 @@ type AlertStatus =
   | "resolvido"
   | "reaberto";
 
-type AlertType =
-  | "ruptura_iminente"
-  | "abaixo_seguranca"
-  | "lead_time_maior_cobertura"
-  | "fornecedor_critico"
-  | "excesso_estoque"
-  | "pedido_insuficiente";
+export type AlertSeverity = "critico" | "importante" | "info";
 
-interface PurchaseAlertRow {
+interface PurchaseAlert {
   id: string;
-  tipo: AlertType;
-  produto_id: string | null;
-  fabricante: string | null;
-  hash: string;
+  userId: number;
+  type: string;
+  referenceKey: string;
+  severityBand: string;
+  severity: AlertSeverity;
+  title: string;
+  message: string;
   status: AlertStatus;
-  severidade: string;
-  titulo: string;
-  mensagem: string;
-  dados: string;
-  cooldown_ate: string | null;
-  snooze_ate: string | null;
-  user_id: number | null;
-  created_at: string;
-  updated_at: string;
+  data: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 }
 
-const COOLDOWN_BY_TYPE: Record<AlertType, number> = {
-  ruptura_iminente: 4 * 60 * 60 * 1000,
-  abaixo_seguranca: 24 * 60 * 60 * 1000,
-  lead_time_maior_cobertura: 24 * 60 * 60 * 1000,
-  fornecedor_critico: 12 * 60 * 60 * 1000,
-  excesso_estoque: 48 * 60 * 60 * 1000,
-  pedido_insuficiente: 8 * 60 * 60 * 1000,
-};
-
-function makeHash(tipo: string, produtoId: string | null, fabricante: string | null): string {
-  return createHash("sha256")
-    .update(`${tipo}|${produtoId ?? ""}|${fabricante ?? ""}`)
-    .digest("hex")
-    .substring(0, 32);
+interface DeliveryState {
+  id: string;
+  dedupe_key: string;
+  user_id: number;
+  last_alert_id: string;
+  last_severity_band: string;
+  last_triggered_at: string;
+  cooldown_until: string | null;
 }
 
-async function alertaJaAtivo(hash: string): Promise<boolean> {
+interface PurchaseSetting {
+  key: string;
+  value: string;
+}
+
+// ---------------------------------------------------------------------------
+// Engine control
+// ---------------------------------------------------------------------------
+
+const EVAL_INTERVAL_MS = 30 * 60 * 1000;
+const ENGINE_INTERVAL_MS = 5 * 60 * 1000;
+let engineStarted = false;
+
+// ---------------------------------------------------------------------------
+// Severity helpers
+// ---------------------------------------------------------------------------
+
+function severityBand(severity: AlertSeverity): number {
+  if (severity === "critico") return 3;
+  if (severity === "importante") return 2;
+  return 1;
+}
+
+function mapSeveridade(severidade: string): AlertSeverity {
+  if (severidade === "critical" || severidade === "critico") return "critico";
+  if (severidade === "warning" || severidade === "importante") return "importante";
+  return "info";
+}
+
+// ---------------------------------------------------------------------------
+// Settings helpers
+// ---------------------------------------------------------------------------
+
+async function getSettingValue(key: string, fallback: string): Promise<string> {
   try {
-    const row = await pgGet<{ id: string; status: string; cooldown_ate: string | null }>(
-      `SELECT id, status, cooldown_ate FROM purchase_alerts WHERE hash = ? AND status NOT IN ('resolvido')`,
-      [hash],
+    const row = await pgGet<PurchaseSetting>(
+      `SELECT value FROM purchase_settings WHERE key = ?`,
+      [key]
     );
-    if (!row) return false;
-
-    if (row.cooldown_ate) {
-      const cooldownExpiry = new Date(row.cooldown_ate).getTime();
-      if (Date.now() < cooldownExpiry) return true;
-    }
-
-    if (row.status === "adiado") {
-      const snoozed = await pgGet<{ snooze_ate: string | null }>(
-        `SELECT snooze_ate FROM alert_snoozes WHERE alert_id = ? ORDER BY created_at DESC LIMIT 1`,
-        [row.id],
-      );
-      if (snoozed?.snooze_ate) {
-        const snoozeExpiry = new Date(snoozed.snooze_ate).getTime();
-        if (Date.now() < snoozeExpiry) return true;
-      }
-    }
-
-    return false;
+    return row?.value ?? fallback;
   } catch {
-    return false;
+    return fallback;
   }
 }
 
-async function criarOuReabrirAlerta(
-  tipo: AlertType,
+async function isSystemEnabled(): Promise<boolean> {
+  const v = await getSettingValue("alerts_enabled", "true");
+  return v === "true";
+}
+
+async function getCooldownMinutes(): Promise<number> {
+  const v = await getSettingValue("cooldown_minutes", "60");
+  return parseInt(v, 10) || 60;
+}
+
+async function getMinSeverityForSound(): Promise<string> {
+  return await getSettingValue("min_severity_sound", "importante");
+}
+
+async function getRetentionDays(): Promise<number> {
+  const v = await getSettingValue("retention_days", "90");
+  return parseInt(v, 10) || 90;
+}
+
+// ---------------------------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------------------------
+
+async function logAlertEvent(
+  alertId: string,
+  userId: number,
+  action: string,
+  rule: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await pgRun(
+      `INSERT INTO purchase_alert_events (id, alert_id, user_id, action, rule_name, details, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        randomUUID(),
+        alertId,
+        userId,
+        action,
+        rule,
+        JSON.stringify(details ?? {}),
+        new Date().toISOString(),
+      ]
+    );
+  } catch (err) {
+    console.error("[PurchaseAlertEngine] logAlertEvent error:", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// User helpers
+// ---------------------------------------------------------------------------
+
+async function getUserAlertPreferences(userId: number): Promise<{
+  enabled: boolean;
+  soundEnabled: boolean;
+  onlyCriticalSound: boolean;
+  mutedUntil: string | null;
+}> {
+  try {
+    const row = await pgGet<{
+      enabled: number;
+      sound_enabled: number;
+      only_critical_sound: number;
+      muted_until: string | null;
+    }>(
+      `SELECT enabled, sound_enabled, only_critical_sound, muted_until
+       FROM user_alert_preferences WHERE user_id = ?`,
+      [userId]
+    );
+    if (!row) return { enabled: true, soundEnabled: true, onlyCriticalSound: false, mutedUntil: null };
+    return {
+      enabled: Boolean(row.enabled),
+      soundEnabled: Boolean(row.sound_enabled),
+      onlyCriticalSound: Boolean(row.only_critical_sound),
+      mutedUntil: row.muted_until,
+    };
+  } catch {
+    return { enabled: true, soundEnabled: true, onlyCriticalSound: false, mutedUntil: null };
+  }
+}
+
+async function getPurchasingUsers(): Promise<number[]> {
+  try {
+    const rows = await pgAll<{ id: number }>(
+      `SELECT id FROM users WHERE role IN ('admin', 'supervisor', 'compras') AND status = 'ativo'`
+    );
+    return rows.map(r => r.id);
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core delivery: createOrUpdateAlert (with SSE broadcast)
+// ---------------------------------------------------------------------------
+
+export async function createOrUpdateAlert(params: {
+  userId: number;
+  type: string;
+  referenceKey: string;
+  severity: AlertSeverity;
+  title: string;
+  message: string;
+  rule: string;
+  data?: Record<string, unknown>;
+}): Promise<{ alertId: string; isNew: boolean } | null> {
+  const { userId, type, referenceKey, severity, title, message, rule, data = {} } = params;
+
+  const band = severityBand(severity);
+  const dedupeKey = `${type}:${referenceKey}:${band}`;
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  const cooldownMinutes = await getCooldownMinutes();
+  const cooldownMs = cooldownMinutes * 60 * 1000;
+
+  try {
+    const delivery = await pgGet<DeliveryState>(
+      `SELECT * FROM alert_delivery_state WHERE dedupe_key = ? AND user_id = ?`,
+      [dedupeKey, userId]
+    );
+
+    if (delivery) {
+      if (delivery.cooldown_until && new Date(delivery.cooldown_until) > now) {
+        return null;
+      }
+
+      const existingAlert = await pgGet<PurchaseAlert>(
+        `SELECT * FROM purchase_alerts WHERE id = ?`,
+        [delivery.last_alert_id]
+      );
+
+      if (existingAlert && existingAlert.status !== "resolvido") {
+        await pgRun(
+          `UPDATE purchase_alerts SET message = ?, updated_at = ? WHERE id = ?`,
+          [message, nowIso, delivery.last_alert_id]
+        );
+
+        const cooldownUntil = new Date(now.getTime() + cooldownMs).toISOString();
+        await pgRun(
+          `UPDATE alert_delivery_state SET last_triggered_at = ?, cooldown_until = ? WHERE dedupe_key = ? AND user_id = ?`,
+          [nowIso, cooldownUntil, dedupeKey, userId]
+        );
+
+        await logAlertEvent(delivery.last_alert_id, userId, "atualizado", rule, { severity, message });
+        return { alertId: delivery.last_alert_id, isNew: false };
+      }
+    }
+
+    const alertId = randomUUID();
+    await pgRun(
+      `INSERT INTO purchase_alerts (id, user_id, type, reference_key, severity_band, severity, title, message, status, data, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nao_lido', ?, ?, ?)`,
+      [alertId, userId, type, referenceKey, String(band), severity, title, message, JSON.stringify(data), nowIso, nowIso]
+    );
+
+    const cooldownUntil = new Date(now.getTime() + cooldownMs).toISOString();
+    if (delivery) {
+      await pgRun(
+        `UPDATE alert_delivery_state SET last_alert_id = ?, last_severity_band = ?, last_triggered_at = ?, cooldown_until = ? WHERE dedupe_key = ? AND user_id = ?`,
+        [alertId, String(band), nowIso, cooldownUntil, dedupeKey, userId]
+      );
+    } else {
+      await pgRun(
+        `INSERT INTO alert_delivery_state (id, dedupe_key, user_id, last_alert_id, last_severity_band, last_triggered_at, cooldown_until)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [randomUUID(), dedupeKey, userId, alertId, String(band), nowIso, cooldownUntil]
+      );
+    }
+
+    await logAlertEvent(alertId, userId, "criado", rule, { severity, title, message, data });
+
+    const minSeverityForSound = await getMinSeverityForSound();
+    const minBand = severityBand(minSeverityForSound as AlertSeverity);
+    const shouldPlaySound = band >= minBand;
+
+    broadcastToUser(userId, "purchase_alert", {
+      alertId,
+      type,
+      severity,
+      title,
+      message,
+      playSound: shouldPlaySound,
+      data,
+      timestamp: nowIso,
+    });
+
+    return { alertId, isNew: true };
+  } catch (err) {
+    console.error("[PurchaseAlertEngine] createOrUpdateAlert error:", err);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Purge old resolved/read alerts
+// ---------------------------------------------------------------------------
+
+async function purgeExpiredAlerts(): Promise<void> {
+  try {
+    const retentionDays = await getRetentionDays();
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+    await pgRun(
+      `DELETE FROM purchase_alerts WHERE status IN ('resolvido', 'lido') AND updated_at < ?`,
+      [cutoff]
+    );
+  } catch (err) {
+    console.error("[PurchaseAlertEngine] purgeExpiredAlerts error:", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// BI Evaluation helpers (adapted from HEAD to use new schema via createOrUpdateAlert)
+// ---------------------------------------------------------------------------
+
+function makeReferenceKey(produtoId: string | null, fabricante: string | null): string {
+  return createHash("sha256")
+    .update(`${produtoId ?? ""}|${fabricante ?? ""}`)
+    .digest("hex")
+    .substring(0, 16);
+}
+
+async function dispararAlertaPorUsuarios(
+  tipo: string,
   produtoId: string | null,
   fabricante: string | null,
   titulo: string,
   mensagem: string,
   severidade: string,
-  dados: Record<string, unknown>,
+  dados: Record<string, unknown>
 ): Promise<void> {
-  const hash = makeHash(tipo, produtoId, fabricante);
-  const now = new Date().toISOString();
-  const cooldownMs = COOLDOWN_BY_TYPE[tipo] ?? 24 * 60 * 60 * 1000;
-  const cooldownAte = new Date(Date.now() + cooldownMs).toISOString();
+  const severity = mapSeveridade(severidade);
+  const referenceKey = produtoId ?? fabricante ?? makeReferenceKey(produtoId, fabricante);
+  const userIds = await getPurchasingUsers();
 
-  const existing = await pgGet<{ id: string; status: string }>(
-    `SELECT id, status FROM purchase_alerts WHERE hash = ?`,
-    [hash],
-  );
+  for (const userId of userIds) {
+    const prefs = await getUserAlertPreferences(userId);
+    if (!prefs.enabled) continue;
+    if (prefs.mutedUntil && new Date(prefs.mutedUntil) > new Date()) continue;
 
-  if (existing) {
-    if (existing.status === "resolvido" || existing.status === "silenciado") {
-      // Condição resolvida/silenciada anteriormente — reabrir e reiniciar cooldown
-      await pgRun(
-        `UPDATE purchase_alerts
-         SET status = 'reaberto', titulo = ?, mensagem = ?, dados = ?,
-             cooldown_ate = ?, updated_at = ?
-         WHERE id = ?`,
-        [titulo, mensagem, JSON.stringify(dados), cooldownAte, now, existing.id],
-      );
-      await pgRun(
-        `INSERT INTO purchase_alert_events (id, alert_id, evento, dados, created_at)
-         VALUES (?, ?, 'reaberto', ?, ?)`,
-        [randomUUID(), existing.id, JSON.stringify({ motivo: "reavaliação automática" }), now],
-      );
-    } else {
-      // Alerta ativo mas cooldown expirou — atualizar dados e reiniciar cooldown
-      // (permite nova notificação ao usuário após período de cooldown)
-      await pgRun(
-        `UPDATE purchase_alerts
-         SET titulo = ?, mensagem = ?, dados = ?, cooldown_ate = ?, updated_at = ?
-         WHERE id = ?`,
-        [titulo, mensagem, JSON.stringify(dados), cooldownAte, now, existing.id],
-      );
-      await pgRun(
-        `INSERT INTO purchase_alert_events (id, alert_id, evento, dados, created_at)
-         VALUES (?, ?, 'atualizado', ?, ?)`,
-        [randomUUID(), existing.id, JSON.stringify({ motivo: "cooldown expirado, reagendado" }), now],
-      );
-    }
-  } else {
-    const id = randomUUID();
-    await pgRun(
-      `INSERT INTO purchase_alerts
-         (id, tipo, produto_id, fabricante, hash, status, severidade, titulo, mensagem,
-          dados, cooldown_ate, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'novo', ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id, tipo, produtoId, fabricante, hash, severidade, titulo, mensagem,
-        JSON.stringify(dados), cooldownAte, now, now,
-      ],
-    );
-    await pgRun(
-      `INSERT INTO purchase_alert_events (id, alert_id, evento, dados, created_at)
-       VALUES (?, ?, 'criado', ?, ?)`,
-      [randomUUID(), id, JSON.stringify({ tipo, produtoId, fabricante }), now],
-    );
+    await createOrUpdateAlert({
+      userId,
+      type: tipo,
+      referenceKey,
+      severity,
+      title: titulo,
+      message: mensagem,
+      rule: tipo,
+      data: dados,
+    });
   }
 }
 
-async function resolverAlertasObsoletos(hashesAtivos: Set<string>): Promise<void> {
-  try {
-    const ativos = await pgAll<{ id: string; hash: string }>(
-      `SELECT id, hash FROM purchase_alerts WHERE status NOT IN ('resolvido')`,
-    );
-
-    const now = new Date().toISOString();
-    for (const row of ativos) {
-      if (!hashesAtivos.has(row.hash)) {
-        await pgRun(
-          `UPDATE purchase_alerts SET status = 'resolvido', updated_at = ? WHERE id = ?`,
-          [now, row.id],
-        );
-        await pgRun(
-          `INSERT INTO purchase_alert_events (id, alert_id, evento, dados, created_at)
-           VALUES (?, ?, 'resolvido', ?, ?)`,
-          [randomUUID(), row.id, JSON.stringify({ motivo: "condição normalizada" }), now],
-        );
-      }
-    }
-  } catch (err) {
-    console.error("[ComprasAlertEngine] Erro ao resolver alertas obsoletos:", err);
-  }
-}
-
-async function runEvaluationCycle(): Promise<void> {
-  console.log("[ComprasAlertEngine] Iniciando ciclo de avaliação...");
+async function runBIEvaluationCycle(): Promise<void> {
+  console.log("[ComprasAlertEngine] Iniciando ciclo de avaliação BI...");
 
   try {
-    const config = await pgGet<{ valor: string }>(
-      `SELECT valor FROM purchase_settings WHERE chave = 'engine_config'`,
+    const config = await pgGet<{ value: string }>(
+      `SELECT value FROM purchase_settings WHERE key = 'engine_config'`,
     );
 
     let engineCfg: Partial<SuggestionEngineConfig> = {};
-    if (config?.valor) {
+    if (config?.value) {
       try {
-        engineCfg = JSON.parse(config.valor);
+        engineCfg = JSON.parse(config.value);
       } catch {
         /* usa padrão */
       }
@@ -227,140 +380,125 @@ async function runEvaluationCycle(): Promise<void> {
       return;
     }
 
-    const hashesAtivos = new Set<string>();
-
     for (const s of sugestoes) {
       if (s.coberturaDias <= 0 || (s.leadTimeDias > 0 && s.coberturaDias <= s.leadTimeDias)) {
-        const hash = makeHash("ruptura_iminente", s.produtoId, s.fabricante);
-        hashesAtivos.add(hash);
-        if (!(await alertaJaAtivo(hash))) {
-          await criarOuReabrirAlerta(
-            "ruptura_iminente",
-            s.produtoId,
-            s.fabricante,
-            `Ruptura iminente: ${s.produtoId}`,
-            `Produto ${s.produtoId} (${s.fabricante}) tem cobertura de ${s.coberturaDias.toFixed(1)} dias, menor ou igual ao lead time de ${s.leadTimeDias} dias.`,
-            "critical",
-            { coberturaDias: s.coberturaDias, leadTimeDias: s.leadTimeDias },
-          );
-        }
+        await dispararAlertaPorUsuarios(
+          "ruptura_iminente",
+          s.produtoId,
+          s.fabricante,
+          `Ruptura iminente: ${s.produtoId}`,
+          `Produto ${s.produtoId} (${s.fabricante}) tem cobertura de ${s.coberturaDias.toFixed(1)} dias, menor ou igual ao lead time de ${s.leadTimeDias} dias.`,
+          "critical",
+          { coberturaDias: s.coberturaDias, leadTimeDias: s.leadTimeDias },
+        );
       }
 
       if (s.estoqueAtual < s.estoqueSeguranca && s.estoqueSeguranca > 0) {
-        const hash = makeHash("abaixo_seguranca", s.produtoId, s.fabricante);
-        hashesAtivos.add(hash);
-        if (!(await alertaJaAtivo(hash))) {
-          await criarOuReabrirAlerta(
-            "abaixo_seguranca",
-            s.produtoId,
-            s.fabricante,
-            `Abaixo do estoque de segurança: ${s.produtoId}`,
-            `Estoque atual (${s.estoqueAtual}) abaixo do estoque de segurança (${s.estoqueSeguranca}) para o produto ${s.produtoId}.`,
-            "warning",
-            { estoqueAtual: s.estoqueAtual, estoqueSeguranca: s.estoqueSeguranca },
-          );
-        }
+        await dispararAlertaPorUsuarios(
+          "abaixo_seguranca",
+          s.produtoId,
+          s.fabricante,
+          `Abaixo do estoque de segurança: ${s.produtoId}`,
+          `Estoque atual (${s.estoqueAtual}) abaixo do estoque de segurança (${s.estoqueSeguranca}) para o produto ${s.produtoId}.`,
+          "warning",
+          { estoqueAtual: s.estoqueAtual, estoqueSeguranca: s.estoqueSeguranca },
+        );
       }
 
       if (s.leadTimeDias > s.coberturaDias && s.coberturaDias > 0) {
-        const hash = makeHash("lead_time_maior_cobertura", s.produtoId, s.fabricante);
-        hashesAtivos.add(hash);
-        if (!(await alertaJaAtivo(hash))) {
-          await criarOuReabrirAlerta(
-            "lead_time_maior_cobertura",
-            s.produtoId,
-            s.fabricante,
-            `Lead time maior que cobertura: ${s.produtoId}`,
-            `Lead time (${s.leadTimeDias} dias) é maior que a cobertura atual (${s.coberturaDias.toFixed(1)} dias) para ${s.produtoId}.`,
-            "warning",
-            { leadTimeDias: s.leadTimeDias, coberturaDias: s.coberturaDias },
-          );
-        }
+        await dispararAlertaPorUsuarios(
+          "lead_time_maior_cobertura",
+          s.produtoId,
+          s.fabricante,
+          `Lead time maior que cobertura: ${s.produtoId}`,
+          `Lead time (${s.leadTimeDias} dias) é maior que a cobertura atual (${s.coberturaDias.toFixed(1)} dias) para ${s.produtoId}.`,
+          "warning",
+          { leadTimeDias: s.leadTimeDias, coberturaDias: s.coberturaDias },
+        );
       }
 
       const coberturaExcesso = s.coberturaAlvoDias * 3;
       if (s.coberturaDias > coberturaExcesso && s.consumoMedioDiario > 0) {
-        const hash = makeHash("excesso_estoque", s.produtoId, s.fabricante);
-        hashesAtivos.add(hash);
-        if (!(await alertaJaAtivo(hash))) {
-          await criarOuReabrirAlerta(
-            "excesso_estoque",
-            s.produtoId,
-            s.fabricante,
-            `Excesso de estoque: ${s.produtoId}`,
-            `Produto ${s.produtoId} tem cobertura de ${s.coberturaDias.toFixed(0)} dias (${(s.coberturaDias / s.coberturaAlvoDias).toFixed(1)}x acima do alvo).`,
-            "info",
-            { coberturaDias: s.coberturaDias, coberturaAlvoDias: s.coberturaAlvoDias },
-          );
-        }
+        await dispararAlertaPorUsuarios(
+          "excesso_estoque",
+          s.produtoId,
+          s.fabricante,
+          `Excesso de estoque: ${s.produtoId}`,
+          `Produto ${s.produtoId} tem cobertura de ${s.coberturaDias.toFixed(0)} dias (${(s.coberturaDias / s.coberturaAlvoDias).toFixed(1)}x acima do alvo).`,
+          "info",
+          { coberturaDias: s.coberturaDias, coberturaAlvoDias: s.coberturaAlvoDias },
+        );
       }
 
       const pontoReposicao = s.pontoReposicao;
-      if (
-        s.pedidosAbertos > 0 &&
-        s.pedidosAbertos < pontoReposicao &&
-        s.urgencia !== "ok"
-      ) {
-        const hash = makeHash("pedido_insuficiente", s.produtoId, s.fabricante);
-        hashesAtivos.add(hash);
-        if (!(await alertaJaAtivo(hash))) {
-          await criarOuReabrirAlerta(
-            "pedido_insuficiente",
-            s.produtoId,
-            s.fabricante,
-            `Pedido em aberto insuficiente: ${s.produtoId}`,
-            `Pedidos em aberto (${s.pedidosAbertos}) insuficientes para atingir ponto de reposição (${pontoReposicao.toFixed(0)}) do produto ${s.produtoId}.`,
-            "warning",
-            { pedidosAbertos: s.pedidosAbertos, pontoReposicao },
-          );
-        }
+      if (s.pedidosAbertos > 0 && s.pedidosAbertos < pontoReposicao && s.urgencia !== "ok") {
+        await dispararAlertaPorUsuarios(
+          "pedido_insuficiente",
+          s.produtoId,
+          s.fabricante,
+          `Pedido em aberto insuficiente: ${s.produtoId}`,
+          `Pedidos em aberto (${s.pedidosAbertos}) insuficientes para atingir ponto de reposição (${pontoReposicao.toFixed(0)}) do produto ${s.produtoId}.`,
+          "warning",
+          { pedidosAbertos: s.pedidosAbertos, pontoReposicao },
+        );
       }
     }
 
     const fabricantesCriticos = new Map<string, number>();
     for (const s of sugestoes) {
       if (s.urgencia === "critica" || s.urgencia === "alta") {
-        fabricantesCriticos.set(
-          s.fabricante,
-          (fabricantesCriticos.get(s.fabricante) ?? 0) + 1,
-        );
+        fabricantesCriticos.set(s.fabricante, (fabricantesCriticos.get(s.fabricante) ?? 0) + 1);
       }
     }
 
     for (const [fab, count] of fabricantesCriticos.entries()) {
       if (count >= 3) {
-        const hash = makeHash("fornecedor_critico", null, fab);
-        hashesAtivos.add(hash);
-        if (!(await alertaJaAtivo(hash))) {
-          await criarOuReabrirAlerta(
-            "fornecedor_critico",
-            null,
-            fab,
-            `Fornecedor crítico: ${fab}`,
-            `Fornecedor ${fab} tem ${count} SKUs com urgência crítica ou alta.`,
-            "critical",
-            { fabricante: fab, skusCriticos: count },
-          );
-        }
+        await dispararAlertaPorUsuarios(
+          "fornecedor_critico",
+          null,
+          fab,
+          `Fornecedor crítico: ${fab}`,
+          `Fornecedor ${fab} tem ${count} SKUs com urgência crítica ou alta.`,
+          "critical",
+          { fabricante: fab, skusCriticos: count },
+        );
       }
     }
 
-    await resolverAlertasObsoletos(hashesAtivos);
-
-    console.log(
-      `[ComprasAlertEngine] Ciclo completo. ${sugestoes.length} produtos avaliados, ${hashesAtivos.size} alertas ativos.`,
-    );
+    console.log(`[ComprasAlertEngine] Ciclo BI completo. ${sugestoes.length} produtos avaliados.`);
   } catch (err) {
-    console.error("[ComprasAlertEngine] Erro no ciclo de avaliação:", err);
+    console.error("[ComprasAlertEngine] Erro no ciclo de avaliação BI:", err);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Main evaluation cycle (BI eval + purge)
+// ---------------------------------------------------------------------------
+
+async function runEvaluationCycle(): Promise<void> {
+  const enabled = await isSystemEnabled();
+  if (!enabled) return;
+
+  await runBIEvaluationCycle();
+  await purgeExpiredAlerts();
+}
+
+// ---------------------------------------------------------------------------
+// Engine starters (both export same singleton)
+// ---------------------------------------------------------------------------
 
 export function startComprasAlertEngine(): void {
   if (engineStarted) return;
   engineStarted = true;
   runEvaluationCycle().catch(console.error);
   setInterval(() => runEvaluationCycle().catch(console.error), EVAL_INTERVAL_MS);
-  console.log(
-    `[ComprasAlertEngine] Iniciado. Avaliando a cada ${EVAL_INTERVAL_MS / 60000} minutos.`,
-  );
+  console.log(`[ComprasAlertEngine] Iniciado. Avaliando a cada ${EVAL_INTERVAL_MS / 60000} minutos.`);
+}
+
+export function startPurchaseAlertEngine(): void {
+  if (engineStarted) return;
+  engineStarted = true;
+  runEvaluationCycle().catch(console.error);
+  setInterval(() => runEvaluationCycle().catch(console.error), ENGINE_INTERVAL_MS);
+  console.log(`[PurchaseAlertEngine] Started. Evaluating every ${ENGINE_INTERVAL_MS / 60000} minutes.`);
 }

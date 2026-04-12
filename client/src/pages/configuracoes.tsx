@@ -59,9 +59,12 @@ import {
   ChevronDown,
   ChevronRight,
   Upload,
+  Bell,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GoalSwitch } from "@/components/goal-switch";
+import { PurchaseAlertPreferences } from "@/components/purchase-alert-preferences";
+import { PurchaseAlertAdminSettings } from "@/components/purchase-alert-admin-settings";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -92,6 +95,7 @@ const NAV_ITEMS = [
   { id: "equipes", label: "Equipes", icon: Users },
   { id: "metas", label: "Metas de Venda", icon: Target },
   { id: "permissoes", label: "Permissões", icon: ShieldCheck },
+  { id: "alertas-compras", label: "Alertas de Compras", icon: Bell },
 ];
 
 const ALL_MODULES = [
@@ -1074,6 +1078,18 @@ export default function Configuracoes() {
             )}
             {activeSection === "permissoes" && (
               <PermissoesSection />
+            )}
+            {activeSection === "alertas-compras" && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">Alertas de Compras</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Configure suas notificações de compras e os parâmetros globais do sistema.
+                  </p>
+                </div>
+                <PurchaseAlertPreferences />
+                <PurchaseAlertAdminSettings />
+              </div>
             )}
           </div>
         </main>
