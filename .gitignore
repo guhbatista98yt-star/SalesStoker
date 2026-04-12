@@ -22,6 +22,8 @@ __pycache__/
 # Ambiente
 .env
 .env.*
+!.env.example
+!sync/.env.example
 
 # IDE
 .vscode/

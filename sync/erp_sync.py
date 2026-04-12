@@ -50,7 +50,9 @@ from dotenv import load_dotenv
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-load_dotenv()
+# Load .env from the sync/ folder first, fall back to project root
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv()  # fallback: project root .env
 
 DB2_DSN       = os.environ["DB2_DSN"]          # e.g. "ERPPROD"
 DB2_UID       = os.environ["DB2_UID"]

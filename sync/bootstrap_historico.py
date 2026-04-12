@@ -42,7 +42,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS  # noqa: E402
 from erp_sync import _fix_monetary                            # noqa: E402
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv()  # fallback: project root .env
 
 # ─── Configuração ─────────────────────────────────────────────────────────────
 
