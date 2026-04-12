@@ -1,0 +1,47 @@
+
+Micro@DESKTOP-K600KQT MINGW64 ~/Documents/SalesStoker (main)
+$ cd sync
+python erp_sync.py all
+2026-04-12 20:16:13 [INFO] erp_sync — === Iniciando routine: vendas ===
+2026-04-12 20:16:13 [INFO] erp_sync — [cache_vendas] Sync incremental desde: 202
+6-04-09
+2026-04-12 20:16:13 [INFO] erp_sync — [cache_vendas] Consulta DB2 executada. Len
+do em lotes de 2000…
+2026-04-12 20:16:13 [INFO] erp_sync — [cache_vendas] 3546 linhas lidas do DB2. G
+ravando no PostgreSQL…
+2026-04-12 20:16:14 [INFO] erp_sync — [cache_vendas] Concluído — lidas: 3546, gr
+avadas: 3546
+2026-04-12 20:16:14 [INFO] erp_sync — === Routine vendas concluída em 0s ===
+2026-04-12 20:16:14 [INFO] erp_sync — === Iniciando routine: campanhas ===
+2026-04-12 20:16:14 [INFO] erp_sync — [cache_campanhas] lidas: 3546, gravadas: 3
+546
+2026-04-12 20:16:14 [INFO] erp_sync — === Routine campanhas concluída em 0s ===
+2026-04-12 20:16:14 [INFO] erp_sync — === Iniciando routine: tubos ===
+2026-04-12 20:16:15 [INFO] erp_sync — [cache_tubos_conexoes] lidas: 635, gravada
+s: 635
+2026-04-12 20:16:15 [INFO] erp_sync — === Routine tubos concluída em 0s ===
+2026-04-12 20:16:15 [INFO] erp_sync — === Iniciando routine: pendentes ===
+2026-04-12 20:16:15 [INFO] erp_sync — [cache_vendas_pendentes] lidas: 0, gravada
+s: 0
+2026-04-12 20:16:15 [INFO] erp_sync — === Routine pendentes concluída em 0s ===
+2026-04-12 20:16:15 [INFO] erp_sync — === Iniciando routine: estoque_sugestao ==
+=
+2026-04-12 20:16:18 [INFO] erp_sync — [cache_estoque_sugestao] lidas: 19166, gra
+vadas: 19166
+2026-04-12 20:16:18 [INFO] erp_sync — === Routine estoque_sugestao concluída em
+3s ===
+
+Micro@DESKTOP-K600KQT MINGW64 ~/Documents/SalesStoker/sync (main)
+$ python erp_sync.py estoque_sugestao   ← fornecedores + produtos com estoque
+python erp_sync.py campanhas          ← adiciona histórico de vendas / consumo
+usage: erp_sync.py [-h]
+                   {vendas,campanhas,tubos,pendentes,estoque_sugestao,all}
+erp_sync.py: error: unrecognized arguments: ← fornecedores + produtos com estoqu
+e
+usage: erp_sync.py [-h]
+                   {vendas,campanhas,tubos,pendentes,estoque_sugestao,all}
+erp_sync.py: error: unrecognized arguments: ← adiciona histórico de vendas C:/Pr
+ogram Files/Git/ consumo
+
+Micro@DESKTOP-K600KQT MINGW64 ~/Documents/SalesStoker/sync (main)
+$
