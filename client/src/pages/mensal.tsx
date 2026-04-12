@@ -1,14 +1,25 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { CalendarDays, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { CalendarDays, TrendingUp, TrendingDown, Minus, Users } from "lucide-react";
 import { formatCurrency, formatPercentage } from "@/lib/calendar-utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useAuth } from "@/lib/auth-context";
 import type { MonthlySalesperson } from "@shared/schema";
+
+interface VendorGroup {
+  id: string;
+  name: string;
+  members: string[];
+}
 
 function getTrendIcon(value: number | null) {
   if (value === null) return null;
@@ -41,31 +52,72 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function Mensal() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const isSupervisor = user?.role === "supervisor";
+
   const today = new Date();
   const startDate = format(startOfMonth(today), "yyyy-MM-dd");
   const endDate = format(endOfMonth(today), "yyyy-MM-dd");
   const monthLabel = format(today, "MMMM yyyy", { locale: ptBR });
 
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+
   const { data: monthlyData = [], isLoading: monthlyLoading } = useQuery<MonthlySalesperson[]>({
     queryKey: ["/api/monthly-view", "all", startDate, endDate],
   });
 
+  const { data: groups = [] } = useQuery<VendorGroup[]>({
+    queryKey: ["/api/vendor-groups"],
+    enabled: isAdmin || isSupervisor,
+  });
+
+  const selectedGroup = groups.find(g => g.id === selectedGroupId);
+
+  const filteredData = monthlyData.filter(({ salesperson }) =>
+    !selectedGroup || selectedGroup.members.includes(String(salesperson.id))
+  );
+
+  const showGroupFilter = (isAdmin || isSupervisor) && groups.length > 0;
+
   return (
     <div className="h-full overflow-auto">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
-        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Visão Mensal</h1>
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium capitalize">{monthLabel}</span>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg capitalize" disabled>
-            <CalendarDays className="h-3.5 w-3.5" />
-            {monthLabel}
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {showGroupFilter && (
+              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                <SelectTrigger className="h-8 text-xs w-40 gap-1.5">
+                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Grupo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">Todos os grupos</SelectItem>
+                  {groups.map(g => (
+                    <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg capitalize" disabled>
+              <CalendarDays className="h-3.5 w-3.5" />
+              {monthLabel}
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="p-6 space-y-6">
+        {selectedGroup && !monthlyLoading && (
+          <p className="text-xs text-muted-foreground">
+            Grupo: <strong>{selectedGroup.name}</strong> · {filteredData.length} de {monthlyData.length} vendedores
+          </p>
+        )}
+
         {monthlyLoading ? (
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
@@ -76,14 +128,15 @@ export default function Mensal() {
               </Card>
             ))}
           </div>
-        ) : monthlyData.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <CalendarDays className="h-12 w-12 mx-auto mb-4 opacity-30" />
             <p className="text-lg">Nenhum dado disponível para o período</p>
+            {selectedGroup && <p className="text-sm mt-1">Tente selecionar outro grupo ou "Todos os grupos"</p>}
           </div>
         ) : (
           <div className="space-y-6">
-            {monthlyData.map(({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress }) => {
+            {filteredData.map(({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress }) => {
               const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
               
               return (

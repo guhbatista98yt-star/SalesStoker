@@ -2,13 +2,22 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard } from "@/components/dashboard/salesperson-card";
-import { Search, Grid3X3, List } from "lucide-react";
+import { Search, Grid3X3, List, Users } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
+
+interface VendorGroup {
+  id: string;
+  name: string;
+  members: string[];
+}
 
 export default function Vendedores() {
   const { user } = useAuth();
@@ -24,6 +33,7 @@ export default function Vendedores() {
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -33,15 +43,29 @@ export default function Vendedores() {
     queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate],
   });
 
+  const { data: groups = [] } = useQuery<VendorGroup[]>({
+    queryKey: ["/api/vendor-groups"],
+    enabled: isAdmin || isSupervisor,
+  });
+
   const { data: settingMovimt } = useQuery<{ key: string; value: string | null }>({
     queryKey: ["/api/app-settings/showMovimentacoesButton"],
     enabled: isSupervisor,
   });
 
-  const filteredSalespersons = salespersons.filter(({ salesperson }) =>
-    salesperson.name.toLowerCase().includes(search.toLowerCase()) ||
-    (salesperson.email ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const selectedGroup = groups.find(g => g.id === selectedGroupId);
+
+  const filteredSalespersons = salespersons.filter(({ salesperson }) => {
+    const matchesSearch =
+      salesperson.name.toLowerCase().includes(search.toLowerCase()) ||
+      (salesperson.email ?? "").toLowerCase().includes(search.toLowerCase());
+
+    const matchesGroup =
+      !selectedGroup ||
+      selectedGroup.members.includes(String(salesperson.id));
+
+    return matchesSearch && matchesGroup;
+  });
 
   function showMovimentacoesButton(): boolean {
     if (isAdmin) return true;
@@ -52,6 +76,8 @@ export default function Vendedores() {
     return false;
   }
 
+  const showGroupFilter = (isAdmin || isSupervisor) && groups.length > 0;
+
   return (
     <div className="h-full overflow-auto">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
@@ -61,6 +87,20 @@ export default function Vendedores() {
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {showGroupFilter && (
+              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                <SelectTrigger className="h-8 text-xs w-40 gap-1.5">
+                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Grupo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="text-xs">Todos os grupos</SelectItem>
+                  {groups.map(g => (
+                    <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <CompanySelector
               companies={companies}
               selectedId={companyId}
@@ -74,15 +114,22 @@ export default function Vendedores() {
 
       <div className="p-6 space-y-6">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar vendedor..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-              data-testid="input-search-salesperson"
-            />
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar vendedor..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-salesperson"
+              />
+            </div>
+            {selectedGroup && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {filteredSalespersons.length} de {salespersons.length} vendedores
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <Button
