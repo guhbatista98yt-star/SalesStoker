@@ -520,7 +520,7 @@ router.put("/configuracoes", isAuthenticated, async (req: AuthRequest, res) => {
 router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     // Return all supplier configs merged with distinct FABRICANTEs from cache_campanhas
-    const [configs, fabricantes] = await Promise.all([
+    const [configs, fabricantes, excecoesPorForn] = await Promise.all([
       pgAll<Record<string, unknown>>(`SELECT * FROM compras_fornecedores_config ORDER BY fabricante_nome`),
       pgAll<{ FABRICANTE: string; ultimo_movimento: string; total_skus: number }>(
         `SELECT "FABRICANTE",
@@ -531,9 +531,15 @@ router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res
          GROUP BY "FABRICANTE"
          ORDER BY "FABRICANTE"`
       ),
+      pgAll<{ fornecedor_nome: string; total_excecoes: number }>(
+        `SELECT fornecedor_nome, COUNT(*) as total_excecoes
+         FROM compras_produtos_config
+         GROUP BY fornecedor_nome`
+      ).catch(() => [] as { fornecedor_nome: string; total_excecoes: number }[]),
     ]);
 
     const configMap = new Map(configs.map(c => [c.fabricante_nome as string, c]));
+    const excecoesMap = new Map(excecoesPorForn.map(e => [e.fornecedor_nome, Number(e.total_excecoes)]));
 
     const result = fabricantes.map(f => {
       const cfg = configMap.get(f.FABRICANTE);
@@ -549,7 +555,8 @@ router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res
         pedido_minimo_valor: cfg?.pedido_minimo_valor ?? 0,
         observacoes: cfg?.observacoes ?? "",
         ultimo_movimento: f.ultimo_movimento,
-        total_skus: f.total_skus,
+        total_skus: Number(f.total_skus),
+        total_excecoes: excecoesMap.get(f.FABRICANTE) ?? 0,
         configurado: cfg !== undefined,
       };
     });

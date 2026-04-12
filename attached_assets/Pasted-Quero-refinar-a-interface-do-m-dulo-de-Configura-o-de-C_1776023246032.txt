@@ -1,0 +1,469 @@
+Quero refinar a interface do módulo de Configuração de Compras / Copiloto de Compras para que ele fique extremamente simples, leve, objetivo, rápido de operar e profissional, mantendo toda a inteligência já implementada.
+
+IMPORTANTE:
+Não quero uma tela com cara de cadastro técnico pesado.
+Não quero uma tela parecendo planilha cheia de campos.
+Quero uma experiência de configuração operacional, clara e inteligente, onde o comprador consiga entender rapidamente:
+- o que está configurado
+- o que está herdando regra do fornecedor
+- o que é exceção por produto
+- o que está faltando configurar
+- o que está impactando a sugestão de compra
+
+A prioridade aqui é:
+1. clareza
+2. simplicidade
+3. velocidade de uso
+4. organização visual
+5. boa hierarquia
+6. manutenção fácil
+7. aparência premium e profissional
+
+================================================================
+1. CONCEITO DE UX OBRIGATÓRIO
+================================================================
+
+Quero que esse módulo siga esta lógica:
+
+- Fornecedor define a regra padrão
+- Produto só foge do padrão quando necessário
+- O comprador enxerga primeiro o resumo
+- Depois edita fornecedor
+- Depois, só se precisar, configura exceção por produto
+
+Ou seja:
+quero evitar tela pesada com tudo misturado ao mesmo tempo.
+
+================================================================
+2. ESTRUTURA EXATA DA PÁGINA
+================================================================
+
+Quero a página dividida em 4 zonas bem claras:
+
+A. Header da página
+B. Barra de filtros e ações rápidas
+C. Cards/resumo operacional
+D. Área principal com abas e tabela/lista
+
+================================================================
+3. HEADER DA PÁGINA
+================================================================
+
+No topo, quero um cabeçalho premium contendo:
+
+- título da página: Configuração de Compras
+- subtítulo curto explicando o propósito
+- botão discreto de ajuda contextual
+- ação principal, se fizer sentido
+- status resumido do módulo
+
+Texto sugerido:
+Título: Configuração de Compras
+Subtítulo: Defina regras padrão por fornecedor e exceções por produto para melhorar as sugestões do Copiloto de Compras.
+
+Quero esse header:
+- limpo
+- leve
+- profissional
+- com boa hierarquia
+- sem poluição
+
+================================================================
+4. BARRA SUPERIOR DE FILTROS E AÇÕES
+================================================================
+
+Logo abaixo do header, quero uma barra horizontal com:
+
+Filtros:
+- busca por fornecedor ou produto
+- filtro por fornecedor
+- filtro por categoria/grupo/segmento, se existir
+- filtro por ativo/inativo
+- filtro por itens críticos
+- filtro por itens sem configuração
+- filtro por produtos com exceção
+- filtro por produtos usando padrão do fornecedor
+
+Ações:
+- exportar configuração
+- aplicar padrão em massa
+- mostrar/ocultar fornecedores inativos
+- abrir somente exceções
+- botão para configurações avançadas, se fizer sentido
+
+Essa barra deve:
+- ficar muito organizada
+- ter visual premium
+- ter filtros compactos e claros
+- ser responsiva
+- permitir uso rápido
+
+================================================================
+5. CARDS DE RESUMO OPERACIONAL
+================================================================
+
+Abaixo da barra de filtros, quero uma linha de cards rápidos.
+
+Esses cards devem mostrar:
+- fornecedores ativos para compra
+- fornecedores inativos
+- produtos usando padrão do fornecedor
+- produtos com exceção configurada
+- produtos sem configuração mínima
+- produtos críticos
+- produtos sem compra recente
+- sugestões bloqueadas por fornecedor inativo
+
+Esses cards precisam:
+- ser pequenos e objetivos
+- ter número forte
+- label curta
+- ícone discreto
+- cor sutil por estado
+- permitir clique para filtrar a tela, se possível
+
+================================================================
+6. ÁREA PRINCIPAL — ABAS OBRIGATÓRIAS
+================================================================
+
+Quero a área principal organizada em 3 abas:
+
+ABA 1 — Fornecedores
+ABA 2 — Produtos / Exceções
+ABA 3 — Visão Operacional
+
+Se fizer sentido, pode existir uma quarta aba:
+ABA 4 — Parâmetros Gerais
+
+Mas a prioridade é funcionar muito bem com as 3 primeiras.
+
+================================================================
+7. ABA 1 — FORNECEDORES
+================================================================
+
+Essa deve ser a principal tela de configuração.
+
+Quero uma tabela/lista premium de fornecedores com colunas como:
+- Ativo para compra
+- Código ERP
+- Nome fantasia
+- Razão social
+- Lead time
+- Período de compra
+- Cobertura alvo
+- Pedido mínimo
+- Última movimentação
+- Quantidade de SKUs
+- Quantidade de itens críticos
+- Status geral
+
+Quero visualmente:
+- linhas limpas
+- badges de status
+- bom espaçamento
+- ordenação
+- busca
+- filtros
+- destaque para fornecedores inativos
+- destaque para fornecedores críticos
+
+Ao clicar na linha do fornecedor:
+- NÃO quero expandir de forma bagunçada na própria linha
+- Quero abrir um drawer lateral direito ou modal lateral premium
+
+Dentro do drawer do fornecedor, exibir:
+- código ERP
+- nome fantasia
+- razão social
+- fornecedor ativo/inativo para compra
+- lead time padrão
+- período de compra padrão
+- cobertura alvo padrão em dias
+- pedido mínimo
+- observações
+- data da última movimentação
+- total de SKUs
+- total de produtos com exceção
+- total de itens críticos
+- botão salvar
+- botão cancelar
+- botão aplicar padrão aos produtos sem exceção
+
+Quero esse drawer:
+- limpo
+- bem espaçado
+- com seções claras
+- com campos simples
+- sem poluição
+
+================================================================
+8. ABA 2 — PRODUTOS / EXCEÇÕES
+================================================================
+
+Essa aba deve ser focada em exceções de produto, não em configuração massiva completa.
+
+Quero uma tabela/lista premium com colunas como:
+- Código
+- Produto
+- Fornecedor
+- Categoria/Grupo/Segmento
+- Estoque atual
+- Cobertura atual em dias
+- Última compra
+- Última quantidade comprada
+- Usa padrão do fornecedor? sim/não
+- Exceção configurada? sim/não
+- Status de risco
+- Sugestão atual
+- Motivo da sugestão
+
+Filtros importantes:
+- somente produtos com exceção
+- somente produtos sem exceção
+- somente produtos críticos
+- somente produtos sem compra recente
+- somente produtos com fornecedor inativo
+- filtro por fornecedor
+- filtro por categoria
+
+Ao clicar em um produto:
+- abrir drawer lateral direito
+- não usar expansão bagunçada em tabela
+
+Dentro do drawer do produto, quero:
+
+SEÇÃO 1 — Resumo do produto
+- código
+- descrição
+- fornecedor
+- estoque atual
+- cobertura atual
+- última compra
+- última quantidade comprada
+- status atual
+
+SEÇÃO 2 — Herança
+- toggle: usar padrão do fornecedor
+- se ligado, mostrar quais regras o produto está herdando
+- se desligado, habilitar campos de exceção
+
+SEÇÃO 3 — Exceções do produto
+- estoque mínimo
+- estoque máximo
+- lote mínimo
+- múltiplo de embalagem
+- período de giro
+- cobertura alvo específica
+- observações
+
+SEÇÃO 4 — Inteligência da sugestão
+- motivo da sugestão
+- regra usada
+- status atual
+- impacto da configuração atual
+
+Quero visualmente:
+- muito claro
+- hierarquia forte
+- herança muito bem explicada
+- o usuário precisa entender rápido quando está usando padrão e quando está sobrescrevendo
+
+================================================================
+9. ABA 3 — VISÃO OPERACIONAL
+================================================================
+
+Essa aba deve ter foco mais gerencial e operacional.
+
+Quero uma visão resumida para o comprador entender:
+- quais fornecedores estão prontos para trabalhar
+- quais estão bloqueados/inativos
+- quais produtos estão usando padrão
+- quais produtos estão com exceção
+- quais produtos estão com risco
+- quais produtos não têm configuração mínima
+- quais sugestões estão sendo bloqueadas por regra
+
+Blocos sugeridos:
+- Fornecedores ativos e críticos
+- Produtos com exceção
+- Produtos sem última compra recente
+- Itens abaixo do mínimo
+- Sugestões por fornecedor
+- Bloqueios por fornecedor inativo
+- Motivos de sugestão mais frequentes
+
+Essa tela precisa ser:
+- muito visual
+- mais leve
+- perfeita para entendimento rápido
+
+================================================================
+10. HIERARQUIA DE CONFIGURAÇÃO
+================================================================
+
+Quero implementar claramente esta regra no sistema:
+
+1. parâmetro global
+2. padrão do fornecedor
+3. exceção por produto
+
+Ou seja:
+- o sistema precisa deixar visualmente claro de onde vem cada regra
+- se o produto usa o padrão do fornecedor, isso precisa ficar explícito
+- se o produto sobrescreve o padrão, isso precisa ficar explícito
+- se houver ausência de configuração, isso também precisa ficar explícito
+
+================================================================
+11. INDICADORES VISUAIS IMPORTANTES
+================================================================
+
+Quero badges ou chips visuais como:
+- Ativo para compra
+- Inativo para compra
+- Usa padrão
+- Exceção configurada
+- Sem configuração
+- Crítico
+- Atenção
+- Saudável
+- Última compra antiga
+- Sugestão bloqueada
+- Sugestão ativa
+
+Quero isso bem desenhado e fácil de bater o olho.
+
+================================================================
+12. MOTIVO DA SUGESTÃO — UX MELHORADA
+================================================================
+
+Quero uma coluna e/ou bloco visual com “Motivo da sugestão”.
+
+Exemplos:
+- Cobertura abaixo do alvo configurado
+- Estoque abaixo do mínimo
+- Lead time maior que a cobertura atual
+- Produto sem compra recente e com giro alto
+- Fornecedor inativo para compra
+- Produto usa configuração própria
+- Pedido em aberto já atende a necessidade
+- Sugestão bloqueada por regra
+
+Isso precisa ser legível e realmente útil.
+
+================================================================
+13. AÇÕES EM MASSA
+================================================================
+
+Quero ações em massa bem pensadas, como:
+- ativar fornecedor para compra
+- inativar fornecedor para compra
+- aplicar padrão do fornecedor a produtos sem exceção
+- remover exceção de produtos selecionados
+- exportar lista filtrada
+- marcar produtos para revisão
+- atualizar cobertura alvo em lote, quando fizer sentido
+
+Essas ações devem ter:
+- confirmação segura
+- feedback claro
+- sem risco de alteração silenciosa
+
+================================================================
+14. UX DE FORMULÁRIOS
+================================================================
+
+Quero formulários muito bem resolvidos.
+
+Aplicar:
+- labels claras
+- texto de ajuda curto
+- campos agrupados por lógica
+- separação entre básico e avançado
+- validação amigável
+- mensagens objetivas
+- salvar/cancelar claros
+- nada confuso
+- nada técnico demais
+
+================================================================
+15. DESIGN E VISUAL
+================================================================
+
+Quero esse módulo alinhado ao redesign premium do sistema.
+
+Visual:
+- cards brancos
+- bordas suaves
+- boa tipografia
+- espaçamento excelente
+- tabela premium
+- drawers elegantes
+- filtros compactos
+- badges bem desenhados
+- ícones discretos
+- nada poluído
+- nada com cara de planilha antiga
+
+================================================================
+16. RESPONSIVIDADE
+================================================================
+
+No mobile:
+- manter tabs acessíveis
+- filtros recolhíveis
+- cards empilhados corretamente
+- tabela adaptada para lista/cards quando necessário
+- drawer adaptado
+- sem conteúdo cortado
+- sem excesso de colunas estourando a tela
+
+No desktop:
+- aproveitar espaço sem poluir
+- boa leitura
+- boa densidade
+
+================================================================
+17. O QUE NÃO QUERO
+================================================================
+
+Não quero:
+- linha expandindo de forma confusa
+- tabela sobrecarregada
+- muito campo aberto ao mesmo tempo
+- produto exigindo configuração completa sem necessidade
+- fornecedor e produto repetindo regra sem propósito
+- tela técnica demais
+- planilha disfarçada de módulo
+- visual pesado
+- excesso de cliques desnecessários
+- UX burocrática
+
+================================================================
+18. ENTREGA ESPERADA
+================================================================
+
+Quero que você refaça/refine esse módulo entregando:
+
+1. layout mais simples e leve
+2. header claro
+3. filtros bem organizados
+4. cards de resumo operacional
+5. aba de fornecedores premium
+6. aba de produtos focada em exceções
+7. aba de visão operacional
+8. drawers laterais bem resolvidos
+9. herança de configuração bem explícita
+10. ações em massa úteis
+11. motivo da sugestão bem visível
+12. visual profissional
+13. ótima responsividade
+
+Antes de concluir, valide se o resultado final ficou:
+- simples
+- leve
+- objetivo
+- fácil para o comprador
+- mais operacional do que técnico
+- profissional
+- inteligente
+- rápido de usar

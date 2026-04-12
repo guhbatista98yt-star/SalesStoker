@@ -20,6 +20,18 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (April 2026 — Configuração de Compras: Redesign UX Premium)
+
+- **Redesign completo** de `client/src/pages/compras/configuracoes.tsx` — nova UX premium com 4 zonas: header fixo, summary cards clicáveis, 3 abas (Fornecedores, Produtos/Exceções, Visão Operacional)
+- **Drawers laterais** (Sheet) para edição de fornecedor e produto — substituem expansão bagunçada inline
+- **Hierarquia de configuração** explícita: Fornecedor define regra padrão → Produto só sobrescreve quando necessário (toggle "Usar padrão do fornecedor" com herança visual no drawer)
+- **Summary cards** (6 métricas-chave): fornecedores ativos/inativos, produtos com exceção/usando padrão/sem compra recente/bloqueados — clicáveis para filtrar e mudar aba
+- **Quick filters** em chip pills para produtos: Todos | Com exceção | Usando padrão | Inativos | Sem compra +90d
+- **Badges de status** semânticos: Ativo/Inativo, Config/Padrão, Usa padrão/Exceção com cores consistentes
+- **Aba Visão Operacional** — blocos gerenciais: fornecedores ativos, inativos, cobertura de configuração (barras de progresso), alertas operacionais (produtos sem compra, bloqueados)
+- **Backend**: `GET /api/compras/fornecedores-config` agora inclui `total_excecoes` por fornecedor
+- **Fix crítico**: `purchase_settings` — colunas renomeadas para `chave`/`valor` em `alert-engine.ts` e `routes.ts` para alinhar com schema real do DB; migrations `ALTER TABLE IF NOT EXISTS` adicionadas para `purchase_alerts`, `purchase_alert_events`, `user_alert_preferences`, `alert_delivery_state`
+
 ## Recent Changes (April 2026 — Copiloto de Compras: Notificações e Som)
 
 - **5 novas tabelas PostgreSQL**: `purchase_alerts`, `purchase_alert_events`, `user_alert_preferences`, `alert_delivery_state`, `purchase_settings`. Schema 100% idempotente via `schema-bootstrap.ts`.
