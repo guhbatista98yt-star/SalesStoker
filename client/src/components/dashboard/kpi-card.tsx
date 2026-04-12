@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { formatCurrency, formatPercentage } from "@/lib/calendar-utils";
+import { formatCurrency, formatCurrencyCompact, formatPercentage } from "@/lib/calendar-utils";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,7 @@ interface KPICardProps {
   icon?: LucideIcon;
   loading?: boolean;
   format?: "currency" | "percentage" | "number";
+  compact?: boolean;
   status?: "OK" | "SEM_TUBOS" | "SEM_DADOS";
   dragHandle?: React.ReactNode;
   iconColor?: string;
@@ -66,6 +67,7 @@ export function KPICard({
   icon: Icon,
   loading,
   format = "number",
+  compact = false,
   status,
   dragHandle,
   iconColor = "text-primary",
@@ -73,7 +75,7 @@ export function KPICard({
   sparklineData,
   sparklineId = "sparkline",
 }: KPICardProps) {
-  const formattedValue =
+  const fullValue =
     typeof value === "number"
       ? format === "currency"
         ? formatCurrency(value)
@@ -81,6 +83,11 @@ export function KPICard({
         ? `${value.toFixed(1)}%`
         : value.toLocaleString("pt-BR")
       : value;
+
+  const formattedValue =
+    compact && format === "currency" && typeof value === "number"
+      ? formatCurrencyCompact(value)
+      : fullValue;
 
   const isNA = status === "SEM_TUBOS" || status === "SEM_DADOS";
   const trendPositive = yoyChange !== null && yoyChange !== undefined && yoyChange > 0;
@@ -121,7 +128,10 @@ export function KPICard({
           </div>
         ) : (
           <div className="space-y-1.5">
-            <p className="text-2xl sm:text-3xl font-bold tracking-tight tabular-nums text-foreground leading-none animate-count-up">
+            <p
+              className="text-2xl sm:text-3xl font-bold tracking-tight tabular-nums text-foreground leading-none animate-count-up"
+              title={compact && formattedValue !== fullValue ? fullValue : undefined}
+            >
               {isNA ? "—" : formattedValue}
             </p>
             <div className="flex items-center gap-2 flex-wrap">

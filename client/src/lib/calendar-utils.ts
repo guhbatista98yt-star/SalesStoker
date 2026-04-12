@@ -119,6 +119,19 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+export function formatCurrencyCompact(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const fmt = (n: number, suffix: string) =>
+    `${sign}R$\u00a0${n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} ${suffix}`;
+
+  if (abs >= 1_000_000_000_000) return fmt(abs / 1_000_000_000_000, "tri");
+  if (abs >= 1_000_000_000)     return fmt(abs / 1_000_000_000, "bi");
+  if (abs >= 1_000_000)         return fmt(abs / 1_000_000, "mi");
+  if (abs >= 1_000)             return fmt(abs / 1_000, "mil");
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 }).format(value);
+}
+
 export function formatPercentage(value: number | null): string {
   if (value === null) return "N/A";
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
