@@ -1,11 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Calendar, CalendarDays } from "lucide-react";
+import {
+  Settings,
+  Save,
+  Loader2,
+  Calendar,
+  CalendarDays,
+  Search,
+  Lock,
+  CheckCircle2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@/lib/calendar-utils";
@@ -33,33 +43,82 @@ interface GoalConfigItem {
   }>;
 }
 
+interface RowGoalState {
+  mode: "unified" | "split";
+  all: string;
+  l01: string;
+  l03: string;
+  dirty: boolean;
+  saving: boolean;
+  saved: boolean;
+}
+
 interface LocalGoalValues {
   [salespersonId: string]: {
-    weekly: {
-      mode: "unified" | "split";
-      all: string; // Using string to allow empty state logic
-      l01: string;
-      l03: string;
-    };
-    monthly: {
-      mode: "unified" | "split";
-      all: string;
-      l01: string;
-      l03: string;
-    };
+    weekly: RowGoalState;
+    monthly: RowGoalState;
   };
+}
+
+const DEFAULT_ROW_STATE: RowGoalState = {
+  mode: "split",
+  all: "",
+  l01: "",
+  l03: "",
+  dirty: false,
+  saving: false,
+  saved: false,
+};
+
+function buildInitialValues(
+  salespersons: { id: string; name: string }[],
+  serverConfig: GoalConfigItem[]
+): LocalGoalValues {
+  const values: LocalGoalValues = {};
+
+  const getVal = (goals: GoalConfigItem["goals"] | undefined, type: "weekly" | "monthly", cid: string) => {
+    if (!goals) return "";
+    const g = goals.find(x => x.type === type && x.companyId === cid);
+    return g ? String(g.value) : "";
+  };
+
+  for (const sp of salespersons) {
+    const cfg = serverConfig.find(c => c.salespersonId === sp.id);
+    values[sp.id] = {
+      weekly: {
+        mode: cfg?.weeklyMode ?? "split",
+        all: getVal(cfg?.goals, "weekly", "all"),
+        l01: getVal(cfg?.goals, "weekly", "1"),
+        l03: getVal(cfg?.goals, "weekly", "3"),
+        dirty: false,
+        saving: false,
+        saved: false,
+      },
+      monthly: {
+        mode: cfg?.monthlyMode ?? "split",
+        all: getVal(cfg?.goals, "monthly", "all"),
+        l01: getVal(cfg?.goals, "monthly", "1"),
+        l03: getVal(cfg?.goals, "monthly", "3"),
+        dirty: false,
+        saving: false,
+        saved: false,
+      },
+    };
+  }
+
+  return values;
 }
 
 export default function Configuracoes() {
   const { user } = useAuth();
-  const isAdmin = user?.email === "admin@conectubos.com";
+  const isAdmin = user?.role === "admin";
   const [activeTab, setActiveTab] = useState<"weekly" | "monthly">("weekly");
+  const [search, setSearch] = useState("");
   const { toast } = useToast();
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
 
-  // Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     salespersonId: string;
@@ -67,81 +126,105 @@ export default function Configuracoes() {
     targetMode: "unified" | "split";
   } | null>(null);
 
-  // Local State
   const [localValues, setLocalValues] = useState<LocalGoalValues>({});
+  const [initialized, setInitialized] = useState(false);
 
-  const { data: serverConfig = [], isLoading } = useQuery<GoalConfigItem[]>({
+  const { data: serverConfig = [], isLoading: configLoading } = useQuery<GoalConfigItem[]>({
     queryKey: ["/api/goals-config", currentMonth.toString(), currentYear.toString()],
   });
 
-  const { data: salespersons = [] } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ["/api/salespersons", "all", "2026-01-01", "2026-01-31"], // Date range just to fetch list
-    select: (data: any) => data.map((d: any) => d.salesperson || d),
+  const { data: salespersonsRaw = [], isLoading: spLoading } = useQuery<any[]>({
+    queryKey: [`/api/salespersons/all/${currentYear}-${String(currentMonth).padStart(2, "0")}-01/${currentYear}-${String(currentMonth).padStart(2, "0")}-28`],
   });
 
-  // Sync server state to local state
+  const salespersons = useMemo<{ id: string; name: string }[]>(() => {
+    if (!salespersonsRaw.length) return [];
+    return Array.from(
+      new Map(
+        salespersonsRaw.map((d: any) => {
+          const sp = d.salesperson ?? d;
+          return [sp.id, { id: sp.id, name: sp.name }];
+        })
+      ).values()
+    ).sort((a, b) => a.name.localeCompare(b.name));
+  }, [salespersonsRaw]);
+
   useEffect(() => {
-    // Prevent resetting state if already initialized and user is editing
-    if (Object.keys(localValues).length > 0) return;
-
-    if (salespersons.length > 0) {
-      const initialValues: LocalGoalValues = {};
-
-      salespersons.forEach(sp => {
-        const cfg = serverConfig.find(c => c.salespersonId === sp.id);
-
-        // Helper to get value or empty string
-        const getVal = (goals: any[] | undefined, cid: string) => {
-          if (!goals) return "";
-          const g = goals.find((x: any) => x.companyId === cid);
-          return g ? String(g.value) : "";
-        };
-
-        const weeklyGoals = cfg?.goals.filter(g => g.type === "weekly");
-        const monthlyGoals = cfg?.goals.filter(g => g.type === "monthly");
-
-        initialValues[sp.id] = {
-          weekly: {
-            mode: cfg?.weeklyMode || "split",
-            all: getVal(weeklyGoals, "all"),
-            l01: getVal(weeklyGoals, "1"),
-            l03: getVal(weeklyGoals, "3"),
-          },
-          monthly: {
-            mode: cfg?.monthlyMode || "split",
-            all: getVal(monthlyGoals, "all"),
-            l01: getVal(monthlyGoals, "1"),
-            l03: getVal(monthlyGoals, "3"),
-          }
-        };
-      });
-      setLocalValues(initialValues);
+    if (!initialized && salespersons.length > 0 && serverConfig !== undefined) {
+      setLocalValues(buildInitialValues(salespersons, serverConfig));
+      setInitialized(true);
     }
-  }, [serverConfig, salespersons]);
+  }, [salespersons, serverConfig, initialized]);
+
+  const isLoading = configLoading || spLoading;
+
+  const filteredSalespersons = useMemo(() => {
+    const term = search.toLowerCase().trim();
+    if (!term) return salespersons;
+    return salespersons.filter(sp => sp.name.toLowerCase().includes(term));
+  }, [salespersons, search]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: {
       salespersonId: string;
       type: "weekly" | "monthly";
       mode: "unified" | "split";
-      values: { all: number | null; "1": number | null; "3": number | null }
+      values: { all: number | null; "1": number | null; "3": number | null };
     }) => {
       return apiRequest("POST", "/api/goals-config", {
         ...payload,
         month: currentMonth,
-        year: currentYear
+        year: currentYear,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals-config"] });
-      toast({ title: "Meta salva com sucesso" });
+      setLocalValues(prev => ({
+        ...prev,
+        [vars.salespersonId]: {
+          ...prev[vars.salespersonId],
+          [vars.type]: {
+            ...prev[vars.salespersonId][vars.type],
+            dirty: false,
+            saving: false,
+            saved: true,
+          },
+        },
+      }));
+      setTimeout(() => {
+        setLocalValues(prev => ({
+          ...prev,
+          [vars.salespersonId]: {
+            ...prev[vars.salespersonId],
+            [vars.type]: {
+              ...prev[vars.salespersonId]?.[vars.type],
+              saved: false,
+            },
+          },
+        }));
+      }, 2500);
     },
-    onError: () => {
-      toast({ title: "Erro ao salvar", variant: "destructive" });
-    }
+    onError: (_, vars) => {
+      setLocalValues(prev => ({
+        ...prev,
+        [vars.salespersonId]: {
+          ...prev[vars.salespersonId],
+          [vars.type]: {
+            ...prev[vars.salespersonId][vars.type],
+            saving: false,
+          },
+        },
+      }));
+      toast({ title: "Erro ao salvar meta", variant: "destructive" });
+    },
   });
 
-  const handleInputChange = (salespersonId: string, type: "weekly" | "monthly", field: "all" | "l01" | "l03", value: string) => {
+  const handleInputChange = (
+    salespersonId: string,
+    type: "weekly" | "monthly",
+    field: "all" | "l01" | "l03",
+    value: string
+  ) => {
     if (!isAdmin) return;
     setLocalValues(prev => ({
       ...prev,
@@ -149,50 +232,61 @@ export default function Configuracoes() {
         ...prev[salespersonId],
         [type]: {
           ...prev[salespersonId]?.[type],
-          [field]: value
-        }
-      }
+          [field]: value,
+          dirty: true,
+          saved: false,
+        },
+      },
     }));
   };
 
-  const handleSwitchToggle = (salespersonId: string, type: "weekly" | "monthly", checked: boolean) => {
+  const handleSwitchToggle = (
+    salespersonId: string,
+    type: "weekly" | "monthly",
+    checked: boolean
+  ) => {
     if (!isAdmin) return;
-
-    // Ask Confirmation for both directions (switching always implies some data reset/change)
     setConfirmDialog({
       open: true,
       salespersonId,
       type,
-      targetMode: checked ? "unified" : "split"
+      targetMode: checked ? "unified" : "split",
     });
   };
 
   const handleConfirmSwitch = () => {
     if (!confirmDialog) return;
-
     const { salespersonId, type, targetMode } = confirmDialog;
-
     setLocalValues(prev => ({
       ...prev,
       [salespersonId]: {
         ...prev[salespersonId],
         [type]: {
           mode: targetMode,
-          all: targetMode === "unified" ? "0" : "", // If going Unified, init all=0. If Split, init all defaults empty
-          l01: targetMode === "split" ? "" : "", // Init empty for fresh start
-          l03: targetMode === "split" ? "" : "",
-        }
-      }
+          all: "",
+          l01: "",
+          l03: "",
+          dirty: true,
+          saving: false,
+          saved: false,
+        },
+      },
     }));
     setConfirmDialog(null);
   };
 
+  const parseVal = (v: string) => (v === "" ? null : parseFloat(v.replace(",", ".")));
+
   const handleSave = (salespersonId: string, type: "weekly" | "monthly") => {
     const current = localValues[salespersonId]?.[type];
-    if (!current) return;
-
-    const parseVal = (v: string) => (v === "" ? null : parseFloat(v.replace(",", ".")));
-
+    if (!current || !current.dirty) return;
+    setLocalValues(prev => ({
+      ...prev,
+      [salespersonId]: {
+        ...prev[salespersonId],
+        [type]: { ...prev[salespersonId][type], saving: true },
+      },
+    }));
     saveMutation.mutate({
       salespersonId,
       type,
@@ -200,116 +294,155 @@ export default function Configuracoes() {
       values: {
         all: parseVal(current.all),
         "1": parseVal(current.l01),
-        "3": parseVal(current.l03)
-      }
+        "3": parseVal(current.l03),
+      },
     });
   };
 
   const handleSaveAll = (type: "weekly" | "monthly") => {
-    salespersons.forEach(sp => handleSave(sp.id, type));
+    const dirty = salespersons.filter(sp => localValues[sp.id]?.[type]?.dirty);
+    if (!dirty.length) {
+      toast({ title: "Nenhuma alteração pendente" });
+      return;
+    }
+    dirty.forEach(sp => handleSave(sp.id, type));
+    toast({ title: `Salvando ${dirty.length} metas...` });
   };
 
-  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-  // Helper to find saved value from serverConfig
-  const getSavedValue = (spId: string, type: "weekly" | "monthly", companyId: string) => {
+  const getSavedLabel = (spId: string, type: "weekly" | "monthly", companyId: string) => {
     const cfg = serverConfig.find(c => c.salespersonId === spId);
-    if (!cfg) return "R$ 0,00"; // Should not happen if initialized
-    const goals = cfg.goals.filter(g => g.type === type && g.companyId === companyId);
-    if (goals.length > 0) return `${formatCurrency(goals[0].value)}`;
-    return "Sem meta salva";
+    if (!cfg) return "—";
+    const g = cfg.goals.find(g => g.type === type && g.companyId === companyId);
+    return g ? formatCurrency(g.value) : "Sem meta";
   };
+
+  const monthNames = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+  ];
+
+  const dirtyCount = (type: "weekly" | "monthly") =>
+    salespersons.filter(sp => localValues[sp.id]?.[type]?.dirty).length;
 
   const renderGoalRow = (sp: { id: string; name: string }, type: "weekly" | "monthly") => {
     const config = localValues[sp.id]?.[type];
     if (!config) return null;
-
     const isUnified = config.mode === "unified";
 
-    // Debugging name issue
-    console.log("Rendering row for:", sp);
-
     return (
-      <div key={sp.id} className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg border">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div className="min-w-[200px]">
-            <p className="font-semibold text-base">{sp.name || "Nome desconhecido"}</p>
-            <p className="text-xs text-muted-foreground">ID: {sp.id ? sp.id.toString().slice(0, 8) : "N/A"}...</p>
+      <div
+        key={sp.id}
+        className={`flex flex-col gap-3 p-4 rounded-lg border transition-colors ${
+          config.dirty ? "border-primary/40 bg-primary/5" : "bg-muted/30"
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-[180px]">
+            <p className="font-semibold text-sm">{sp.name}</p>
+            <p className="text-xs text-muted-foreground font-mono">ID: {sp.id}</p>
           </div>
 
-          <div className="flex flex-col gap-4 flex-1">
+          <div className="flex flex-col gap-3 flex-1">
             <GoalSwitch
               mode={config.mode}
-              onToggle={(c) => sp.id && handleSwitchToggle(sp.id, type, c)}
-              disabled={!isAdmin || (sp.id === "undefined" || !sp.id)}
+              onToggle={(c) => handleSwitchToggle(sp.id, type, c)}
+              disabled={!isAdmin}
             />
 
-            <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex flex-wrap gap-3 items-end">
               {isUnified ? (
-                <div className="w-full sm:w-auto">
-                  <Label className="text-xs mb-1.5 block">Meta Individual</Label>
+                <div>
+                  <Label className="text-xs mb-1 block text-muted-foreground">Meta Individual</Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-sm text-muted-foreground">R$</span>
+                    <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">R$</span>
                     <Input
                       disabled={!isAdmin}
                       type="number"
                       min="0"
                       step="1"
-                      className="pl-8 w-40"
+                      className="pl-8 w-36 text-sm"
                       value={config.all}
-                      onChange={(e) => handleInputChange(sp.id, type, "all", e.target.value)}
+                      onChange={e => handleInputChange(sp.id, type, "all", e.target.value)}
                     />
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Salvo: {getSavedValue(sp.id, type, "all")}
+                    Salvo: {getSavedLabel(sp.id, type, "all")}
                   </p>
                 </div>
               ) : (
                 <>
-                  <div className="w-full sm:w-auto">
-                    <Label className="text-xs mb-1.5 block">Varejo (01)</Label>
+                  <div>
+                    <Label className="text-xs mb-1 block text-muted-foreground">Varejo (L01)</Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-sm text-muted-foreground">R$</span>
+                      <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">R$</span>
                       <Input
                         disabled={!isAdmin}
                         type="number"
                         min="0"
                         step="1"
-                        className="pl-8 w-40"
+                        className="pl-8 w-36 text-sm"
                         value={config.l01}
-                        onChange={(e) => handleInputChange(sp.id, type, "l01", e.target.value)}
+                        onChange={e => handleInputChange(sp.id, type, "l01", e.target.value)}
                       />
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Salvo: {getSavedValue(sp.id, type, "1")}
+                      Salvo: {getSavedLabel(sp.id, type, "1")}
                     </p>
                   </div>
-                  <div className="w-full sm:w-auto">
-                    <Label className="text-xs mb-1.5 block">Atacado (03)</Label>
+                  <div>
+                    <Label className="text-xs mb-1 block text-muted-foreground">Atacado (L03)</Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-sm text-muted-foreground">R$</span>
+                      <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">R$</span>
                       <Input
                         disabled={!isAdmin}
                         type="number"
                         min="0"
                         step="1"
-                        className="pl-8 w-40"
+                        className="pl-8 w-36 text-sm"
                         value={config.l03}
-                        onChange={(e) => handleInputChange(sp.id, type, "l03", e.target.value)}
+                        onChange={e => handleInputChange(sp.id, type, "l03", e.target.value)}
                       />
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Salvo: {getSavedValue(sp.id, type, "3")}
+                      Salvo: {getSavedLabel(sp.id, type, "3")}
                     </p>
                   </div>
                 </>
               )}
             </div>
-            {!isAdmin && (
-              <p className="text-xs text-amber-600 mt-1">Apenas o administrador pode editar metas.</p>
-            )}
           </div>
+
+          {isAdmin && (
+            <div className="flex items-center">
+              {config.saved ? (
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                  <CheckCircle2 className="h-4 w-4" /> Salvo
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant={config.dirty ? "default" : "outline"}
+                  disabled={!config.dirty || config.saving}
+                  onClick={() => handleSave(sp.id, type)}
+                  className="gap-1 text-xs h-8"
+                >
+                  {config.saving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Save className="h-3 w-3" />
+                  )}
+                  Salvar
+                </Button>
+              )}
+            </div>
+          )}
         </div>
+
+        {!isAdmin && (
+          <p className="text-xs text-amber-600 flex items-center gap-1">
+            <Lock className="h-3 w-3" /> Apenas o administrador pode editar metas.
+          </p>
+        )}
       </div>
     );
   };
@@ -317,60 +450,122 @@ export default function Configuracoes() {
   return (
     <div className="h-full overflow-auto">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b p-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Configurações de Metas</h1>
-        <p className="text-sm text-muted-foreground">Definição de metas por vendedor ({monthNames[currentMonth - 1]} {currentYear})</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Configurações de Metas</h1>
+            <p className="text-sm text-muted-foreground">
+              Definição de metas por vendedor — {monthNames[currentMonth - 1]} {currentYear}
+            </p>
+          </div>
+          {!isAdmin && (
+            <Badge variant="secondary" className="gap-1 self-start">
+              <Lock className="h-3 w-3" /> Somente leitura
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div className="p-6 space-y-6 max-w-5xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Metas de Vendedores
-            </CardTitle>
-            <CardDescription>
-              Configure o modo de meta (Geral ou Por Empresa) e os valores.
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Metas de Vendedores
+                </CardTitle>
+                <CardDescription>
+                  Configure o modo (Geral ou Por Empresa) e os valores de meta para cada vendedor.
+                </CardDescription>
+              </div>
+              <div className="relative w-full sm:w-56">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar vendedor..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-              <TabsList className="mb-6 w-full justify-start border-b rounded-none bg-transparent h-auto p-0">
-                <TabsTrigger
-                  value="weekly"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
-                >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Metas Semanais
-                </TabsTrigger>
-                <TabsTrigger
-                  value="monthly"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
-                >
-                  <CalendarDays className="h-4 w-4 mr-2" />
-                  Metas Mensais
-                </TabsTrigger>
-              </TabsList>
 
-              <TabsContent value="weekly" className="space-y-4">
-                {isLoading ? <Loader2 className="animate-spin" /> : salespersons.map(sp => renderGoalRow(sp, "weekly"))}
-              </TabsContent>
-              <TabsContent value="monthly" className="space-y-4">
-                {isLoading ? <Loader2 className="animate-spin" /> : salespersons.map(sp => renderGoalRow(sp, "monthly"))}
-              </TabsContent>
+          <CardContent>
+            <Tabs
+              value={activeTab}
+              onValueChange={v => setActiveTab(v as "weekly" | "monthly")}
+              className="w-full"
+            >
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <TabsList className="h-auto bg-transparent p-0 border-b w-full sm:w-auto rounded-none">
+                  <TabsTrigger
+                    value="weekly"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
+                  >
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Semanais
+                    {dirtyCount("weekly") > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">{dirtyCount("weekly")}</Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="monthly"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
+                  >
+                    <CalendarDays className="h-4 w-4 mr-2" />
+                    Mensais
+                    {dirtyCount("monthly") > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">{dirtyCount("monthly")}</Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSaveAll(activeTab)}
+                    disabled={dirtyCount(activeTab) === 0 || saveMutation.isPending}
+                    className="gap-1 text-xs"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    Salvar todos ({dirtyCount(activeTab)})
+                  </Button>
+                )}
+              </div>
+
+              {isLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  <TabsContent value="weekly" className="space-y-3 mt-0">
+                    {filteredSalespersons.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-12 text-sm">
+                        Nenhum vendedor encontrado.
+                      </p>
+                    ) : (
+                      filteredSalespersons.map(sp => renderGoalRow(sp, "weekly"))
+                    )}
+                  </TabsContent>
+                  <TabsContent value="monthly" className="space-y-3 mt-0">
+                    {filteredSalespersons.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-12 text-sm">
+                        Nenhum vendedor encontrado.
+                      </p>
+                    ) : (
+                      filteredSalespersons.map(sp => renderGoalRow(sp, "monthly"))
+                    )}
+                  </TabsContent>
+                </>
+              )}
             </Tabs>
           </CardContent>
-          <CardFooter className="flex justify-end border-t pt-4 sticky bottom-0 bg-background">
-            {isAdmin && (
-              <Button onClick={() => handleSaveAll(activeTab)} disabled={saveMutation.isPending}>
-                {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Salvar Metas {activeTab === "weekly" ? "Semanais" : "Mensais"}
-              </Button>
-            )}
-          </CardFooter>
         </Card>
       </div>
 
-      <AlertDialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+      <AlertDialog open={!!confirmDialog} onOpenChange={open => !open && setConfirmDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -380,9 +575,9 @@ export default function Configuracoes() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDialog?.targetMode === "unified"
-                ? "Ao ativar a Meta Individual, as metas separadas de Varejo e Atacado serão perdidas."
-                : "Ao alterar para Metas Separadas, o valor da Meta Individual será perdido."}
-              <br />Deseja continuar?
+                ? "Ao ativar a Meta Individual, as metas separadas por loja serão descartadas ao salvar."
+                : "Ao alterar para Metas Separadas, o valor da Meta Individual será descartado ao salvar."}
+              {" "}Deseja continuar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
