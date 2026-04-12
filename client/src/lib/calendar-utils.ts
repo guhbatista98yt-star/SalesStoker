@@ -56,6 +56,17 @@ export function getClosedMonthPeriod(year: number, month: number): ClosedMonthPe
   };
 }
 
+export function getCurrentMonthPeriod(): { startDate: string; endDate: string; label: string } {
+  const today = new Date();
+  const start = startOfMonth(today);
+  const end = today;
+  return {
+    startDate: format(start, "yyyy-MM-dd"),
+    endDate: format(end, "yyyy-MM-dd"),
+    label: format(today, "MMMM/yyyy", { locale: ptBR }),
+  };
+}
+
 export function getCurrentWeekPeriod(): WeeklyPeriod {
   const today = new Date();
   const start = getWeekStartSunday(today);

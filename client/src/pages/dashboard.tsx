@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RefreshCw, Calendar, Download, DollarSign, Receipt, Package, GripVertical } from "lucide-react";
+import { RefreshCw, Calendar, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import {
@@ -32,10 +32,16 @@ import { GoalsCard } from "@/components/dashboard/goals-card";
 import { AFaturarVendedores } from "@/components/dashboard/afaturar-vendedores";
 import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getClosedMonthPeriod, getCurrentWeekPeriod, formatDateBR } from "@/lib/calendar-utils";
+import { getClosedMonthPeriod, getCurrentWeekPeriod, getCurrentMonthPeriod, formatDateBR } from "@/lib/calendar-utils";
 import type { DatePeriod, RankingCriteria, Company, KPISummary, SalespersonRanking, ProductMix, AlertNotification, GoalWithProgress, SalesEvolutionData, SalespersonAFaturar } from "@shared/schema";
 
 function DragHandle({ id, attributes, listeners }: { id: string; attributes: any; listeners: any }) {
@@ -99,21 +105,29 @@ export default function Dashboard() {
   const [companyId, setCompanyId] = useState<string>("all");
   const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>("maior_valor_vendido");
   const [isScrolled, setIsScrolled] = useState(false);
-  const [useSemanaFechada, setUseSemanaFechada] = useState(false);
+  const [periodMode, setPeriodMode] = useState<"semana" | "mes" | "fechado">("semana");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const currentWeek = getCurrentWeekPeriod();
+  const monthPeriod = useMemo(() => getCurrentMonthPeriod(), [today.getMonth(), today.getFullYear()]);
 
   const closedMonth = useMemo(() => {
     return getClosedMonthPeriod(today.getFullYear(), today.getMonth() + 1);
   }, [today.getFullYear(), today.getMonth()]);
 
   const period: DatePeriod = useMemo(() => {
-    if (useSemanaFechada) {
+    if (periodMode === "fechado") {
       return {
         startDate: closedMonth.periodStart,
         endDate: closedMonth.periodEnd,
         mode: { type: "fechado_semanas" as const },
+      };
+    }
+    if (periodMode === "mes") {
+      return {
+        startDate: monthPeriod.startDate,
+        endDate: monthPeriod.endDate,
+        mode: { type: "livre" as const },
       };
     }
     return {
@@ -121,7 +135,7 @@ export default function Dashboard() {
       endDate: currentWeek.endDate,
       mode: { type: "livre" as const },
     };
-  }, [useSemanaFechada, closedMonth, currentWeek]);
+  }, [periodMode, closedMonth, currentWeek, monthPeriod]);
 
   function gUrl(base: string): string {
     return selectedGroupId ? `${base}?groupId=${encodeURIComponent(selectedGroupId)}` : base;
@@ -381,39 +395,56 @@ export default function Dashboard() {
               onChange={setSelectedGroupId}
             />
 
-            <Button
-              variant={useSemanaFechada ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => {
-                const next = !useSemanaFechada;
-                setUseSemanaFechada(next);
-                if (next) {
-                  toast({
-                    title: "Período alterado: Semanas Fechadas",
-                    description: `${formatDateBR(closedMonth.periodStart)} até ${formatDateBR(closedMonth.periodEnd)}`,
-                  });
-                } else {
-                  toast({
-                    title: "Período alterado: Semana Atual",
-                    description: `${formatDateBR(currentWeek.startDate)} até ${formatDateBR(currentWeek.endDate)}`,
-                  });
-                }
-              }}
-              className="h-auto gap-1.5 px-2.5 py-1 rounded-lg flex-col items-start min-w-[110px] sm:min-w-[120px]"
-              data-testid="toggle-semana-fechada"
-              title={useSemanaFechada ? "Clique para ver a semana atual" : "Clique para ver as semanas fechadas do mês"}
-            >
-              <span className="flex items-center gap-1.5 text-xs font-medium w-full">
-                <Calendar className="h-3.5 w-3.5 shrink-0" />
-                {useSemanaFechada ? "S. Fechadas" : "Semana Atual"}
-              </span>
-              <span className="text-[10px] font-normal text-muted-foreground leading-none pl-5">
-                {useSemanaFechada
-                  ? `${formatDateBR(closedMonth.periodStart).slice(0, 5)} – ${formatDateBR(closedMonth.periodEnd).slice(0, 5)}`
-                  : `${formatDateBR(currentWeek.startDate).slice(0, 5)} – ${formatDateBR(currentWeek.endDate).slice(0, 5)}`
-                }
-              </span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={periodMode !== "semana" ? "secondary" : "outline"}
+                  size="sm"
+                  className="h-8 gap-1.5 px-2.5 text-xs font-medium rounded-lg"
+                  data-testid="period-selector"
+                >
+                  <Calendar className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {periodMode === "semana" && `Semana · ${formatDateBR(currentWeek.startDate).slice(0, 5)}–${formatDateBR(currentWeek.endDate).slice(0, 5)}`}
+                    {periodMode === "mes"    && `Mês · ${monthPeriod.label}`}
+                    {periodMode === "fechado" && `Fechado · ${formatDateBR(closedMonth.periodStart).slice(0, 5)}–${formatDateBR(closedMonth.periodEnd).slice(0, 5)}`}
+                  </span>
+                  <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem
+                  className={cn("flex flex-col items-start gap-0.5 cursor-pointer", periodMode === "semana" && "font-semibold")}
+                  onSelect={() => {
+                    setPeriodMode("semana");
+                    toast({ title: "Período: Semana Atual", description: `${formatDateBR(currentWeek.startDate)} a ${formatDateBR(currentWeek.endDate)}` });
+                  }}
+                >
+                  <span>Semana Atual</span>
+                  <span className="text-[11px] text-muted-foreground font-normal">{formatDateBR(currentWeek.startDate)} – {formatDateBR(currentWeek.endDate)}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className={cn("flex flex-col items-start gap-0.5 cursor-pointer", periodMode === "mes" && "font-semibold")}
+                  onSelect={() => {
+                    setPeriodMode("mes");
+                    toast({ title: "Período: Mês Atual", description: `${formatDateBR(monthPeriod.startDate)} a ${formatDateBR(monthPeriod.endDate)}` });
+                  }}
+                >
+                  <span>Mês Atual</span>
+                  <span className="text-[11px] text-muted-foreground font-normal">{formatDateBR(monthPeriod.startDate)} – {formatDateBR(monthPeriod.endDate)}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className={cn("flex flex-col items-start gap-0.5 cursor-pointer", periodMode === "fechado" && "font-semibold")}
+                  onSelect={() => {
+                    setPeriodMode("fechado");
+                    toast({ title: "Período: Semanas Fechadas", description: `${formatDateBR(closedMonth.periodStart)} a ${formatDateBR(closedMonth.periodEnd)}` });
+                  }}
+                >
+                  <span>Semanas Fechadas</span>
+                  <span className="text-[11px] text-muted-foreground font-normal">{formatDateBR(closedMonth.periodStart)} – {formatDateBR(closedMonth.periodEnd)}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Button
               size="sm"
