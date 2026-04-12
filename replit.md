@@ -115,15 +115,16 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with Express 5
 - **Language**: TypeScript with ESM modules
 - **API Style**: REST endpoints under `/api/*` prefix
-- **Database ORM**: Drizzle ORM with SQLite dialect (using better-sqlite3)
+- **Database ORM**: Drizzle ORM with PostgreSQL dialect (node-postgres `pg`)
 - **Schema Validation**: Zod with drizzle-zod integration
 - **Authentication**: Custom JWT with bcryptjs password hashing
 
 ### Data Layer
-- **Database**: SQLite (file: `database.db` in project root)
-- **Auth Schema**: `shared/models/auth.ts` - users table
-- **Business Schema**: `shared/schema.ts` - TypeScript interfaces for in-memory data
-- **Data Source**: External API fetches data from DB2 and populates SQLite
+- **Database**: PostgreSQL (Replit built-in, accessed via `DATABASE_URL`)
+- **pg-client.ts**: `Pool` + `pgGet/pgAll/pgRun` helpers with `?` → `$N` param conversion
+- **Auth Schema**: `shared/models/auth.ts` - users table (pgTable/serial from drizzle-orm/pg-core)
+- **Business Schema**: `shared/schema.ts` - TypeScript interfaces
+- **Data Source**: External DB2 sync populates cache tables in PostgreSQL
 
 ### Project Structure
 ```

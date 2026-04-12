@@ -3,7 +3,7 @@
  * All campaign business logic lives here. Backend is the single source of truth.
  */
 
-import { sqlite } from "../db";
+import { pgGet, pgAll, pgRun } from "../pg-client";
 import { randomUUID } from "crypto";
 import {
   evaluateGroup,
@@ -85,7 +85,7 @@ function assertTransition(from: CampaignStatus, to: CampaignStatus) {
 
 // ─── Audit ────────────────────────────────────────────────────────────────────
 
-function audit(
+async function audit(
   campaignId: string,
   action: string,
   actor: string,
@@ -93,32 +93,32 @@ function audit(
   newValues?: any,
   reason?: string,
 ) {
-  sqlite.prepare(`
+  await pgRun(`
     INSERT INTO campaign_audit_logs (id, campaign_id, action, actor, prev_values, new_values, change_reason)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `, [
     randomUUID(), campaignId, action, actor,
     prevValues ? JSON.stringify(prevValues) : null,
     newValues ? JSON.stringify(newValues) : null,
     reason || null,
-  );
+  ]);
 }
 
 // ─── Version snapshot ─────────────────────────────────────────────────────────
 
-function snapshotVersion(campaign: any, actor: string, reason?: string) {
-  sqlite.prepare(`
+async function snapshotVersion(campaign: any, actor: string, reason?: string) {
+  await pgRun(`
     INSERT INTO campaign_versions (id, campaign_id, version, snapshot, created_by, change_reason)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
+  `, [
     randomUUID(), campaign.id, campaign.current_version,
     JSON.stringify(campaign), actor, reason || null,
-  );
+  ]);
 }
 
 // ─── Service methods ──────────────────────────────────────────────────────────
 
-export function getCampaigns(filters: CampaignFilters = {}) {
+export async function getCampaigns(filters: CampaignFilters = {}) {
   let sql = `SELECT * FROM campaigns WHERE 1=1`;
   const params: any[] = [];
 
@@ -134,27 +134,26 @@ export function getCampaigns(filters: CampaignFilters = {}) {
 
   sql += ` ORDER BY priority DESC, updated_at DESC`;
 
-  const rows = sqlite.prepare(sql).all(...params) as RawCampaign[];
+  const rows = await pgAll<RawCampaign>(sql, params);
   return rows.map(parseCampaign);
 }
 
-export function getCampaignById(id: string) {
-  const row = sqlite.prepare(`SELECT * FROM campaigns WHERE id = ?`).get(id) as RawCampaign | undefined;
+export async function getCampaignById(id: string) {
+  const row = await pgGet<RawCampaign>(`SELECT * FROM campaigns WHERE id = ?`, [id]);
   if (!row) return null;
   return parseCampaign(row);
 }
 
-export function createCampaign(data: any, actor: string) {
+export async function createCampaign(data: any, actor: string) {
   const id = randomUUID();
   let code = data.code || generateCode();
 
-  // Ensure code uniqueness
-  const exists = sqlite.prepare(`SELECT id FROM campaigns WHERE code = ?`).get(code);
+  const exists = await pgGet<{ id: string }>(`SELECT id FROM campaigns WHERE code = ?`, [code]);
   if (exists) code = generateCode() + "-" + Date.now().toString().slice(-4);
 
   const naturalLang = generateNaturalLanguage({ ...data, id });
 
-  sqlite.prepare(`
+  await pgRun(`
     INSERT INTO campaigns (
       id, code, name, description, objective, supplier_name, logo_url, brand_color,
       campaign_type, campaign_mode, sub_type,
@@ -165,7 +164,7 @@ export function createCampaign(data: any, actor: string) {
     ) VALUES (
       ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
     )
-  `).run(
+  `, [
     id, code, data.name, data.description || null, data.objective || null,
     data.supplier_name || null, data.logo_url || null, data.brand_color || null,
     data.campaign_type || "padrao", data.campaign_mode || "atingimento", data.sub_type || null,
@@ -186,16 +185,16 @@ export function createCampaign(data: any, actor: string) {
     JSON.stringify(data.exceptions || []),
     naturalLang, data.internal_notes || null,
     actor, null, null,
-  );
+  ]);
 
-  const campaign = getCampaignById(id)!;
-  snapshotVersion(campaign, actor, "Criação inicial");
-  audit(id, "criado", actor, null, { name: data.name, code }, "Criação inicial");
+  const campaign = (await getCampaignById(id))!;
+  await snapshotVersion(campaign, actor, "Criação inicial");
+  await audit(id, "criado", actor, null, { name: data.name, code }, "Criação inicial");
   return campaign;
 }
 
-export function updateCampaign(id: string, data: any, actor: string, reason?: string) {
-  const existing = getCampaignById(id);
+export async function updateCampaign(id: string, data: any, actor: string, reason?: string) {
+  const existing = await getCampaignById(id);
   if (!existing) throw new Error("Campanha não encontrada");
 
   const isActive = existing.status === "ativa";
@@ -204,7 +203,7 @@ export function updateCampaign(id: string, data: any, actor: string, reason?: st
 
   const prev = { ...existing };
 
-  sqlite.prepare(`
+  await pgRun(`
     UPDATE campaigns SET
       name=?, description=?, objective=?, supplier_name=?, logo_url=?, brand_color=?,
       campaign_type=?, campaign_mode=?, sub_type=?,
@@ -214,7 +213,7 @@ export function updateCampaign(id: string, data: any, actor: string, reason?: st
       natural_language=?, internal_notes=?,
       current_version=?, updated_by=?, change_reason=?, updated_at=CURRENT_TIMESTAMP
     WHERE id=?
-  `).run(
+  `, [
     data.name, data.description || null, data.objective || null,
     data.supplier_name !== undefined ? (data.supplier_name || null) : ((existing as any).supplier_name || null),
     data.logo_url !== undefined ? (data.logo_url || null) : ((existing as any).logo_url || null),
@@ -238,22 +237,22 @@ export function updateCampaign(id: string, data: any, actor: string, reason?: st
     naturalLang, data.internal_notes || null,
     newVersion, actor, reason || null,
     id,
-  );
+  ]);
 
-  const updated = getCampaignById(id)!;
+  const updated = (await getCampaignById(id))!;
 
   if (isActive) {
-    snapshotVersion(updated, actor, reason || "Atualização em campanha ativa");
-    audit(id, "versionado", actor, prev, updated, reason);
+    await snapshotVersion(updated, actor, reason || "Atualização em campanha ativa");
+    await audit(id, "versionado", actor, prev, updated, reason);
   } else {
-    audit(id, "atualizado", actor, prev, updated, reason);
+    await audit(id, "atualizado", actor, prev, updated, reason);
   }
 
   return updated;
 }
 
-export function changeStatus(id: string, newStatus: CampaignStatus, actor: string, reason?: string) {
-  const campaign = getCampaignById(id);
+export async function changeStatus(id: string, newStatus: CampaignStatus, actor: string, reason?: string) {
+  const campaign = await getCampaignById(id);
   if (!campaign) throw new Error("Campanha não encontrada");
 
   assertTransition(campaign.status as CampaignStatus, newStatus);
@@ -264,22 +263,22 @@ export function changeStatus(id: string, newStatus: CampaignStatus, actor: strin
   }
 
   const prev = { status: campaign.status };
-  sqlite.prepare(`
+  await pgRun(`
     UPDATE campaigns SET status=?, updated_by=?, change_reason=?, updated_at=CURRENT_TIMESTAMP
     WHERE id=?
-  `).run(newStatus, actor, reason || null, id);
+  `, [newStatus, actor, reason || null, id]);
 
   const actionMap: Record<CampaignStatus, string> = {
     ativa: "ativado", pausada: "pausado", encerrada: "encerrado",
     cancelada: "cancelado", rascunho: "revertido_rascunho",
   };
-  audit(id, actionMap[newStatus] || newStatus, actor, prev, { status: newStatus }, reason);
+  await audit(id, actionMap[newStatus] || newStatus, actor, prev, { status: newStatus }, reason);
 
-  return getCampaignById(id)!;
+  return (await getCampaignById(id))!;
 }
 
-export function cloneCampaign(id: string, actor: string) {
-  const orig = getCampaignById(id);
+export async function cloneCampaign(id: string, actor: string) {
+  const orig = await getCampaignById(id);
   if (!orig) throw new Error("Campanha não encontrada");
 
   const cloneData = {
@@ -291,29 +290,29 @@ export function cloneCampaign(id: string, actor: string) {
     is_exclusive: orig.is_exclusive,
   };
 
-  const cloned = createCampaign(cloneData, actor);
-  audit(cloned.id, "clonado", actor, { source_id: id }, { name: cloned.name }, `Clonado de ${orig.code}`);
+  const cloned = await createCampaign(cloneData, actor);
+  await audit(cloned.id, "clonado", actor, { source_id: id }, { name: cloned.name }, `Clonado de ${orig.code}`);
   return cloned;
 }
 
-export function validateCampaign(id: string) {
-  const campaign = getCampaignById(id);
+export async function validateCampaign(id: string) {
+  const campaign = await getCampaignById(id);
   if (!campaign) throw new Error("Campanha não encontrada");
   const errors = validateCampaignStructure(campaign);
-  const conflicts = detectConflicts(id);
+  const conflicts = await detectConflicts(id);
   return { valid: errors.length === 0 && conflicts.length === 0, errors, conflicts };
 }
 
-export function detectConflicts(id: string): Array<{ id: string; code: string; name: string; reason: string }> {
-  const campaign = getCampaignById(id);
+export async function detectConflicts(id: string): Promise<Array<{ id: string; code: string; name: string; reason: string }>> {
+  const campaign = await getCampaignById(id);
   if (!campaign) return [];
 
-  const actives = sqlite.prepare(`
+  const actives = await pgAll<any>(`
     SELECT id, code, name, starts_at, ends_at, targets, is_exclusive, priority
     FROM campaigns
     WHERE status = 'ativa' AND id != ?
       AND starts_at <= ? AND ends_at >= ?
-  `).all(id, campaign.ends_at, campaign.starts_at) as any[];
+  `, [id, campaign.ends_at, campaign.starts_at]);
 
   const conflicts: Array<{ id: string; code: string; name: string; reason: string }> = [];
 
@@ -321,7 +320,6 @@ export function detectConflicts(id: string): Array<{ id: string; code: string; n
     const otherTargets = safeJson(other.targets, {});
     const myTargets = (campaign.targets as any);
 
-    // Check if they share vendedores scope
     const myVMode = myTargets?.vendedores?.mode || "all";
     const otherVMode = otherTargets?.vendedores?.mode || "all";
 
@@ -343,8 +341,8 @@ export function detectConflicts(id: string): Array<{ id: string; code: string; n
   return conflicts;
 }
 
-export function simulateCampaign(campaignId: string, input: EvaluationContext, actor?: string) {
-  const campaign = getCampaignById(campaignId);
+export async function simulateCampaign(campaignId: string, input: EvaluationContext, actor?: string) {
+  const campaign = await getCampaignById(campaignId);
   if (!campaign) throw new Error("Campanha não encontrada");
 
   const conditionGroup = campaign.conditions as any;
@@ -360,9 +358,8 @@ export function simulateCampaign(campaignId: string, input: EvaluationContext, a
 
   const limits = campaign.limits as any || {};
   let blockedByLimit = false;
-  let limitReason = "";
+  const limitReason = "";
 
-  // Check period validity
   const now = input.diaSemana !== undefined ? input.diaSemana : new Date().getDay();
   const validDays = (campaign.valid_weekdays as any[]) || [];
   if (validDays.length > 0 && !validDays.includes(now)) {
@@ -380,7 +377,6 @@ export function simulateCampaign(campaignId: string, input: EvaluationContext, a
         descricao: rewardResult.description,
       };
 
-      // Check maxBonus
       if (limits.maxPerVendedor && rewardResult.value > limits.maxPerVendedor) {
         premiacao.valor = limits.maxPerVendedor;
         premiacao.descricao += ` (limitado a R$ ${limits.maxPerVendedor})`;
@@ -388,7 +384,7 @@ export function simulateCampaign(campaignId: string, input: EvaluationContext, a
     }
   }
 
-  const conflicts = detectConflicts(campaignId);
+  const conflicts = await detectConflicts(campaignId);
   const conflictNames = conflicts.map(c => c.name);
 
   const parts: string[] = [];
@@ -419,59 +415,57 @@ export function simulateCampaign(campaignId: string, input: EvaluationContext, a
     explicacao: parts.join(" "),
   };
 
-  // Persist simulation
   if (actor) {
-    sqlite.prepare(`
+    await pgRun(`
       INSERT INTO campaign_simulations (id, campaign_id, input_data, result, created_by)
       VALUES (?, ?, ?, ?, ?)
-    `).run(randomUUID(), campaignId, JSON.stringify(input), JSON.stringify(result), actor);
+    `, [randomUUID(), campaignId, JSON.stringify(input), JSON.stringify(result), actor]);
   }
 
   return result;
 }
 
-export function getAuditLog(campaignId: string) {
-  return sqlite.prepare(`
+export async function getAuditLog(campaignId: string) {
+  return pgAll<any>(`
     SELECT * FROM campaign_audit_logs
     WHERE campaign_id = ?
     ORDER BY created_at DESC
     LIMIT 100
-  `).all(campaignId) as any[];
+  `, [campaignId]);
 }
 
-export function getVersions(campaignId: string) {
-  const rows = sqlite.prepare(`
+export async function getVersions(campaignId: string) {
+  const rows = await pgAll<any>(`
     SELECT * FROM campaign_versions
     WHERE campaign_id = ?
     ORDER BY version DESC
-  `).all(campaignId) as any[];
+  `, [campaignId]);
 
   return rows.map(r => ({ ...r, snapshot: safeJson(r.snapshot, {}) }));
 }
 
-export function restoreVersion(campaignId: string, version: number, actor: string, reason?: string) {
-  const vRow = sqlite.prepare(`
+export async function restoreVersion(campaignId: string, version: number, actor: string, reason?: string) {
+  const vRow = await pgGet<any>(`
     SELECT * FROM campaign_versions WHERE campaign_id = ? AND version = ?
-  `).get(campaignId, version) as any;
+  `, [campaignId, version]);
   if (!vRow) throw new Error("Versão não encontrada");
 
   const snapshot = safeJson(vRow.snapshot, null);
   if (!snapshot) throw new Error("Snapshot inválido");
 
-  const existing = getCampaignById(campaignId);
+  const existing = await getCampaignById(campaignId);
   if (!existing) throw new Error("Campanha não encontrada");
   if (existing.status === "encerrada" || existing.status === "cancelada") {
     throw new Error("Não é possível restaurar versão de campanha encerrada ou cancelada");
   }
 
-  // Apply snapshot but keep current id and status
-  const restored = updateCampaign(
+  const restored = await updateCampaign(
     campaignId,
     { ...snapshot, id: campaignId },
     actor,
     reason || `Restauração da versão ${version}`,
   );
 
-  audit(campaignId, "restaurado", actor, { version: existing.current_version }, { version }, reason);
+  await audit(campaignId, "restaurado", actor, { version: existing.current_version }, { version }, reason);
   return restored;
 }

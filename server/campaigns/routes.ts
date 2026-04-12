@@ -2,15 +2,15 @@ import { Router } from "express";
 import { isAuthenticated, isAdmin, type AuthRequest } from "../auth";
 import * as service from "./service";
 import * as apuracao from "./apuracao";
-import { sqlite } from "../db";
+import { pgGet, pgAll, pgRun } from "../pg-client";
 import { storage } from "../storage";
 
 const router = Router();
 
 // ─── List campaigns ───────────────────────────────────────────────────────────
-router.get("/", isAuthenticated, (req: AuthRequest, res) => {
+router.get("/", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const campaigns = service.getCampaigns({
+    const campaigns = await service.getCampaigns({
       status: req.query.status as string | undefined,
       campaign_type: req.query.campaign_type as string | undefined,
       search: req.query.search as string | undefined,
@@ -24,9 +24,9 @@ router.get("/", isAuthenticated, (req: AuthRequest, res) => {
 });
 
 // ─── Get single campaign ──────────────────────────────────────────────────────
-router.get("/:id", isAuthenticated, (req, res) => {
+router.get("/:id", isAuthenticated, async (req, res) => {
   try {
-    const campaign = service.getCampaignById(req.params.id);
+    const campaign = await service.getCampaignById(req.params.id);
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
     res.json(campaign);
   } catch (err: any) {
@@ -35,10 +35,10 @@ router.get("/:id", isAuthenticated, (req, res) => {
 });
 
 // ─── Create campaign ──────────────────────────────────────────────────────────
-router.post("/", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+router.post("/", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.user?.email || "sistema";
-    const campaign = service.createCampaign(req.body, actor);
+    const campaign = await service.createCampaign(req.body, actor);
     res.status(201).json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -46,11 +46,11 @@ router.post("/", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
 });
 
 // ─── Update campaign ──────────────────────────────────────────────────────────
-router.put("/:id", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+router.put("/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.user?.email || "sistema";
     const { change_reason, ...data } = req.body;
-    const campaign = service.updateCampaign(req.params.id, data, actor, change_reason);
+    const campaign = await service.updateCampaign(req.params.id, data, actor, change_reason);
     res.json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -58,12 +58,12 @@ router.put("/:id", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
 });
 
 // ─── Change campaign status ───────────────────────────────────────────────────
-router.post("/:id/status", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+router.post("/:id/status", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.user?.email || "sistema";
     const { status, reason } = req.body;
     if (!status) return res.status(400).json({ error: "status é obrigatório" });
-    const campaign = service.changeStatus(req.params.id, status, actor, reason);
+    const campaign = await service.changeStatus(req.params.id, status, actor, reason);
     res.json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -71,10 +71,10 @@ router.post("/:id/status", isAuthenticated, isAdmin, (req: AuthRequest, res) => 
 });
 
 // ─── Clone campaign ───────────────────────────────────────────────────────────
-router.post("/:id/clone", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+router.post("/:id/clone", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.user?.email || "sistema";
-    const campaign = service.cloneCampaign(req.params.id, actor);
+    const campaign = await service.cloneCampaign(req.params.id, actor);
     res.status(201).json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -82,9 +82,9 @@ router.post("/:id/clone", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
 });
 
 // ─── Validate campaign ────────────────────────────────────────────────────────
-router.get("/:id/validate", isAuthenticated, (req, res) => {
+router.get("/:id/validate", isAuthenticated, async (req, res) => {
   try {
-    const result = service.validateCampaign(req.params.id);
+    const result = await service.validateCampaign(req.params.id);
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -92,9 +92,9 @@ router.get("/:id/validate", isAuthenticated, (req, res) => {
 });
 
 // ─── Detect conflicts ─────────────────────────────────────────────────────────
-router.get("/:id/conflicts", isAuthenticated, (req, res) => {
+router.get("/:id/conflicts", isAuthenticated, async (req, res) => {
   try {
-    const conflicts = service.detectConflicts(req.params.id);
+    const conflicts = await service.detectConflicts(req.params.id);
     res.json(conflicts);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -102,10 +102,10 @@ router.get("/:id/conflicts", isAuthenticated, (req, res) => {
 });
 
 // ─── Simulate campaign ────────────────────────────────────────────────────────
-router.post("/:id/simulate", isAuthenticated, (req: AuthRequest, res) => {
+router.post("/:id/simulate", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     const actor = req.user?.email;
-    const result = service.simulateCampaign(req.params.id, req.body, actor);
+    const result = await service.simulateCampaign(req.params.id, req.body, actor);
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -113,9 +113,9 @@ router.post("/:id/simulate", isAuthenticated, (req: AuthRequest, res) => {
 });
 
 // ─── Audit log ────────────────────────────────────────────────────────────────
-router.get("/:id/audit", isAuthenticated, (req, res) => {
+router.get("/:id/audit", isAuthenticated, async (req, res) => {
   try {
-    const log = service.getAuditLog(req.params.id);
+    const log = await service.getAuditLog(req.params.id);
     res.json(log);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -123,9 +123,9 @@ router.get("/:id/audit", isAuthenticated, (req, res) => {
 });
 
 // ─── Version history ──────────────────────────────────────────────────────────
-router.get("/:id/versions", isAuthenticated, (req, res) => {
+router.get("/:id/versions", isAuthenticated, async (req, res) => {
   try {
-    const versions = service.getVersions(req.params.id);
+    const versions = await service.getVersions(req.params.id);
     res.json(versions);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -133,11 +133,11 @@ router.get("/:id/versions", isAuthenticated, (req, res) => {
 });
 
 // ─── Restore version ──────────────────────────────────────────────────────────
-router.post("/:id/restore/:version", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+router.post("/:id/restore/:version", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.user?.email || "sistema";
     const { reason } = req.body;
-    const campaign = service.restoreVersion(req.params.id, Number(req.params.version), actor, reason);
+    const campaign = await service.restoreVersion(req.params.id, Number(req.params.version), actor, reason);
     res.json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -148,16 +148,16 @@ router.post("/:id/restore/:version", isAuthenticated, isAdmin, (req: AuthRequest
 router.get("/:id/gatilhos", isAuthenticated, async (req, res) => {
   try {
     const { id } = req.params;
-    const campaign = service.getCampaignById(id);
+    const campaign = await service.getCampaignById(id);
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
 
     const year = parseInt((req.query.year as string) || String(new Date().getFullYear()));
 
-    const goals = sqlite.prepare(`
-      SELECT salespersonId, triggerValue
+    const goals = await pgAll<{ salespersonId: string; triggerValue: number }>(`
+      SELECT "salespersonId", "triggerValue"
       FROM campaign_goals
-      WHERE campaignName = ? AND year = ?
-    `).all(id, year) as { salespersonId: string; triggerValue: number }[];
+      WHERE "campaignName" = ? AND year = ?
+    `, [id, year]);
 
     const salespersons = await storage.getSalespersons("1");
 
@@ -177,10 +177,10 @@ router.get("/:id/gatilhos", isAuthenticated, async (req, res) => {
   }
 });
 
-router.post("/:id/gatilhos", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+router.post("/:id/gatilhos", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const campaign = service.getCampaignById(id);
+    const campaign = await service.getCampaignById(id);
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
 
     const { year, goals } = req.body as {
@@ -192,32 +192,21 @@ router.post("/:id/gatilhos", isAuthenticated, isAdmin, (req: AuthRequest, res) =
       return res.status(400).json({ error: "year e goals são obrigatórios" });
     }
 
-    const upsert = sqlite.prepare(`
-      INSERT INTO campaign_goals (id, salespersonId, campaignName, year, triggerValue)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(salespersonId, campaignName, year)
-      DO UPDATE SET triggerValue = excluded.triggerValue
-    `);
-    const del = sqlite.prepare(`
-      DELETE FROM campaign_goals
-      WHERE salespersonId = ? AND campaignName = ? AND year = ?
-    `);
-
-    sqlite.transaction(() => {
-      for (const g of goals) {
-        if (g.triggerValue === null || g.triggerValue === undefined) {
-          del.run(g.salespersonId, id, year);
-        } else {
-          upsert.run(
-            Math.random().toString(36).substring(2, 15),
-            g.salespersonId,
-            id,
-            year,
-            g.triggerValue,
-          );
-        }
+    for (const g of goals) {
+      if (g.triggerValue === null || g.triggerValue === undefined) {
+        await pgRun(`
+          DELETE FROM campaign_goals
+          WHERE "salespersonId" = ? AND "campaignName" = ? AND year = ?
+        `, [g.salespersonId, id, year]);
+      } else {
+        await pgRun(`
+          INSERT INTO campaign_goals (id, "salespersonId", "campaignName", year, "triggerValue")
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT("salespersonId", "campaignName", year)
+          DO UPDATE SET "triggerValue" = EXCLUDED."triggerValue"
+        `, [Math.random().toString(36).substring(2, 15), g.salespersonId, id, year, g.triggerValue]);
       }
-    })();
+    }
 
     res.json({ saved: goals.filter(g => g.triggerValue != null).length });
   } catch (err: any) {
@@ -229,7 +218,7 @@ router.post("/:id/gatilhos", isAuthenticated, isAdmin, (req: AuthRequest, res) =
 router.get("/:id/relatorio", isAuthenticated, async (req, res) => {
   try {
     const { id } = req.params;
-    const campaign = service.getCampaignById(id);
+    const campaign = await service.getCampaignById(id);
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
 
     const year = parseInt((req.query.year as string) || String(new Date().getFullYear()));
@@ -247,48 +236,46 @@ router.get("/:id/relatorio", isAuthenticated, async (req, res) => {
       };
       [startDate, endDate] = qMap[quarter] || [`${year}-01-01`, `${year}-12-31`];
     } else {
-      startDate = campaign.starts_at || `${year}-01-01`;
-      endDate = campaign.ends_at || `${year}-12-31`;
+      startDate = (campaign as any).starts_at || `${year}-01-01`;
+      endDate = (campaign as any).ends_at || `${year}-12-31`;
     }
 
-    const suppliers: string[] = campaign.targets?.produtos?.suppliers || [];
+    const suppliers: string[] = (campaign as any).targets?.produtos?.suppliers || [];
 
-    const goals = sqlite.prepare(`
-      SELECT salespersonId, triggerValue
+    const goals = await pgAll<{ salespersonId: string; triggerValue: number }>(`
+      SELECT "salespersonId", "triggerValue"
       FROM campaign_goals
-      WHERE campaignName = ? AND year = ?
-    `).all(id, year) as { salespersonId: string; triggerValue: number }[];
+      WHERE "campaignName" = ? AND year = ?
+    `, [id, year]);
     const goalsMap = new Map(goals.map(g => [g.salespersonId, g.triggerValue]));
 
-    // Get salesperson names from storage
     const allSalespersons = await storage.getSalespersons("1");
 
-    // Calculate sales per salesperson from cache_campanhas (or cache_vendas if no supplier filter)
     let salesRows: { IDVENDEDOR: string; total: number }[];
 
     if (suppliers.length > 0) {
-      const placeholders = suppliers.map(() => "?").join(",");
-      salesRows = sqlite.prepare(`
-        SELECT IDVENDEDOR,
-          COALESCE(SUM(VALOR_LIQUIDO), 0) as total
+      const list = suppliers.map(s => `'${s.replace(/'/g, "''")}'`).join(",");
+      salesRows = await pgAll<{ IDVENDEDOR: string; total: number }>(`
+        SELECT "IDVENDEDOR",
+          COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
         FROM cache_campanhas
-        WHERE IDVENDEDOR IS NOT NULL AND IDVENDEDOR != ''
-          AND DTMOVIMENTO >= ? AND DTMOVIMENTO <= ?
-          AND FABRICANTE IN (${placeholders})
-        GROUP BY IDVENDEDOR
-      `).all(startDate, endDate, ...suppliers) as { IDVENDEDOR: string; total: number }[];
+        WHERE "IDVENDEDOR" IS NOT NULL AND "IDVENDEDOR" != ''
+          AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
+          AND "FABRICANTE" IN (${list})
+        GROUP BY "IDVENDEDOR"
+      `, [startDate, endDate]);
     } else {
-      salesRows = sqlite.prepare(`
-        SELECT IDVENDEDOR,
-          COALESCE(SUM(VALOR_LIQUIDO), 0) as total
+      salesRows = await pgAll<{ IDVENDEDOR: string; total: number }>(`
+        SELECT "IDVENDEDOR",
+          COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas
-        WHERE IDVENDEDOR IS NOT NULL AND IDVENDEDOR != ''
-          AND DT_MOVIMENTO >= ? AND DT_MOVIMENTO <= ?
-        GROUP BY IDVENDEDOR
-      `).all(startDate, endDate) as { IDVENDEDOR: string; total: number }[];
+        WHERE "IDVENDEDOR" IS NOT NULL AND "IDVENDEDOR" != ''
+          AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+        GROUP BY "IDVENDEDOR"
+      `, [startDate, endDate]);
     }
 
-    const salesMap = new Map(salesRows.map(r => [r.IDVENDEDOR, r.total]));
+    const salesMap = new Map(salesRows.map(r => [r.IDVENDEDOR, Number(r.total)]));
 
     const results = allSalespersons.map(sp => {
       const targetTrigger = goalsMap.get(sp.id) ?? 0;
@@ -344,10 +331,10 @@ router.get("/:id/groups", isAuthenticated, async (_req, res) => {
 });
 
 // ─── Apuração: run full calculation against sales data ────────────────────────
-router.post("/:id/apurar", isAuthenticated, isAdmin, (req: AuthRequest, res) => {
+router.post("/:id/apurar", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.user?.email || "sistema";
-    const result = apuracao.apurarCampanha(req.params.id, actor);
+    const result = await apuracao.apurarCampanha(req.params.id, actor);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -355,9 +342,9 @@ router.post("/:id/apurar", isAuthenticated, isAdmin, (req: AuthRequest, res) => 
 });
 
 // ─── Resultados: get latest apuração result ───────────────────────────────────
-router.get("/:id/resultados", isAuthenticated, (req, res) => {
+router.get("/:id/resultados", isAuthenticated, async (req, res) => {
   try {
-    const result = apuracao.getLatestResult(req.params.id);
+    const result = await apuracao.getLatestResult(req.params.id);
     if (!result) return res.status(404).json({ error: "Nenhuma apuração encontrada para esta campanha" });
     res.json(result);
   } catch (err: any) {
@@ -366,9 +353,9 @@ router.get("/:id/resultados", isAuthenticated, (req, res) => {
 });
 
 // ─── Resultados histórico ─────────────────────────────────────────────────────
-router.get("/:id/resultados/historico", isAuthenticated, (req, res) => {
+router.get("/:id/resultados/historico", isAuthenticated, async (req, res) => {
   try {
-    const results = apuracao.listResults(req.params.id);
+    const results = await apuracao.listResults(req.params.id);
     res.json(results);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -376,12 +363,12 @@ router.get("/:id/resultados/historico", isAuthenticated, (req, res) => {
 });
 
 // ─── Export: resultados como CSV ──────────────────────────────────────────────
-router.get("/:id/resultados/export.csv", isAuthenticated, (req, res) => {
+router.get("/:id/resultados/export.csv", isAuthenticated, async (req, res) => {
   try {
-    const result = apuracao.getLatestResult(req.params.id);
+    const result = await apuracao.getLatestResult(req.params.id);
     if (!result) return res.status(404).json({ error: "Nenhuma apuração disponível" });
 
-    const campaign = service.getCampaignById(req.params.id);
+    const campaign = await service.getCampaignById(req.params.id);
     const lines: string[] = [];
     lines.push(`"Campanha";"${result.campaignName}";"${result.campaignCode}"`);
     lines.push(`"Período";"${result.periodoInicio} a ${result.periodoFim}"`);

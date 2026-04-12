@@ -1,4 +1,4 @@
-import { sqlite } from "./db";
+import { pgGet, pgAll, pgRun } from "./pg-client";
 import { randomUUID } from "crypto";
 
 const EVAL_INTERVAL_MS = 10 * 60 * 1000;
@@ -32,101 +32,86 @@ function startOfMonth(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-function notificationAlreadyExists(alertId: string, companyId: string, periodKey: string): boolean {
+async function notificationAlreadyExists(alertId: string, companyId: string, periodKey: string): Promise<boolean> {
   try {
-    const row = sqlite.prepare(`
+    const row = await pgGet<{ id: string }>(`
       SELECT id FROM alert_notifications
-      WHERE alertId = ? AND companyId = ? AND triggeredAt >= ?
-    `).get(alertId, companyId, `${periodKey}-01`) as { id: string } | undefined;
+      WHERE "alertId" = ? AND "companyId" = ? AND "triggeredAt" >= ?
+    `, [alertId, companyId, `${periodKey}-01`]);
     return !!row;
   } catch {
     return false;
   }
 }
 
-function insertNotification(alertId: string, companyId: string, message: string, severity: string, data: Record<string, unknown>): void {
+async function insertNotification(alertId: string, companyId: string, message: string, severity: string, data: Record<string, unknown>): Promise<void> {
   const id = randomUUID();
-  sqlite.prepare(`
-    INSERT INTO alert_notifications (id, alertId, companyId, triggeredAt, message, severity, read, data)
+  await pgRun(`
+    INSERT INTO alert_notifications (id, "alertId", "companyId", "triggeredAt", message, severity, read, data)
     VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-  `).run(id, alertId, companyId, new Date().toISOString(), message, severity, JSON.stringify(data));
+  `, [id, alertId, companyId, new Date().toISOString(), message, severity, JSON.stringify(data)]);
 }
 
-function evaluateYoyQueda(config: AlertConfigRow, companies: string[]): void {
+async function evaluateYoyQueda(config: AlertConfigRow, companies: string[]): Promise<void> {
   const now = new Date();
   const start = startOfMonth(now);
   const end = getToday();
   const periodKey = getPeriodKey(now);
 
   const yoyStart = startOfMonth(new Date(now.getFullYear() - 1, now.getMonth(), 1));
-  const yoyDate = new Date(now);
-  yoyDate.setFullYear(yoyDate.getFullYear() - 1);
+  const yoyDate = new Date(now); yoyDate.setFullYear(yoyDate.getFullYear() - 1);
   const yoyEnd = yoyDate.toISOString().split("T")[0];
 
   for (const companyId of companies) {
-    if (notificationAlreadyExists(config.id, companyId, periodKey)) continue;
+    if (await notificationAlreadyExists(config.id, companyId, periodKey)) continue;
 
     const isAll = companyId === "all";
-    const currentQuery = isAll
-      ? sqlite.prepare(`SELECT COALESCE(SUM(TOTALVENDA_LINHA), 0) as total FROM cache_vendas WHERE DT_MOVIMENTO >= ? AND DT_MOVIMENTO <= ?`)
-      : sqlite.prepare(`SELECT COALESCE(SUM(TOTALVENDA_LINHA), 0) as total FROM cache_vendas WHERE DT_MOVIMENTO >= ? AND DT_MOVIMENTO <= ? AND IDEMPRESA = ?`);
+    const current = isAll
+      ? await pgGet<{ total: number }>(`SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total FROM cache_vendas WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?`, [start, end])
+      : await pgGet<{ total: number }>(`SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total FROM cache_vendas WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = ?`, [start, end, companyId]);
 
-    const current = (isAll
-      ? currentQuery.get(start, end)
-      : currentQuery.get(start, end, companyId)) as { total: number };
+    const previous = isAll
+      ? await pgGet<{ total: number }>(`SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total FROM cache_vendas WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?`, [yoyStart, yoyEnd])
+      : await pgGet<{ total: number }>(`SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total FROM cache_vendas WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = ?`, [yoyStart, yoyEnd, companyId]);
 
-    const previousQuery = isAll
-      ? sqlite.prepare(`SELECT COALESCE(SUM(TOTALVENDA_LINHA), 0) as total FROM cache_vendas WHERE DT_MOVIMENTO >= ? AND DT_MOVIMENTO <= ?`)
-      : sqlite.prepare(`SELECT COALESCE(SUM(TOTALVENDA_LINHA), 0) as total FROM cache_vendas WHERE DT_MOVIMENTO >= ? AND DT_MOVIMENTO <= ? AND IDEMPRESA = ?`);
-
-    const previous = (isAll
-      ? previousQuery.get(yoyStart, yoyEnd)
-      : previousQuery.get(yoyStart, yoyEnd, companyId)) as { total: number };
-
-    if (previous.total === 0) continue;
-
-    const variacao = ((current.total - previous.total) / previous.total) * 100;
+    if (!previous || previous.total === 0) continue;
+    const cur = current?.total ?? 0;
+    const variacao = ((cur - previous.total) / previous.total) * 100;
 
     if (variacao < -config.threshold) {
       const companyLabel = isAll ? "Geral" : `Empresa ${companyId}`;
-      insertNotification(
-        config.id,
-        companyId,
-        `${companyLabel}: Queda YoY de ${Math.abs(variacao).toFixed(1)}% (limite: ${config.threshold}%). Vendas atuais R$${current.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} vs ano anterior R$${previous.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
+      await insertNotification(
+        config.id, companyId,
+        `${companyLabel}: Queda YoY de ${Math.abs(variacao).toFixed(1)}% (limite: ${config.threshold}%). Vendas atuais R$${cur.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} vs ano anterior R$${previous.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
         config.severity,
-        { variacao, current: current.total, previous: previous.total }
+        { variacao, current: cur, previous: previous.total }
       );
     }
   }
 }
 
-function evaluateTicketBaixo(config: AlertConfigRow, companies: string[]): void {
+async function evaluateTicketBaixo(config: AlertConfigRow, companies: string[]): Promise<void> {
   const now = new Date();
   const start = startOfMonth(now);
   const end = getToday();
   const periodKey = getPeriodKey(now);
 
   for (const companyId of companies) {
-    if (notificationAlreadyExists(config.id, companyId, periodKey)) continue;
+    if (await notificationAlreadyExists(config.id, companyId, periodKey)) continue;
 
     const isAll = companyId === "all";
-    const query = isAll
-      ? sqlite.prepare(`SELECT COALESCE(SUM(TOTALVENDA_LINHA), 0) as total, COALESCE(COUNT(DISTINCT IDPLANILHA), 0) as pedidos FROM cache_vendas WHERE DT_MOVIMENTO >= ? AND DT_MOVIMENTO <= ?`)
-      : sqlite.prepare(`SELECT COALESCE(SUM(TOTALVENDA_LINHA), 0) as total, COALESCE(COUNT(DISTINCT IDPLANILHA), 0) as pedidos FROM cache_vendas WHERE DT_MOVIMENTO >= ? AND DT_MOVIMENTO <= ? AND IDEMPRESA = ?`);
+    const result = isAll
+      ? await pgGet<{ total: number; pedidos: number }>(`SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total, COALESCE(COUNT(DISTINCT "IDPLANILHA"), 0) as pedidos FROM cache_vendas WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?`, [start, end])
+      : await pgGet<{ total: number; pedidos: number }>(`SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total, COALESCE(COUNT(DISTINCT "IDPLANILHA"), 0) as pedidos FROM cache_vendas WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = ?`, [start, end, companyId]);
 
-    const result = (isAll
-      ? query.get(start, end)
-      : query.get(start, end, companyId)) as { total: number; pedidos: number };
+    if (!result || Number(result.pedidos) === 0) continue;
 
-    if (result.pedidos === 0) continue;
-
-    const ticketMedio = result.total / result.pedidos;
+    const ticketMedio = result.total / Number(result.pedidos);
 
     if (ticketMedio < config.threshold) {
       const companyLabel = isAll ? "Geral" : `Empresa ${companyId}`;
-      insertNotification(
-        config.id,
-        companyId,
+      await insertNotification(
+        config.id, companyId,
         `${companyLabel}: Ticket médio R$${ticketMedio.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} está abaixo do limite de R$${config.threshold.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${result.pedidos} pedidos no mês).`,
         config.severity,
         { ticketMedio, threshold: config.threshold, pedidos: result.pedidos }
@@ -135,26 +120,22 @@ function evaluateTicketBaixo(config: AlertConfigRow, companies: string[]): void 
   }
 }
 
-function runEvaluationCycle(): void {
+async function runEvaluationCycle(): Promise<void> {
   console.log("[AlertEngine] Running evaluation cycle...");
   try {
-    const allConfigs = sqlite.prepare(`SELECT * FROM alert_configs WHERE enabled = 1`).all() as AlertConfigRow[];
+    const allConfigs = await pgAll<AlertConfigRow>(`SELECT * FROM alert_configs WHERE enabled = 1`);
 
-    const companyRows = sqlite.prepare(`SELECT DISTINCT CAST(IDEMPRESA AS TEXT) as id FROM cache_vendas`).all() as CompanyRow[];
+    const companyRows = await pgAll<CompanyRow>(`SELECT DISTINCT CAST("IDEMPRESA" AS TEXT) as id FROM cache_vendas`);
     const companiesInData = companyRows.map(r => r.id);
-    if (companiesInData.length === 0) {
-      companiesInData.push("1");
-    }
+    if (companiesInData.length === 0) companiesInData.push("1");
 
     for (const config of allConfigs) {
-      const relevantCompanies = config.companyId === "all"
-        ? companiesInData
-        : [config.companyId];
+      const relevantCompanies = config.companyId === "all" ? companiesInData : [config.companyId];
 
       if (config.type === "yoy_queda") {
-        evaluateYoyQueda(config, relevantCompanies);
+        await evaluateYoyQueda(config, relevantCompanies);
       } else if (config.type === "ticket_baixo") {
-        evaluateTicketBaixo(config, relevantCompanies);
+        await evaluateTicketBaixo(config, relevantCompanies);
       }
     }
     console.log("[AlertEngine] Evaluation cycle complete.");
@@ -166,7 +147,7 @@ function runEvaluationCycle(): void {
 export function startAlertEngine(): void {
   if (engineStarted) return;
   engineStarted = true;
-  runEvaluationCycle();
-  setInterval(runEvaluationCycle, EVAL_INTERVAL_MS);
+  runEvaluationCycle().catch(console.error);
+  setInterval(() => runEvaluationCycle().catch(console.error), EVAL_INTERVAL_MS);
   console.log(`[AlertEngine] Started. Evaluating every ${EVAL_INTERVAL_MS / 60000} minutes.`);
 }

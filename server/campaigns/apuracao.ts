@@ -4,7 +4,7 @@
  * Produces per-vendedor results with complete memory of calculation.
  */
 
-import { sqlite } from "../db";
+import { pgGet, pgAll, pgRun } from "../pg-client";
 import { randomUUID } from "crypto";
 import { getCampaignById } from "./service";
 
@@ -83,56 +83,56 @@ function buildProductFilter(base: ProdutoBase | null | undefined): string {
   if (!base || base.mode === "all") return "";
   if (base.mode === "supplier" && base.suppliers?.length) {
     const list = base.suppliers.map(s => `'${s.replace(/'/g, "''")}'`).join(",");
-    return `AND FABRICANTE IN (${list})`;
+    return `AND "FABRICANTE" IN (${list})`;
   }
   if (base.mode === "specific" && base.ids?.length) {
     const list = base.ids.map(i => `'${i.replace(/'/g, "''")}'`).join(",");
-    return `AND IDPRODUTO IN (${list})`;
+    return `AND "IDPRODUTO" IN (${list})`;
   }
   return "";
 }
 
-function querySalesByVendedor(
+async function querySalesByVendedor(
   start: string,
   end: string,
   base: ProdutoBase | null | undefined,
   vendedorIds?: string[],
-): Map<string, { valor: number; qtd: number; mix: number; nome: string }> {
+): Promise<Map<string, { valor: number; qtd: number; mix: number; nome: string }>> {
   const productFilter = buildProductFilter(base);
   const vendedorFilter =
     vendedorIds && vendedorIds.length > 0
-      ? `AND IDVENDEDOR IN (${vendedorIds.map(v => `'${v.replace(/'/g, "''")}'`).join(",")})`
+      ? `AND "IDVENDEDOR" IN (${vendedorIds.map(v => `'${v.replace(/'/g, "''")}'`).join(",")})`
       : "";
 
   const sql = `
     SELECT
-      IDVENDEDOR,
-      MAX(NOMEVENDEDOR) as NOMEVENDEDOR,
-      COALESCE(SUM(VALOR_LIQUIDO), 0) as total_valor,
-      COALESCE(SUM(QTD), 0) as total_qtd,
-      COUNT(DISTINCT IDPRODUTO) as mix_count
+      "IDVENDEDOR",
+      MAX("NOMEVENDEDOR") as "NOMEVENDEDOR",
+      COALESCE(SUM("VALOR_LIQUIDO"), 0) as total_valor,
+      COALESCE(SUM("QTD"), 0) as total_qtd,
+      COUNT(DISTINCT "IDPRODUTO") as mix_count
     FROM cache_campanhas
-    WHERE DTMOVIMENTO >= ? AND DTMOVIMENTO <= ?
+    WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
       ${productFilter}
       ${vendedorFilter}
-      AND IDVENDEDOR IS NOT NULL AND IDVENDEDOR != ''
-    GROUP BY IDVENDEDOR
+      AND "IDVENDEDOR" IS NOT NULL AND "IDVENDEDOR" != ''
+    GROUP BY "IDVENDEDOR"
   `;
 
-  const rows = sqlite.prepare(sql).all(start, end) as {
+  const rows = await pgAll<{
     IDVENDEDOR: string;
     NOMEVENDEDOR: string;
     total_valor: number;
     total_qtd: number;
     mix_count: number;
-  }[];
+  }>(sql, [start, end]);
 
   const map = new Map<string, { valor: number; qtd: number; mix: number; nome: string }>();
   for (const r of rows) {
     map.set(r.IDVENDEDOR, {
-      valor: r.total_valor,
-      qtd: r.total_qtd,
-      mix: r.mix_count,
+      valor: Number(r.total_valor),
+      qtd: Number(r.total_qtd),
+      mix: Number(r.mix_count),
       nome: r.NOMEVENDEDOR || r.IDVENDEDOR,
     });
   }
@@ -219,8 +219,8 @@ function formatBRL(v: number): string {
 
 // ─── Main apuração ─────────────────────────────────────────────────────────
 
-export function apurarCampanha(campaignId: string, actor: string): ApuracaoResult {
-  const campaign = getCampaignById(campaignId);
+export async function apurarCampanha(campaignId: string, actor: string): Promise<ApuracaoResult> {
+  const campaign = await getCampaignById(campaignId);
   if (!campaign) throw new Error("Campanha não encontrada");
 
   const mode: string = (campaign as any).campaign_mode || "atingimento";
@@ -242,20 +242,20 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
   const periodoComparativo = bases.ranking?.periodo_comparativo || null;
 
   // ── Fetch sales data ────────────────────────────────────────────────────
-  const salesApuracao = querySalesByVendedor(periodoInicio, periodoFim, baseApuracao);
+  const salesApuracao = await querySalesByVendedor(periodoInicio, periodoFim, baseApuracao);
   const salesPagamento =
     basePagamento === baseApuracao
       ? salesApuracao
-      : querySalesByVendedor(periodoInicio, periodoFim, basePagamento);
+      : await querySalesByVendedor(periodoInicio, periodoFim, basePagamento);
   const salesElegibilidade =
     baseElegibilidade === baseApuracao
       ? salesApuracao
-      : querySalesByVendedor(periodoInicio, periodoFim, baseElegibilidade);
+      : await querySalesByVendedor(periodoInicio, periodoFim, baseElegibilidade);
 
   // For growth ranking: fetch comparative period
   let salesComparativo: Map<string, { valor: number; qtd: number; mix: number; nome: string }> | null = null;
   if (rankingTipo === "crescimento" && periodoComparativo) {
-    salesComparativo = querySalesByVendedor(
+    salesComparativo = await querySalesByVendedor(
       periodoComparativo.starts_at,
       periodoComparativo.ends_at,
       baseApuracao,
@@ -269,8 +269,6 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
   if (targetVendedores.mode === "specific" && targetVendedores.ids?.length > 0) {
     eligibleIds = new Set(targetVendedores.ids);
   }
-  // For 'group' mode we'd need to resolve groups — for now treat as all
-  // (group resolution needs async; can be enhanced later)
 
   // Union of all vendedores who had any sales in the apuracao period
   const allVendedorIds = new Set([
@@ -283,20 +281,18 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
 
   // ── Load individual trigger goals ───────────────────────────────────────
   const goalsYear = new Date(periodoInicio).getFullYear();
-  const goalRows = sqlite.prepare(`
-    SELECT salespersonId, triggerValue
+  const goalRows = await pgAll<{ salespersonId: string; triggerValue: number }>(`
+    SELECT "salespersonId", "triggerValue"
     FROM campaign_goals
-    WHERE campaignName = ? AND year = ?
-  `).all(campaignId, goalsYear) as { salespersonId: string; triggerValue: number }[];
+    WHERE "campaignName" = ? AND year = ?
+  `, [campaignId, goalsYear]);
   const goalsMap = new Map(goalRows.map(g => [g.salespersonId, g.triggerValue]));
 
   // ── Process each vendedor ───────────────────────────────────────────────
   const detalhes: (VendedorApuracao & { crescimentoPerc?: number })[] = [];
 
   for (const vid of allVendedorIds) {
-    // Skip excluded
     if (excluded.has(vid)) continue;
-    // Apply specific vendedor filter
     if (eligibleIds && !eligibleIds.has(vid)) continue;
 
     const apData = salesApuracao.get(vid) || { valor: 0, qtd: 0, mix: 0, nome: vid };
@@ -326,7 +322,6 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
       passos.push(`Base de pagamento: mesma da apuração`);
     }
 
-    // Mix check
     if (mixMinimo > 0) {
       passos.push(`Mix mínimo exigido: ${mixMinimo} produto(s) distintos`);
       passos.push(`Mix do vendedor: ${mixCount} produto(s) distintos`);
@@ -335,7 +330,6 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
       }
     }
 
-    // Trigger check
     const gatilhoAtingido = gatilhoValor === 0 || valorApuracao >= gatilhoValor;
     if (gatilhoValor > 0) {
       passos.push(`Gatilho individual: R$ ${formatBRL(gatilhoValor)}`);
@@ -360,7 +354,6 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
       motivosNaoParticipacao.push("Sem vendas no período na base configurada");
     }
 
-    // Crescimento
     let crescimentoPerc: number | undefined;
     if (rankingTipo === "crescimento" && salesComparativo) {
       const prevData = salesComparativo.get(vid) || { valor: 0, qtd: 0, mix: 0, nome };
@@ -468,13 +461,11 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
     const { valor, formula } = calcularPremio(rewards, d, mode);
     let premioFinal = valor;
 
-    // Apply per-vendedor limit
     if (limits.maxPerVendedor && premioFinal > limits.maxPerVendedor) {
       premioFinal = limits.maxPerVendedor;
       d.memoriaCalculo.passos.push(`Prêmio limitado a R$ ${formatBRL(limits.maxPerVendedor)} (limite por vendedor)`);
     }
 
-    // Apply min cutoff
     if (limits.minCutoff && premioFinal < limits.minCutoff) {
       d.memoriaCalculo.passos.push(`Prêmio R$ ${formatBRL(premioFinal)} abaixo do mínimo R$ ${formatBRL(limits.minCutoff)} — desconsiderado`);
       premioFinal = 0;
@@ -502,54 +493,50 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
   const resultId = randomUUID();
   const agora = new Date().toISOString();
 
-  sqlite.prepare(`
+  await pgRun(`
     INSERT INTO campaign_results (
       id, campaign_id, apurado_em, apurado_por,
       periodo_inicio, periodo_fim, campaign_mode,
       total_elegiveis, total_participantes, total_atingidos, total_premiados,
       valor_total_apuracao, valor_total_pagamento, valor_total_premio, summary
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `, [
     resultId, campaignId, agora, actor,
     periodoInicio, periodoFim, mode,
     totalElegiveis, totalParticipantes, totalAtingidos, totalPremiados,
     valorTotalApuracao, valorTotalPagamento, valorTotalPremio,
     JSON.stringify({ rankingTipo, bases: { apuracao: describeBase(baseApuracao), pagamento: describeBase(basePagamento) } }),
-  );
+  ]);
 
-  const insertDetail = sqlite.prepare(`
-    INSERT INTO campaign_result_details (
-      id, result_id, campaign_id, vendedor_id, vendedor_nome,
-      elegivel, participou, gatilho_atingido, atingiu, premiado, posicao,
-      valor_apuracao, valor_pagamento, qtd_total, mix_count, gatilho_valor,
-      premio_calculado, premio_final, motivos_nao_participacao, memoria_calculo
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertAll = sqlite.transaction(() => {
-    for (const d of detalhes) {
-      insertDetail.run(
-        randomUUID(), resultId, campaignId, d.vendedorId, d.vendedorNome,
-        d.elegivel ? 1 : 0, d.participou ? 1 : 0,
-        d.gatilhoAtingido ? 1 : 0, d.atingiu ? 1 : 0, d.premiado ? 1 : 0,
-        d.posicao ?? null,
-        d.valorApuracao, d.valorPagamento, d.qtdTotal, d.mixCount, d.gatilhoValor,
-        d.premioCalculado, d.premioFinal,
-        JSON.stringify(d.motivosNaoParticipacao),
-        JSON.stringify(d.memoriaCalculo),
-      );
-    }
-  });
-  insertAll();
+  // Insert details sequentially (no transaction needed for correctness here)
+  for (const d of detalhes) {
+    await pgRun(`
+      INSERT INTO campaign_result_details (
+        id, result_id, campaign_id, vendedor_id, vendedor_nome,
+        elegivel, participou, gatilho_atingido, atingiu, premiado, posicao,
+        valor_apuracao, valor_pagamento, qtd_total, mix_count, gatilho_valor,
+        premio_calculado, premio_final, motivos_nao_participacao, memoria_calculo
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      randomUUID(), resultId, campaignId, d.vendedorId, d.vendedorNome,
+      d.elegivel ? 1 : 0, d.participou ? 1 : 0,
+      d.gatilhoAtingido ? 1 : 0, d.atingiu ? 1 : 0, d.premiado ? 1 : 0,
+      d.posicao ?? null,
+      d.valorApuracao, d.valorPagamento, d.qtdTotal, d.mixCount, d.gatilhoValor,
+      d.premioCalculado, d.premioFinal,
+      JSON.stringify(d.motivosNaoParticipacao),
+      JSON.stringify(d.memoriaCalculo),
+    ]);
+  }
 
   // Audit log
-  sqlite.prepare(`
+  await pgRun(`
     INSERT INTO campaign_audit_logs (id, campaign_id, action, actor, new_values)
     VALUES (?, ?, ?, ?, ?)
-  `).run(
+  `, [
     randomUUID(), campaignId, "apurado", actor,
     JSON.stringify({ resultId, totalPremiados, valorTotalPremio, periodoInicio, periodoFim }),
-  );
+  ]);
 
   return {
     id: resultId,
@@ -592,48 +579,45 @@ export function apurarCampanha(campaignId: string, actor: string): ApuracaoResul
 }
 
 function motivoNaoParticipouTexto(motivos: string[]): string {
-  if (!motivos.length) return "Sem vendas no período";
+  if (!motivos.length) return "Não participou";
   return motivos.join("; ");
 }
 
-// ─── Get latest result ──────────────────────────────────────────────────────
+// ─── Result queries ─────────────────────────────────────────────────────────
 
-export function getLatestResult(campaignId: string): ApuracaoResult | null {
-  const row = sqlite.prepare(`
+export async function getLatestResult(campaignId: string): Promise<(ApuracaoResult & { detalhes: VendedorApuracao[] }) | null> {
+  const result = await pgGet<any>(`
     SELECT * FROM campaign_results
     WHERE campaign_id = ?
     ORDER BY apurado_em DESC
     LIMIT 1
-  `).get(campaignId) as any;
+  `, [campaignId]);
+  if (!result) return null;
 
-  if (!row) return null;
-
-  const details = sqlite.prepare(`
+  const detalhes = await pgAll<any>(`
     SELECT * FROM campaign_result_details
     WHERE result_id = ?
     ORDER BY posicao ASC NULLS LAST, valor_apuracao DESC
-  `).all(row.id) as any[];
-
-  const campaign = getCampaignById(campaignId);
+  `, [result.id]);
 
   return {
-    id: row.id,
-    campaignId: row.campaign_id,
-    campaignName: campaign?.name || campaignId,
-    campaignCode: campaign?.code || "",
-    apuradoEm: row.apurado_em,
-    apuradoPor: row.apurado_por,
-    periodoInicio: row.periodo_inicio,
-    periodoFim: row.periodo_fim,
-    campaignMode: row.campaign_mode,
-    totalElegiveis: row.total_elegiveis,
-    totalParticipantes: row.total_participantes,
-    totalAtingidos: row.total_atingidos,
-    totalPremiados: row.total_premiados,
-    valorTotalApuracao: row.valor_total_apuracao,
-    valorTotalPagamento: row.valor_total_pagamento,
-    valorTotalPremio: row.valor_total_premio,
-    detalhes: details.map(d => ({
+    id: result.id,
+    campaignId: result.campaign_id,
+    campaignName: result.campaign_name || "",
+    campaignCode: result.campaign_code || "",
+    apuradoEm: result.apurado_em,
+    apuradoPor: result.apurado_por,
+    periodoInicio: result.periodo_inicio,
+    periodoFim: result.periodo_fim,
+    campaignMode: result.campaign_mode,
+    totalElegiveis: result.total_elegiveis,
+    totalParticipantes: result.total_participantes,
+    totalAtingidos: result.total_atingidos,
+    totalPremiados: result.total_premiados,
+    valorTotalApuracao: Number(result.valor_total_apuracao),
+    valorTotalPagamento: Number(result.valor_total_pagamento),
+    valorTotalPremio: Number(result.valor_total_premio),
+    detalhes: detalhes.map(d => ({
       vendedorId: d.vendedor_id,
       vendedorNome: d.vendedor_nome,
       elegivel: Boolean(d.elegivel),
@@ -641,32 +625,38 @@ export function getLatestResult(campaignId: string): ApuracaoResult | null {
       gatilhoAtingido: Boolean(d.gatilho_atingido),
       atingiu: Boolean(d.atingiu),
       premiado: Boolean(d.premiado),
-      posicao: d.posicao,
-      valorApuracao: d.valor_apuracao,
-      valorPagamento: d.valor_pagamento,
-      qtdTotal: d.qtd_total,
-      mixCount: d.mix_count,
-      gatilhoValor: d.gatilho_valor,
-      premioCalculado: d.premio_calculado,
-      premioFinal: d.premio_final,
-      motivosNaoParticipacao: safeJson(d.motivos_nao_participacao, []),
-      memoriaCalculo: safeJson(d.memoria_calculo, { passos: [], formulaPremio: "" }),
+      posicao: d.posicao ?? undefined,
+      valorApuracao: Number(d.valor_apuracao),
+      valorPagamento: Number(d.valor_pagamento),
+      qtdTotal: Number(d.qtd_total),
+      mixCount: Number(d.mix_count),
+      gatilhoValor: Number(d.gatilho_valor),
+      premioCalculado: Number(d.premio_calculado),
+      premioFinal: Number(d.premio_final),
+      motivosNaoParticipacao: safeJsonArr(d.motivos_nao_participacao),
+      memoriaCalculo: safeJsonObj(d.memoria_calculo),
     })),
   };
 }
 
-export function listResults(campaignId: string) {
-  return sqlite.prepare(`
-    SELECT id, apurado_em, apurado_por, periodo_inicio, periodo_fim,
+export async function listResults(campaignId: string) {
+  return pgAll<any>(`
+    SELECT id, campaign_id, apurado_em, apurado_por,
+           periodo_inicio, periodo_fim, campaign_mode,
            total_elegiveis, total_participantes, total_atingidos, total_premiados,
-           valor_total_premio, campaign_mode
+           valor_total_apuracao, valor_total_pagamento, valor_total_premio
     FROM campaign_results
     WHERE campaign_id = ?
     ORDER BY apurado_em DESC
-  `).all(campaignId);
+  `, [campaignId]);
 }
 
-function safeJson(str: string | null, fallback: any) {
-  if (!str) return fallback;
-  try { return JSON.parse(str); } catch { return fallback; }
+function safeJsonArr(str: string | null): string[] {
+  if (!str) return [];
+  try { return JSON.parse(str); } catch { return []; }
+}
+
+function safeJsonObj(str: string | null): any {
+  if (!str) return {};
+  try { return JSON.parse(str); } catch { return {}; }
 }

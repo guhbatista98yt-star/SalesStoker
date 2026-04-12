@@ -6,21 +6,22 @@ import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth"
 import campaignRoutes from "./campaigns/routes";
 import { initCampaignTables } from "./campaigns/init";
 import { startAlertEngine } from "./alert-engine";
-import { db, sqlite } from "./db";
+import { db } from "./db";
+import { pgAll } from "./pg-client";
 import { users } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 
-function resolveGroupTeamMembers(groupId: string, supervisorTeam?: string[]): string[] {
+async function resolveGroupTeamMembers(groupId: string, supervisorTeam?: string[]): Promise<string[]> {
   try {
-    const memberRows = sqlite.prepare(
-      `SELECT salesperson_id FROM vendor_group_members WHERE group_id = ?`
-    ).all(groupId) as { salesperson_id: string }[];
+    const memberRows = await pgAll<{ salesperson_id: string }>(
+      `SELECT salesperson_id FROM vendor_group_members WHERE group_id = ?`, [groupId]
+    );
     if (memberRows.length === 0) return supervisorTeam ?? [];
     const ids = memberRows.map(r => r.salesperson_id);
-    const placeholders = ids.map(() => "?").join(",");
-    const nameRows = sqlite.prepare(
-      `SELECT DISTINCT NOME_VENDEDOR FROM cache_vendas WHERE IDVENDEDOR IN (${placeholders}) LIMIT 100`
-    ).all(...ids) as { NOME_VENDEDOR: string }[];
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(",");
+    const nameRows = await pgAll<{ NOME_VENDEDOR: string }>(
+      `SELECT DISTINCT "NOME_VENDEDOR" FROM cache_vendas WHERE "IDVENDEDOR" IN (${placeholders}) LIMIT 100`, ids
+    );
     const groupNames = nameRows.map(r => r.NOME_VENDEDOR);
     if (supervisorTeam && supervisorTeam.length > 0) {
       return groupNames.filter(name =>
@@ -38,7 +39,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  initCampaignTables();
+  await initCampaignTables();
   startAlertEngine();
 
   app.use("/api/auth", createAuthRouter());
@@ -109,7 +110,7 @@ export async function registerRoutes(
       const startDate = req.params.startDate as string;
       const endDate = req.params.endDate as string;
       const groupId = req.query.groupId as string | undefined;
-      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const kpis = await storage.getKPISummary(companyId, startDate, endDate, team);
       res.json(kpis);
     } catch (error) {
@@ -124,7 +125,7 @@ export async function registerRoutes(
       const endDate = req.params.endDate as string;
       const criteria = req.params.criteria as string;
       const groupId = req.query.groupId as string | undefined;
-      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const rankings = await storage.getRankings(
         companyId,
         startDate,
@@ -144,7 +145,7 @@ export async function registerRoutes(
       const startDate = req.params.startDate as string;
       const endDate = req.params.endDate as string;
       const groupId = req.query.groupId as string | undefined;
-      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const productMix = await storage.getProductMix(companyId, startDate, endDate, team);
       res.json(productMix);
     } catch (error) {
@@ -158,7 +159,7 @@ export async function registerRoutes(
       const month = req.params.month as string;
       const year = req.params.year as string;
       const groupId = req.query.groupId as string | undefined;
-      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const goals = await storage.getGoals(
         companyId,
         parseInt(month),
@@ -357,7 +358,7 @@ export async function registerRoutes(
     try {
       const companyId = req.params.companyId as string;
       const groupId = req.query.groupId as string | undefined;
-      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const afaturar = await storage.getAFaturarPorVendedor(companyId, team);
       res.json(afaturar);
     } catch (error) {
@@ -403,7 +404,7 @@ export async function registerRoutes(
     try {
       const companyId = req.params.companyId as string;
       const groupId = req.query.groupId as string | undefined;
-      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const salesEvolution = await storage.getSalesEvolution(companyId, team);
       res.json(salesEvolution);
     } catch (error) {
@@ -676,14 +677,14 @@ export async function registerRoutes(
 
   app.get("/api/users", isAuthenticated, isAdminOnly, async (req: AuthRequest, res) => {
     try {
-      const allUsers = db.select({
+      const allUsers = await db.select({
         id: users.id,
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
         role: users.role,
         modulePermissions: users.modulePermissions,
-      }).from(users).all();
+      }).from(users);
 
       const result = allUsers.map(u => ({
         id: u.id,
@@ -727,10 +728,9 @@ export async function registerRoutes(
         }
       }
 
-      db.update(users)
+      await db.update(users)
         .set({ modulePermissions: JSON.stringify(sanitized) })
-        .where(eq(users.id, userId))
-        .run();
+        .where(eq(users.id, userId));
 
       res.json({ success: true });
     } catch (error) {
