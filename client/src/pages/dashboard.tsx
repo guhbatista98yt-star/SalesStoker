@@ -202,6 +202,117 @@ export default function Dashboard() {
 
   const isLoading = companiesLoading || kpisLoading;
 
+  function handleExport() {
+    const now = new Date();
+    const periodLabel =
+      periodMode === "semana" ? "Semana Atual" :
+      periodMode === "mes" ? "Mês Atual" : "Semanas Fechadas";
+
+    const fmt = (v: number) =>
+      v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+    const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+    const row = (cols: (string | number)[]) =>
+      cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";");
+
+    const lines: string[] = [];
+
+    // ── Cabeçalho ──────────────────────────────────────────────
+    lines.push(row(["CONECTUBOS — Relatório do Dashboard"]));
+    lines.push(row(["Exportado em", format(now, "dd/MM/yyyy HH:mm", { locale: ptBR })]));
+    lines.push(row(["Período", periodLabel]));
+    lines.push(row(["De", formatDateBR(period.startDate), "Até", formatDateBR(period.endDate)]));
+    lines.push(row(["Empresa", companyId === "all" ? "Todas" : (companies.find(c => String(c.id) === companyId)?.name ?? companyId)]));
+    lines.push("");
+
+    // ── KPIs ──────────────────────────────────────────────────
+    lines.push(row(["=== KPIs DO PERÍODO ==="]));
+    lines.push(row(["Indicador", "Valor"]));
+    if (kpis) {
+      lines.push(row(["Vendas Semanal", fmt(kpis.totalVendasSemanal)]));
+      lines.push(row(["Vendas Mensal", fmt(kpis.totalVendasMensal)]));
+      lines.push(row(["A Faturar Total", fmt(kpis.valorAFaturar)]));
+      lines.push(row(["Pedidos Atendidos", kpis.pedidosAtendidos]));
+    }
+    lines.push("");
+
+    // ── Ranking de Vendedores ──────────────────────────────────
+    lines.push(row(["=== RANKING DE VENDEDORES ==="]));
+    lines.push(row(["Posição", "Vendedor", "Empresa", "Valor Vendido", "Variação YoY", "Positivação", "Mix de Produtos", "Conexões/Tubos"]));
+    for (const r of rankings) {
+      lines.push(row([
+        r.rank,
+        r.salesperson.name,
+        r.salesperson.company ?? "",
+        fmt(r.value),
+        r.yoyVariacao != null ? pct(r.yoyVariacao) : "-",
+        pct(r.positivacao),
+        pct(r.mixProdutos),
+        r.conexoesSobreTubos != null ? pct(r.conexoesSobreTubos) : "-",
+      ]));
+    }
+    lines.push("");
+
+    // ── A Faturar por Vendedor ────────────────────────────────
+    if (aFaturarData.length > 0) {
+      lines.push(row(["=== A FATURAR POR VENDEDOR ==="]));
+      lines.push(row(["Vendedor", "Empresa", "Valor a Faturar"]));
+      for (const a of aFaturarData) {
+        lines.push(row([
+          a.salesperson.name,
+          a.salesperson.company ?? "",
+          fmt(a.valorAFaturar),
+        ]));
+      }
+      lines.push("");
+    }
+
+    // ── Mix de Produtos ───────────────────────────────────────
+    if (productMix.length > 0) {
+      lines.push(row(["=== MIX DE PRODUTOS ==="]));
+      lines.push(row(["Produto", "Valor Total", "Quantidade", "Participação (%)"]));
+      for (const p of productMix) {
+        lines.push(row([
+          p.product.name,
+          fmt(p.totalValue),
+          p.quantity,
+          `${p.percentage.toFixed(1)}%`,
+        ]));
+      }
+      lines.push("");
+    }
+
+    // ── Metas ─────────────────────────────────────────────────
+    if (goals.length > 0) {
+      lines.push(row(["=== METAS DO MÊS ==="]));
+      lines.push(row(["Vendedor", "Tipo", "Meta", "Realizado", "Progresso (%)"]));
+      for (const g of goals) {
+        lines.push(row([
+          g.salespersonName,
+          g.type === "weekly" ? "Semanal" : "Mensal",
+          fmt(g.targetValue),
+          fmt(g.currentValue),
+          `${(g.progress * 100).toFixed(1)}%`,
+        ]));
+      }
+      lines.push("");
+    }
+
+    // ── Trigger download ──────────────────────────────────────
+    const bom = "\uFEFF"; // UTF-8 BOM para abrir corretamente no Excel
+    const csvContent = bom + lines.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `conectubos-dashboard-${format(now, "yyyy-MM-dd-HHmm")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({ title: "Relatório exportado!", description: "Arquivo CSV gerado com sucesso." });
+  }
+
   function handleKpiDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -449,7 +560,7 @@ export default function Dashboard() {
             <Button
               size="sm"
               className="h-8 gap-1.5 text-xs font-medium rounded-lg hidden sm:flex"
-              onClick={() => queryClient.invalidateQueries()}
+              onClick={handleExport}
             >
               <Download className="h-3.5 w-3.5" />
               Exportar
