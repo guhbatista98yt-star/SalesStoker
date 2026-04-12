@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -242,6 +243,7 @@ export default function CampanhasList() {
   const [filterType, setFilterType] = useState("all");
 
   const [statusDialog, setStatusDialog] = useState<StatusDialogState | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [statusReason, setStatusReason] = useState("");
 
   const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
@@ -303,7 +305,10 @@ export default function CampanhasList() {
               <Link href="/configuracoes"><ChevronLeft className="h-4 w-4" /></Link>
             </Button>
             <div>
-              <h1 className="text-xl font-bold">Campanhas Comerciais</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold">Campanhas Comerciais</h1>
+                <HelpButton onClick={() => setHelpOpen(true)} />
+              </div>
               <p className="text-xs text-muted-foreground">
                 Gerencie e monitore campanhas de incentivo de vendas
               </p>
@@ -438,6 +443,7 @@ export default function CampanhasList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.campanhas} />
     </div>
   );
 }

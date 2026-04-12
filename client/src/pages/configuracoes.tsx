@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -1134,6 +1135,7 @@ function PermissoesSection() {
 export default function Configuracoes() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const [helpOpen, setHelpOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("equipes");
 
   const today = new Date();
@@ -1180,6 +1182,7 @@ export default function Configuracoes() {
       {/* Header */}
       <div className="shrink-0 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-6 py-3 flex items-baseline gap-3">
         <h1 className="text-xl font-bold tracking-tight text-foreground">Configurações</h1>
+        <HelpButton onClick={() => setHelpOpen(true)} />
         <span className="hidden sm:inline text-xs text-muted-foreground font-medium">
           Equipes, metas, alertas e campanhas
         </span>
@@ -1229,6 +1232,7 @@ export default function Configuracoes() {
           </div>
         </main>
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.configuracoes} />
     </div>
   );
 }

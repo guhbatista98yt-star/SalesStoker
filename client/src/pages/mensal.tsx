@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -61,6 +62,7 @@ export default function Mensal() {
   const endDate = format(endOfMonth(today), "yyyy-MM-dd");
   const monthLabel = format(today, "MMMM yyyy", { locale: ptBR });
 
+  const [helpOpen, setHelpOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
 
   const { data: monthlyData = [], isLoading: monthlyLoading } = useQuery<MonthlySalesperson[]>({
@@ -86,6 +88,7 @@ export default function Mensal() {
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Visão Mensal</h1>
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium capitalize">{monthLabel}</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -222,6 +225,7 @@ export default function Mensal() {
           </div>
         )}
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.mensal} />
     </div>
   );
 }

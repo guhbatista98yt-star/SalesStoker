@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -736,6 +737,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
   });
   const [changeReason, setChangeReason] = useState("");
   const [showReasonDialog, setShowReasonDialog] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [pendingSave, setPendingSave] = useState(false);
   const [validation, setValidation] = useState<{ errors: string[]; conflicts: any[] } | null>(null);
 
@@ -820,9 +822,12 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-sm font-semibold">
-              {isEditing ? (existing?.name || "Editar Campanha") : "Nova Campanha"}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-semibold">
+                {isEditing ? (existing?.name || "Editar Campanha") : "Nova Campanha"}
+              </h1>
+              <HelpButton onClick={() => setHelpOpen(true)} />
+            </div>
             <div className="flex items-center gap-2">
               {existing && (
                 <Badge className={cn("text-[10px] py-0 h-4", STATUS_COLOR[existing.status])}>
@@ -1356,6 +1361,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.campanhasForm} />
     </div>
   );
 }

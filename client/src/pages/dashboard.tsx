@@ -4,6 +4,7 @@ import { queryClient } from "@/lib/queryClient";
 import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import {
   DndContext,
   closestCenter,
@@ -106,6 +107,7 @@ export default function Dashboard() {
   }
 
   const today = new Date();
+  const [helpOpen, setHelpOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("all");
   const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>("maior_valor_vendido");
   const [isScrolled, setIsScrolled] = useState(false);
@@ -495,6 +497,7 @@ export default function Dashboard() {
           {/* Left: title + date info */}
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Dashboard</h1>
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">
               {format(today, "d 'de' MMMM", { locale: ptBR })}
             </span>
@@ -718,6 +721,7 @@ export default function Dashboard() {
           </SortableContext>
         </DndContext>
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.dashboard} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,6 +175,7 @@ export default function ConfigurarComissoes() {
 
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [helpOpen, setHelpOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -264,6 +266,7 @@ export default function ConfigurarComissoes() {
             </Link>
             <div className="flex items-baseline gap-3">
               <h1 className="text-xl font-bold tracking-tight">Regras de Comissão</h1>
+              <HelpButton onClick={() => setHelpOpen(true)} />
               <span className="hidden sm:inline text-xs text-muted-foreground">Configuração</span>
             </div>
           </div>
@@ -481,6 +484,7 @@ export default function ConfigurarComissoes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.comissoesConfigurar} />
     </div>
   );
 }

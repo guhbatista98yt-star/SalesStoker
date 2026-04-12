@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -55,6 +56,7 @@ export default function Semanal() {
   const isSupervisor = user?.role === "supervisor";
 
   const weekPeriod = getCurrentWeekPeriod();
+  const [helpOpen, setHelpOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
 
   const { data: weeklyData = [], isLoading: weeklyLoading } = useQuery<WeeklySalesperson[]>({
@@ -80,6 +82,7 @@ export default function Semanal() {
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Visão Semanal</h1>
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho por vendedor</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -210,6 +213,7 @@ export default function Semanal() {
           </div>
         )}
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.semanal} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -39,6 +40,7 @@ function getStatusVariant(pct: number): "default" | "secondary" | "destructive" 
 export default function GestorView() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const [helpOpen, setHelpOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -77,6 +79,7 @@ export default function GestorView() {
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight">Comissões — Gestão</h1>
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <span className="hidden sm:inline text-xs text-muted-foreground capitalize">{monthLabel}</span>
           </div>
           {isAdmin && (
@@ -247,6 +250,7 @@ export default function GestorView() {
           </div>
         )}
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.comissoes} />
     </div>
   );
 }

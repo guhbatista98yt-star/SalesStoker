@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ export default function Vendedores() {
     endDate: format(endOfMonth(today), "yyyy-MM-dd"),
     mode: { type: "livre" },
   });
+  const [helpOpen, setHelpOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -84,6 +86,7 @@ export default function Vendedores() {
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Vendedores</h1>
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -176,6 +179,7 @@ export default function Vendedores() {
           </div>
         )}
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.vendedores} />
     </div>
   );
 }

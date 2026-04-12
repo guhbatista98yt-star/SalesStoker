@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { AlertsPanel } from "@/components/dashboard/alerts-panel";
 import { Bell, Settings, AlertTriangle, Info, AlertCircle, Plus, Volume2, VolumeX } from "lucide-react";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Company, Alert, AlertNotification } from "@shared/schema";
 
@@ -77,6 +78,7 @@ function playAlertSound() {
 }
 
 export default function Alertas() {
+  const [helpOpen, setHelpOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [tab, setTab] = useState<"notifications" | "config">("notifications");
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -164,6 +166,7 @@ export default function Alertas() {
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Alertas</h1>
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Notificações e configurações</span>
           </div>
           <div className="flex items-center gap-2">
@@ -284,6 +287,7 @@ export default function Alertas() {
           </TabsContent>
         </Tabs>
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.alertas} />
     </div>
   );
 }

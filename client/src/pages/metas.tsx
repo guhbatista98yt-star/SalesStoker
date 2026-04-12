@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -5,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Target, AlertCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/calendar-utils";
 import type { GoalWithProgress } from "@shared/schema";
+import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 
 function getProgressColor(progress: number): string {
   if (progress >= 100) return "bg-emerald-500";
@@ -27,6 +29,7 @@ function getStatusBadge(progress: number) {
 }
 
 export default function Metas() {
+  const [helpOpen, setHelpOpen] = useState(false);
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
@@ -51,6 +54,7 @@ export default function Metas() {
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
         <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
           <h1 className="text-xl font-bold tracking-tight text-foreground">Metas</h1>
+          <HelpButton onClick={() => setHelpOpen(true)} />
           <span className="hidden sm:inline text-xs text-muted-foreground font-medium">
             {monthNames[currentMonth - 1]} {currentYear}
           </span>
@@ -152,6 +156,7 @@ export default function Metas() {
           </div>
         )}
       </div>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.metas} />
     </div>
   );
 }
