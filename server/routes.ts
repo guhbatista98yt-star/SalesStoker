@@ -85,7 +85,8 @@ export async function registerRoutes(
       const companyId = req.params.companyId as string;
       const startDate = req.params.startDate as string;
       const endDate = req.params.endDate as string;
-      const salespersons = await storage.getSalespersonsWithStats(companyId, startDate, endDate, req.teamMembers);
+      const showHidden = req.query.showHidden === "true";
+      const salespersons = await storage.getSalespersonsWithStats(companyId, startDate, endDate, req.teamMembers, showHidden);
       res.json(salespersons);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar vendedores" });
@@ -454,6 +455,34 @@ export async function registerRoutes(
       res.json(setting);
     } catch (error) {
       res.status(500).json({ error: "Erro ao salvar configuração" });
+    }
+  });
+
+  // Vendor visibility management (admin + supervisor)
+  app.get("/api/admin/vendor-visibility", isAuthenticated, async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role !== "admin" && req.user?.role !== "supervisor" && req.user?.role !== "manager") {
+        return res.status(403).json({ error: "Sem permissão" });
+      }
+      const vendors = await storage.getAllSalespersonsWithVisibility();
+      res.json(vendors);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar visibilidade dos vendedores" });
+    }
+  });
+
+  app.patch("/api/admin/vendor-visibility/:vendorId", isAuthenticated, async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role !== "admin" && req.user?.role !== "supervisor" && req.user?.role !== "manager") {
+        return res.status(403).json({ error: "Sem permissão" });
+      }
+      const { vendorId } = req.params;
+      const { isHidden } = req.body as { isHidden: boolean };
+      if (typeof isHidden !== "boolean") return res.status(400).json({ error: "isHidden deve ser boolean" });
+      await storage.setVendorHidden(vendorId, isHidden);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar visibilidade do vendedor" });
     }
   });
 

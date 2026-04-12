@@ -30,7 +30,7 @@ export interface IStorage {
   getTeams(companyId: string): Promise<Team[]>;
   getTeam(id: string): Promise<Team | undefined>;
 
-  getSalespersons(companyId: string, teamMembers?: string[]): Promise<Salesperson[]>;
+  getSalespersons(companyId: string, teamMembers?: string[], showHidden?: boolean): Promise<Salesperson[]>;
   getSalesperson(id: string): Promise<Salesperson | undefined>;
 
   getProducts(companyId: string): Promise<Product[]>;
@@ -62,7 +62,7 @@ export interface IStorage {
   getAlertConfigs(companyId: string): Promise<Alert[]>;
   updateAlertConfig(id: string, enabled: boolean): Promise<boolean>;
 
-  getSalespersonsWithStats(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<SalespersonWithStats[]>;
+  getSalespersonsWithStats(companyId: string, startDate: string, endDate: string, teamMembers?: string[], showHidden?: boolean): Promise<SalespersonWithStats[]>;
 
   getWeeklyView(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<WeeklySalesperson[]>;
   getMonthlyView(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<MonthlySalesperson[]>;
@@ -200,8 +200,19 @@ export class PostgresStorage implements IStorage {
     }
   }
 
-  private async getSalespersonsFromCache(companyId?: string): Promise<Salesperson[]> {
+  private async getSalespersonsFromCache(companyId?: string, showHidden = false): Promise<Salesperson[]> {
     try {
+      // Load hidden vendor IDs from vendor_display_settings
+      let hiddenIds: Set<string> = new Set();
+      if (!showHidden) {
+        try {
+          const hiddenRows = await pgAll<{ vendorId: string }>(
+            `SELECT "vendorId" FROM vendor_display_settings WHERE "isHidden" = TRUE OR "isHidden" = 1`
+          );
+          hiddenIds = new Set(hiddenRows.map(r => String(r.vendorId)));
+        } catch { /* table may be empty */ }
+      }
+
       let rows: { id: string; name: string; companyId: string }[];
 
       if (companyId && companyId !== "all") {
@@ -234,16 +245,75 @@ export class PostgresStorage implements IStorage {
         `);
       }
 
-      return rows.map((row: any) => ({
-        id: String(row.id ?? row.IDVENDEDOR ?? row.idvendedor ?? ""),
-        name: String(row.name ?? row.NOME_VENDEDOR ?? row.nome_vendedor ?? "Nome não encontrado"),
-        email: "",
-        teamId: "t1",
-        companyId: String(row.companyId ?? row.idempresa ?? "1"),
-      }));
+      return rows
+        .filter((row: any) => showHidden || !hiddenIds.has(String(row.id ?? row.IDVENDEDOR ?? row.idvendedor ?? "")))
+        .map((row: any) => ({
+          id: String(row.id ?? row.IDVENDEDOR ?? row.idvendedor ?? ""),
+          name: String(row.name ?? row.NOME_VENDEDOR ?? row.nome_vendedor ?? "Nome não encontrado"),
+          email: "",
+          teamId: "t1",
+          companyId: String(row.companyId ?? row.idempresa ?? "1"),
+        }));
     } catch (err) {
       console.error("Error getting salespersons from cache:", err);
       return [];
+    }
+  }
+
+  async getAllSalespersonsWithVisibility(): Promise<{ id: string; name: string; companyId: string; isHidden: boolean }[]> {
+    try {
+      const rows = await pgAll<{ id: string; name: string; companyId: string }>(`
+        SELECT
+          "IDVENDEDOR" as id,
+          MIN("NOME_VENDEDOR") as name,
+          MIN(CAST("IDEMPRESA" AS TEXT)) as "companyId"
+        FROM cache_vendas
+        WHERE "IDVENDEDOR" IS NOT NULL
+          AND "NOME_VENDEDOR" IS NOT NULL
+          AND "NOME_VENDEDOR" NOT LIKE '%SEM VENDEDOR%'
+          AND UPPER("NOME_VENDEDOR") NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%'
+        GROUP BY "IDVENDEDOR"
+        ORDER BY name
+      `);
+
+      const hiddenRows = await pgAll<{ vendorId: string }>(
+        `SELECT "vendorId" FROM vendor_display_settings WHERE "isHidden" = TRUE OR "isHidden" = 1`
+      ).catch(() => [] as { vendorId: string }[]);
+      const hiddenIds = new Set(hiddenRows.map(r => String(r.vendorId)));
+
+      return rows.map((row: any) => ({
+        id: String(row.id),
+        name: String(row.name),
+        companyId: String(row.companyId ?? "1"),
+        isHidden: hiddenIds.has(String(row.id)),
+      }));
+    } catch (err) {
+      console.error("Error getting all salespersons with visibility:", err);
+      return [];
+    }
+  }
+
+  async setVendorHidden(vendorId: string, isHidden: boolean): Promise<void> {
+    try {
+      const existing = await pgGet(
+        `SELECT id FROM vendor_display_settings WHERE "vendorId" = $1`, [vendorId]
+      );
+      if (existing) {
+        await pgRun(
+          `UPDATE vendor_display_settings SET "isHidden" = $1 WHERE "vendorId" = $2`,
+          [isHidden, vendorId]
+        );
+      } else {
+        const newId = Math.random().toString(36).substring(2, 15);
+        await pgRun(
+          `INSERT INTO vendor_display_settings (id, "vendorId", "displayCode", "displayName", "isHidden", "companyId")
+           VALUES ($1, $2, NULL, NULL, $3, NULL)`,
+          [newId, vendorId, isHidden]
+        );
+      }
+    } catch (err) {
+      console.error("Error setting vendor hidden:", err);
+      throw err;
     }
   }
 
@@ -289,8 +359,8 @@ export class PostgresStorage implements IStorage {
     return teams.find(t => t.id === id);
   }
 
-  async getSalespersons(companyId: string, teamMembers?: string[]): Promise<Salesperson[]> {
-    const all = await this.getSalespersonsFromCache(companyId);
+  async getSalespersons(companyId: string, teamMembers?: string[], showHidden = false): Promise<Salesperson[]> {
+    const all = await this.getSalespersonsFromCache(companyId, showHidden);
     if (!teamMembers || teamMembers.length === 0) return all;
     return all.filter(sp => teamMembers.some(tm => sp.name.toUpperCase().includes(tm.toUpperCase())));
   }
@@ -781,8 +851,8 @@ export class PostgresStorage implements IStorage {
     return { ...notification, id, read: false };
   }
 
-  async getSalespersonsWithStats(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<SalespersonWithStats[]> {
-    const allSalespersons = await this.getSalespersons(companyId, teamMembers);
+  async getSalespersonsWithStats(companyId: string, startDate: string, endDate: string, teamMembers?: string[], showHidden = false): Promise<SalespersonWithStats[]> {
+    const allSalespersons = await this.getSalespersons(companyId, teamMembers, showHidden);
     const rankings = await this.getRankings(companyId, startDate, endDate, "maior_valor_vendido", teamMembers);
 
     return allSalespersons.map(sp => {
@@ -1752,7 +1822,9 @@ export const storage = {
   getAlertConfigs: (cid: string) => getStorage().then(s => s.getAlertConfigs(cid)),
   updateAlertConfig: (id: string, en: boolean) => getStorage().then(s => s.updateAlertConfig(id, en)),
   createAlertNotification: (n: any) => getStorage().then(s => s.createAlertNotification(n)),
-  getSalespersonsWithStats: (cid: string, sd: string, ed: string, tm?: string[]) => getStorage().then(s => s.getSalespersonsWithStats(cid, sd, ed, tm)),
+  getSalespersonsWithStats: (cid: string, sd: string, ed: string, tm?: string[], showHidden?: boolean) => getStorage().then(s => s.getSalespersonsWithStats(cid, sd, ed, tm, showHidden)),
+  getAllSalespersonsWithVisibility: () => getStorage().then(s => s.getAllSalespersonsWithVisibility()),
+  setVendorHidden: (vid: string, hidden: boolean) => getStorage().then(s => s.setVendorHidden(vid, hidden)),
   getWeeklyView: (cid: string, sd: string, ed: string, tm?: string[]) => getStorage().then(s => s.getWeeklyView(cid, sd, ed, tm)),
   getMonthlyView: (cid: string, sd: string, ed: string, tm?: string[]) => getStorage().then(s => s.getMonthlyView(cid, sd, ed, tm)),
   getAFaturarPorVendedor: (cid: string, tm?: string[]) => getStorage().then(s => s.getAFaturarPorVendedor(cid, tm)),

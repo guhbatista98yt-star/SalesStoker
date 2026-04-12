@@ -9,9 +9,10 @@ import {
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard } from "@/components/dashboard/salesperson-card";
-import { Search, Grid3X3, List, Users } from "lucide-react";
+import { Search, Grid3X3, List, Users, Eye, EyeOff } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
+import { VendorVisibilityDialog } from "@/components/admin/vendor-visibility-dialog";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
 
 interface VendorGroup {
@@ -36,13 +37,20 @@ export default function Vendedores() {
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [showHidden, setShowHidden] = useState(false);
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
   });
 
   const { data: salespersons = [], isLoading: salespersonsLoading } = useQuery<SalespersonWithStats[]>({
-    queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate],
+    queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate, showHidden],
+    queryFn: async () => {
+      const url = `/api/salespersons/${encodeURIComponent(companyId)}/${period.startDate}/${period.endDate}${showHidden ? "?showHidden=true" : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao buscar vendedores");
+      return res.json();
+    },
   });
 
   const { data: groups = [] } = useQuery<VendorGroup[]>({
@@ -79,6 +87,7 @@ export default function Vendedores() {
   }
 
   const showGroupFilter = (isAdmin || isSupervisor) && groups.length > 0;
+  const canManageVisibility = isAdmin || isSupervisor;
 
   return (
     <div className="h-full overflow-auto">
@@ -90,6 +99,24 @@ export default function Vendedores() {
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {canManageVisibility && (
+              <VendorVisibilityDialog />
+            )}
+            {canManageVisibility && (
+              <Button
+                variant={showHidden ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => setShowHidden(v => !v)}
+                title={showHidden ? "Ocultando inativos" : "Inativos ocultos"}
+              >
+                {showHidden
+                  ? <Eye className="h-3.5 w-3.5 text-amber-500" />
+                  : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                }
+                {showHidden ? "Exibindo inativos" : "Inativos ocultos"}
+              </Button>
+            )}
             {showGroupFilter && (
               <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
                 <SelectTrigger className="h-8 text-xs w-40 gap-1.5">
