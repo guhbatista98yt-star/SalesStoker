@@ -1,0 +1,538 @@
+Quero que você faça uma revisão completa, profunda, crítica e corretiva de toda a minha aplicação, de ponta a ponta, com postura de programador sênior, atuando como se essa aplicação fosse passar por avaliação rigorosa de um engenheiro de software sênior antes de ir para produção.
+
+IMPORTANTE:
+Não quero uma análise superficial.
+Não quero apenas uma lista de sugestões.
+Não quero apenas “melhorias visuais”.
+Quero uma auditoria técnica completa com correção real dos problemas encontrados, refatoração do que estiver fraco, endurecimento da aplicação, revisão de arquitetura, revisão de UX/UI, revisão de regras de negócio e prevenção de falhas futuras.
+
+OBJETIVO:
+Revisar toda a aplicação de ponta a ponta, identificar e corrigir falhas, erros, bugs, riscos futuros, inconsistências, fragilidades de código, problemas de arquitetura, problemas de cálculo, problemas de UX/UI, problemas de responsividade, problemas de concorrência, problemas de performance e qualquer comportamento que um programador sênior condenaria.
+
+A aplicação será acessada por vários usuários ao mesmo tempo.
+Todos os dados apresentados precisam ser confiáveis.
+Não pode haver risco de resultados errados, cálculos incoerentes, estados quebrados, dados inconsistentes, falhas silenciosas ou comportamentos imprevisíveis.
+
+Quero que você revise a aplicação inteira com mentalidade de produção enterprise.
+
+============================================================
+1. POSTURA ESPERADA
+============================================================
+
+Atue como um programador sênior extremamente criterioso.
+
+Quero que você:
+- questione tudo que estiver fraco
+- refatore o que estiver mal feito
+- corrija o que estiver inconsistente
+- elimine o que estiver improvisado
+- endureça o que estiver vulnerável
+- reorganize o que estiver confuso
+- trate a aplicação como sistema real de produção
+
+Avalie o código e a aplicação como alguém experiente avaliaria:
+- qualidade de código
+- robustez
+- previsibilidade
+- manutenibilidade
+- clareza
+- escalabilidade
+- segurança
+- integridade
+- experiência do usuário
+- consistência visual
+- confiabilidade dos dados
+
+Tudo que um programador sênior não aceitaria, quero que seja corrigido ou refeito da forma correta.
+
+============================================================
+2. ESCOPO DA AUDITORIA
+============================================================
+
+Quero revisão ponta a ponta de toda a aplicação, incluindo:
+
+- frontend
+- backend
+- banco de dados
+- APIs
+- rotas
+- autenticação
+- autorização
+- páginas
+- componentes
+- formulários
+- dashboards
+- módulos de campanhas
+- módulos de comissões
+- metas
+- cards de vendedores
+- relatórios
+- filtros
+- exportações
+- responsividade
+- mobile
+- estados de erro
+- estados de loading
+- tratamento de concorrência
+- persistência
+- performance
+- integridade dos dados
+- regras de negócio
+- consistência entre telas
+
+Quero revisão completa, não parcial.
+
+============================================================
+3. CRITÉRIOS DE QUALIDADE OBRIGATÓRIOS
+============================================================
+
+A aplicação precisa ser revisada e endurecida para atender critérios como:
+
+- código limpo
+- arquitetura coerente
+- separação de responsabilidades
+- ausência de lógica duplicada
+- ausência de hardcode indevido
+- nomes claros
+- baixa fragilidade
+- tratamento correto de erros
+- validações fortes
+- dados consistentes
+- cálculo correto
+- responsividade real
+- visual profissional
+- UX clara
+- boa performance
+- manutenibilidade
+- previsibilidade
+- escalabilidade futura
+
+============================================================
+4. AUDITORIA DE CÓDIGO
+============================================================
+
+Revise o código inteiro procurando e corrigindo:
+
+- duplicação de lógica
+- funções grandes demais
+- componentes confusos
+- acoplamento excessivo
+- falta de tipagem adequada
+- nomes ruins
+- validações fracas
+- tratamento de erro insuficiente
+- estados mal controlados
+- efeitos colaterais perigosos
+- código morto
+- código improvisado
+- trechos inseguros
+- trechos frágeis
+- dependências mal usadas
+- fluxos difíceis de manter
+- lógica espalhada em lugares errados
+- regra de negócio no frontend quando deveria estar no backend
+- cálculos sensíveis em local inadequado
+
+Quero refatoração onde necessário, não apenas comentário.
+
+============================================================
+5. REVISÃO DE ARQUITETURA
+============================================================
+
+Avalie a arquitetura geral da aplicação.
+
+Corrija ou melhore se houver:
+- serviços mal separados
+- responsabilidades misturadas
+- regras de negócio espalhadas
+- componentes gigantes
+- falta de camada clara entre UI, regras e dados
+- endpoints fracos
+- falta de padronização
+- dependência excessiva entre módulos
+- acoplamento entre telas
+- falta de centralização de regras críticas
+
+Quero arquitetura mais robusta, previsível e profissional.
+
+============================================================
+6. DADOS E INTEGRIDADE — PRIORIDADE MÁXIMA
+============================================================
+
+Os dados exibidos para os usuários precisam ser extremamente confiáveis.
+
+Revise e corrija qualquer risco de:
+- dado inconsistente
+- resultado diferente entre telas
+- cálculo divergente entre dashboard e relatório
+- atualização incompleta
+- gravação parcial
+- duplicidade
+- perda de integridade
+- filtros errados
+- valores nulos causando erro
+- divisão por zero
+- arredondamento incorreto
+- base de cálculo incorreta
+- falta de sincronização
+- dado antigo sendo mostrado como atual
+- persistência incorreta
+- registros inválidos sendo criados
+
+Quero integridade forte dos dados.
+
+============================================================
+7. CONCORRÊNCIA E ACESSO SIMULTÂNEO
+============================================================
+
+A aplicação será acessada por vários usuários ao mesmo tempo.
+
+Revise e trate problemas como:
+- duplo clique em ações críticas
+- duas gravações simultâneas
+- edição simultânea
+- sobrescrita indevida
+- inconsistência por acesso concorrente
+- refresh com estado desatualizado
+- corrida entre leitura e gravação
+- dados em tela diferentes do banco
+- cache incorreto
+- dados parcialmente atualizados
+- conflito entre sessões
+
+Quero que os fluxos críticos fiquem resilientes em uso real.
+
+============================================================
+8. CAMPANHAS, METAS E COMISSÕES — CRÍTICO
+============================================================
+
+Os módulos de campanhas, metas e comissões são críticos e precisam de revisão severa.
+
+Validar e corrigir:
+- criação de campanha
+- edição
+- ativação
+- pausa
+- encerramento
+- versionamento
+- regras
+- gatilhos
+- metas
+- ranking
+- comissão
+- premiação
+- memória de cálculo
+- relatórios
+- dashboards de vendedor
+- dashboards de supervisor
+- dashboards administrativos
+
+Verifique se existem falhas como:
+- regra contraditória
+- cálculo incorreto
+- base errada
+- conflito entre campanhas
+- meta mal apurada
+- comissão indevida
+- ranking inconsistente
+- vendedor vendo resultado diferente do gestor
+- dashboard mostrando número diferente do relatório
+- exportação divergente do sistema
+- campanha ativa editável sem controle
+- resultado incorreto por filtro ou período
+
+Quero regras fortes, auditáveis e confiáveis.
+
+============================================================
+9. DASHBOARDS E CARDS
+============================================================
+
+Revise todos os dashboards e cards da aplicação.
+
+Corrigir qualquer problema de:
+- hierarquia ruim
+- valor errado
+- percentual errado
+- labels confusas
+- métrica mal nomeada
+- cálculo inconsistente
+- gráfico sem coerência
+- excesso de informação
+- informação faltando
+- card sem utilidade real
+- baixa clareza gerencial
+- atualização incorreta
+- visual fraco
+
+Quero dashboards realmente confiáveis, claros e profissionais.
+
+============================================================
+10. FORMULÁRIOS E ENTRADA DE DADOS
+============================================================
+
+Revisar todos os formulários do sistema.
+
+Corrigir:
+- validações ausentes
+- mensagens ruins
+- submit duplicado
+- campos inconsistentes
+- obrigatoriedade incorreta
+- tipos incorretos
+- placeholders ruins
+- labels ruins
+- falta de feedback
+- loading ausente
+- falha silenciosa
+- erro sem explicação
+- gravação de informação inválida
+- possibilidade de criar configuração quebrada
+
+Quero formulários maduros, seguros e claros.
+
+============================================================
+11. UX/UI — REVISÃO COMPLETA
+============================================================
+
+Revisar toda a interface para garantir padrão premium e profissional.
+
+Corrigir:
+- telas simples demais
+- desalinhamentos
+- hierarquia fraca
+- excesso de espaço vazio sem propósito
+- cards genéricos
+- tabelas secas
+- formulários pobres
+- contraste ruim
+- botões mal resolvidos
+- excesso ou falta de respiro
+- bordas inconsistentes
+- iconografia ruim
+- estados visuais fracos
+- elementos que pareçam amadores
+- telas que não acompanhem o redesign principal
+
+Quero consistência visual total na aplicação inteira.
+
+============================================================
+12. RESPONSIVIDADE E MOBILE — MÁXIMA PRIORIDADE
+============================================================
+
+A aplicação inteira deve ser revisada em múltiplas resoluções de tela.
+
+Quero revisão completa em:
+- desktop grande
+- notebook
+- tablet
+- celular pequeno
+- celular médio
+- celular grande
+
+Corrigir qualquer problema como:
+- card saindo da tela
+- texto quebrado
+- botão cortado
+- elemento sobreposto
+- barra de progresso estourando
+- sidebar ruim em mobile
+- tabela ilegível
+- modal grande demais
+- filtros quebrados
+- scroll lateral desnecessário
+- ranking ilegível
+- hero mal adaptado
+- formulário ruim no toque
+- botões pequenos demais
+- espaçamento ruim
+- layout fora de esquadro
+
+Quero responsividade real, não superficial.
+
+============================================================
+13. EXPERIÊNCIA MOBILE
+============================================================
+
+No mobile, a aplicação precisa ser funcional, clara e fácil de usar.
+
+Revisar telas principais como:
+- login
+- dashboard
+- campanhas
+- criação de campanha
+- tela do vendedor
+- dashboard do supervisor
+- relatórios
+- comissões
+- configurações
+
+Garantir:
+- leitura boa
+- toque confortável
+- cards bem empilhados
+- sem poluição
+- sem estouro horizontal
+- filtros recolhíveis
+- tabelas adaptadas
+- layout compacto e útil
+- navegação intuitiva
+
+============================================================
+14. PERFORMANCE
+============================================================
+
+Revisar performance geral da aplicação.
+
+Corrigir ou otimizar:
+- queries lentas
+- render desnecessário
+- carregamentos pesados
+- páginas lentas
+- componentes pesados
+- cálculos repetidos indevidamente
+- filtros ineficientes
+- loops
+- atualizações excessivas
+- reprocessamentos desnecessários
+- gargalos em dashboards
+- gargalos em listas grandes
+- gargalos em relatórios
+
+Quero bom desempenho com volume real de uso.
+
+============================================================
+15. SEGURANÇA E GOVERNANÇA
+============================================================
+
+Revise e fortaleça:
+- autenticação
+- autorização
+- proteção de rotas
+- perfis de acesso
+- ações críticas
+- edição de regras
+- alteração de campanhas
+- alteração de comissão
+- exportação de dados
+- auditoria
+- logs de ações importantes
+
+Verifique se existe qualquer comportamento que permita:
+- acesso indevido
+- edição indevida
+- inconsistência sem rastreio
+- alteração sem controle
+- ação crítica sem proteção
+
+============================================================
+16. RELATÓRIOS, EXPORTAÇÕES E CONSISTÊNCIA
+============================================================
+
+Revise todos os relatórios e exportações.
+
+Corrigir se houver:
+- divergência entre tela e exportação
+- colunas erradas
+- filtros não respeitados
+- totais incorretos
+- agrupamentos errados
+- dados ausentes
+- memória de cálculo divergente
+- dashboards diferentes dos relatórios
+- valores truncados incorretamente
+- arredondamento indevido
+
+Tudo que sair da aplicação precisa ser confiável.
+
+============================================================
+17. TESTES E CENÁRIOS CRÍTICOS
+============================================================
+
+Quero que você valide criticamente cenários como:
+
+- múltiplos usuários ao mesmo tempo
+- login e sessão
+- criação e edição de campanha
+- campanha ativa e pausada
+- campanha futura e encerrada
+- meta semanal
+- meta mensal
+- ranking
+- comissão
+- vendedor elegível
+- vendedor não elegível
+- supervisor acompanhando equipe
+- dashboards com filtros
+- exportações
+- mobile
+- erro de rede
+- valores nulos
+- dados zerados
+- campos faltando
+- estados intermediários
+- navegação entre telas
+- carregamento parcial
+
+Quero correção dos problemas encontrados.
+
+============================================================
+18. O QUE NÃO ACEITO
+============================================================
+
+Não quero:
+- apenas diagnóstico
+- apenas comentário
+- apenas redesign superficial
+- apenas sugestões genéricas
+- resultado bonito mas frágil
+- cálculo bonito mas incorreto
+- tela funcionando só em desktop
+- código improvisado
+- regra ambígua
+- falha silenciosa
+- inconsistência entre módulos
+- dados errados em produção
+- comportamento que um programador sênior condenaria
+
+============================================================
+19. O QUE ESPERO COMO ENTREGA
+============================================================
+
+Quero que você:
+
+1. audite toda a aplicação de ponta a ponta
+2. identifique todos os pontos fracos relevantes
+3. corrija bugs, falhas, inconsistências e fragilidades
+4. refatore o que estiver abaixo do nível profissional
+5. reforce arquitetura e regras críticas
+6. melhore a confiabilidade dos dados
+7. valide campanhas, metas, comissões, dashboards e relatórios
+8. revise e ajuste toda a responsividade
+9. revise toda a UX/UI
+10. elimine riscos operacionais
+11. endureça a aplicação para uso real com vários usuários
+12. deixe a aplicação no nível que um programador sênior não condenaria
+
+============================================================
+20. CHECKLIST FINAL OBRIGATÓRIO
+============================================================
+
+Antes de considerar concluído, me entregue um checklist final claro contendo:
+
+- bugs encontrados
+- bugs corrigidos
+- fragilidades encontradas
+- fragilidades corrigidas
+- módulos revisados
+- telas revisadas
+- cálculos revisados
+- dashboards revisados
+- relatórios revisados
+- responsividade validada
+- mobile validado
+- riscos mitigados
+- pontos que ainda exigem atenção, se houver
+
+Se houver qualquer ponto que ainda não possa ser garantido com segurança, sinalize com honestidade.
+Não quero falsa sensação de estabilidade.
+Quero revisão séria, madura e confiável.

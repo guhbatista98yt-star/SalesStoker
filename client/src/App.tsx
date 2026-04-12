@@ -23,7 +23,7 @@ import { DialogTitle } from "@/components/ui/dialog";
 import {
   LogOut, Loader2, KeyRound, LayoutDashboard, Users, Target, Bell,
   BarChart3, Settings, ChevronDown, Search, CalendarDays, CalendarRange,
-  Store, AlertTriangle, Megaphone, BookOpen,
+  Store, AlertTriangle, Megaphone, BookOpen, DollarSign,
 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/change-password-dialog";
 import NotFound from "@/pages/not-found";
@@ -41,6 +41,8 @@ import MetasVendedorIndex from "@/pages/metas-vendedor/index";
 import CampanhasList from "@/pages/campanhas/index";
 import CampaignForm from "@/pages/campanhas/form";
 import CampaignView from "@/pages/campanhas/view";
+import Comissoes from "@/pages/comissoes/index";
+import ConfigurarComissoes from "@/pages/comissoes/configurar";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +93,8 @@ function Router() {
       <Route path="/campanhas/nova" component={() => <CampaignForm />} />
       <Route path="/campanhas/:id/editar" component={(params: { id: string }) => <CampaignForm campaignId={params.id} />} />
       <Route path="/campanhas/:id" component={(params: { id: string }) => <CampaignView campaignId={params.id} />} />
+      <Route path="/comissoes" component={Comissoes} />
+      <Route path="/comissoes/configurar" component={ConfigurarComissoes} />
       {(role === "admin" || role === "supervisor") && (
         <>
           <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
@@ -183,6 +187,7 @@ function CommandPalette() {
     { label: "Visão Semanal",   href: "/semanal",     icon: CalendarDays },
     { label: "Visão Mensal",    href: "/mensal",      icon: CalendarRange },
     { label: "Campanhas",       href: "/campanhas",   icon: Megaphone },
+    { label: "Comissões",       href: "/comissoes",   icon: DollarSign },
     { label: "Configurações",   href: "/configuracoes", icon: Settings },
   ];
 

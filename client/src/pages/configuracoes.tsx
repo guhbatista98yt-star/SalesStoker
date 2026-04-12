@@ -102,6 +102,7 @@ const ALL_MODULES = [
   "Visão Mensal",
   "Visão em Loja",
   "Campanhas",
+  "Comissões",
 ] as const;
 
 interface UserWithPermissions {

@@ -1,0 +1,274 @@
+Quero que você projete e implemente um módulo de comissões inteligente, altamente personalizável, auditável e com padrão enterprise, pensado para operação comercial real.
+
+CONTEXTO:
+Hoje nossa comissão é baseada principalmente em metas semanais e mensais.
+Exemplo atual:
+- se o vendedor bate as semanas, ganha um adicional
+- se bate o mês, ganha percentual maior
+- hoje isso gira em torno de algo como 1% no mês batido, com reforço pelas semanas
+
+Porém esse modelo está simples demais e pouco estratégico.
+Quero evoluir para um sistema de comissão muito mais inteligente, capaz de direcionar comportamento comercial e permitir gestão real.
+
+OBJETIVO:
+Criar um módulo de comissões configurável que permita calcular e acompanhar comissão com base em:
+- meta semanal
+- meta mensal
+- superação de meta
+- tipo de produto
+- segmento
+- fornecedor
+- categoria
+- grupo de produtos
+- mix
+- margem
+- desconto
+- campanhas
+- ranking
+- crescimento
+- regras híbridas
+
+Quero que você atue como um programador sênior especializado em sistemas de comissão comercial.
+
+============================================================
+1. ARQUITETURA DO MÓDULO
+============================================================
+
+Quero um motor de comissão em camadas:
+
+Camada 1 — Comissão Base Mensal
+Camada 2 — Bônus por Meta Semanal
+Camada 3 — Aceleradores por Superação
+Camada 4 — Bônus Estratégico por Fornecedor / Segmento / Produto
+Camada 5 — Bônus de Mix
+Camada 6 — Travas e Redutores
+Camada 7 — Campanhas Especiais
+Camada 8 — Dashboard, Memória de Cálculo e Auditoria
+
+Esse motor precisa ser configurável, sem hardcode.
+
+============================================================
+2. MODELO DE REGRA INICIAL QUE QUERO SUPORTAR
+============================================================
+
+Quero que o sistema suporte esta lógica inicial como referência real:
+
+COMISSÃO BASE MENSAL:
+- abaixo de 85% da meta = 0,00%
+- 85% a 94,99% = 0,35%
+- 95% a 99,99% = 0,60%
+- 100% a 109,99% = 1,00%
+- 110% a 119,99% = 1,20%
+- 120% ou mais = 1,50%
+
+BÔNUS SEMANAL:
+- cada semana batida = +0,05%
+- se bater todas as semanas do mês = +0,15% adicional
+
+BÔNUS ESTRATÉGICO:
+- fornecedor estratégico configurável = adicional percentual sobre a venda elegível
+- segmento estratégico configurável = adicional percentual sobre a venda elegível
+- linha/produto foco configurável = adicional percentual ou bônus fixo
+
+BÔNUS DE MIX:
+- atingir mix mínimo de famílias, grupos ou SKUs estratégicos libera bônus configurável
+
+TRAVAS / REDUTORES:
+- margem abaixo do piso reduz ou bloqueia extras
+- desconto acima do limite corta adicional daquela venda
+- devolução/cancelamento abate da base
+- itens não elegíveis não podem gerar bônus indevido
+
+============================================================
+3. REGRAS QUE PRECISAM SER CONFIGURÁVEIS
+============================================================
+
+Quero criar regras como:
+- comissão por meta mensal
+- comissão por meta semanal
+- adicional por todas as semanas batidas
+- comissão por fornecedor
+- comissão por segmento
+- comissão por categoria
+- comissão por grupo de produtos
+- comissão por produto específico
+- comissão por faixa de faturamento
+- comissão por faixa de quantidade
+- comissão por mix
+- comissão por margem
+- comissão por campanha temporária
+- comissão por ranking
+- comissão híbrida com várias regras combinadas
+
+Também quero suporte a:
+- percentuais
+- valores fixos
+- aceleradores
+- multiplicadores
+- travas
+- redutores
+- teto máximo
+- piso mínimo
+- prioridade e acumulação de regras
+
+============================================================
+4. TELA DE CONFIGURAÇÃO
+============================================================
+
+Quero uma tela de configuração do módulo com blocos como:
+- Dados Gerais
+- Público-Alvo
+- Base de Aplicação
+- Critério de Elegibilidade
+- Critério de Cálculo
+- Critério de Pagamento
+- Faixas e Aceleradores
+- Travas e Redutores
+- Simulação
+- Auditoria
+
+============================================================
+5. BASES DE CÁLCULO
+============================================================
+
+Quero separar claramente:
+- base de venda total
+- base de venda elegível
+- base estratégica por fornecedor
+- base estratégica por segmento
+- base de mix
+- base de campanhas
+- base líquida após devolução/cancelamento
+- base final de pagamento
+
+Essas bases precisam ser independentes e auditáveis.
+
+============================================================
+6. DASHBOARD DO VENDEDOR
+============================================================
+
+Quero tela premium para o vendedor acompanhar:
+- comissão projetada
+- comissão confirmada
+- meta semanal
+- meta mensal
+- semanas batidas
+- quanto falta para próxima faixa
+- venda por fornecedor foco
+- venda por segmento foco
+- progresso do mix
+- margem média
+- desconto médio
+- bônus desbloqueados
+- travas ativas
+- memória de cálculo resumida
+
+Quero cards, barras de progresso e status em tempo real.
+
+============================================================
+7. DASHBOARD GERENCIAL
+============================================================
+
+Quero dashboard para supervisor/administrador com:
+- comissão total projetada da equipe
+- comissão total confirmada
+- ranking de vendedores
+- ranking por comissão
+- ranking por meta
+- desempenho por fornecedor
+- desempenho por segmento
+- margem média por vendedor
+- desconto médio por vendedor
+- vendedores quase mudando de faixa
+- vendedores com travas
+- projeção semanal e mensal
+- impacto financeiro total da comissão
+- alertas de inconsistência
+- filtros completos
+
+============================================================
+8. MEMÓRIA DE CÁLCULO
+============================================================
+
+Toda comissão deve ter memória de cálculo clara.
+
+Exemplo do que quero explicar:
+- percentual de meta mensal atingido
+- semanas batidas
+- faixa aplicada
+- base líquida usada
+- valor por fornecedor/segmento que contou
+- bônus aplicados
+- redutores aplicados
+- comissão final
+- motivo do valor final
+
+Sem memória de cálculo, não considerar concluído.
+
+============================================================
+9. RELATÓRIOS
+============================================================
+
+Quero relatórios completos:
+- geral de comissão
+- por vendedor
+- por fornecedor
+- por segmento
+- por categoria
+- por regra
+- analítico por produto
+- memória de cálculo
+- projeção gerencial
+- exportação Excel/CSV/PDF
+
+============================================================
+10. BOAS PRÁTICAS DE NEGÓCIO
+============================================================
+
+Além da implementação, quero que você proponha a melhor lógica comercial possível para:
+- incentivar resultado semanal e mensal
+- premiar fornecedor e segmento estratégico
+- melhorar mix
+- proteger margem
+- controlar desconto
+- evitar distorções
+- manter o sistema justo
+- manter o sistema sustentável para a empresa
+
+============================================================
+11. TESTES E VALIDAÇÃO
+============================================================
+
+Quero testes cobrindo:
+- meta semanal
+- meta mensal
+- todas as semanas batidas
+- fornecedor estratégico
+- segmento estratégico
+- produto foco
+- mix
+- aceleradores
+- travas
+- redutores
+- margem
+- desconto
+- devolução/cancelamento
+- dashboards
+- memória de cálculo
+- relatórios
+- exportação
+
+============================================================
+12. ENTREGA ESPERADA
+============================================================
+
+Quero que você:
+1. projete a melhor arquitetura para o módulo
+2. implemente um sistema de comissão configurável e forte
+3. proponha regras comerciais inteligentes
+4. crie dashboards de vendedor e gestor
+5. crie memória de cálculo
+6. crie relatórios
+7. crie simulação
+8. garanta consistência e auditoria
+9. entregue padrão enterprise, pronto para crescer

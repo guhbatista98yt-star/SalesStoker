@@ -5,6 +5,8 @@ import type { RankingCriteria } from "@shared/schema";
 import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth";
 import campaignRoutes from "./campaigns/routes";
 import { initCampaignTables } from "./campaigns/init";
+import { initCommissionTables } from "./commissions/init";
+import { registerCommissionRoutes } from "./commissions/routes";
 import { startAlertEngine } from "./alert-engine";
 import { db } from "./db";
 import { pgAll } from "./pg-client";
@@ -40,6 +42,8 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   await initCampaignTables();
+  await initCommissionTables();
+  registerCommissionRoutes(app);
   startAlertEngine();
 
   app.use("/api/auth", createAuthRouter());

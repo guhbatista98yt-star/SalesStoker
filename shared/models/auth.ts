@@ -25,4 +25,5 @@ export const DEFAULT_MODULE_PERMISSIONS: Record<string, boolean> = {
   "Visão Mensal": true,
   "Visão em Loja": true,
   Campanhas: true,
+  Comissões: true,
 };

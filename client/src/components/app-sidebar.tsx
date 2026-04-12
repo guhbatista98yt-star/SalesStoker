@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp,
-  Store, PaintBucket, Calendar, Megaphone, LineChart,
+  Store, PaintBucket, Calendar, Megaphone, LineChart, DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ const analysisItems = [
   { title: "Visão Semanal", url: "/semanal",                    icon: BarChart3 },
   { title: "Visão Mensal",  url: "/mensal",                     icon: TrendingUp },
   { title: "Visão em Loja", url: "/analises/visao-em-loja",     icon: Store },
+  { title: "Comissões",     url: "/comissoes",                  icon: DollarSign },
 ];
 
 const campaignVendedorItems = [
@@ -29,6 +30,7 @@ const campaignVendedorItems = [
   { title: "DTR Amanco",     url: "/metas-vendedor/dtr-amanco",     icon: TrendingUp },
   { title: "TV Amanco",      url: "/metas-vendedor/tv-amanco",      icon: Calendar },
   { title: "Tintas Elit",    url: "/metas-vendedor/tintas-elit",    icon: PaintBucket },
+  { title: "Comissões",      url: "/comissoes",                     icon: DollarSign },
 ];
 
 function NavItem({ item, active }: { item: { title: string; url: string; icon: any }; active: boolean }) {

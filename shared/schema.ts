@@ -2,6 +2,67 @@ export * from "./models/auth";
 
 export type UserRole = "supervisor" | "gerente" | "diretor";
 
+export interface CommissionThreshold {
+  from: number;
+  to: number;
+  rate: number;
+}
+
+export interface CommissionRuleConfig {
+  thresholds?: CommissionThreshold[];
+  rate?: number;
+  target?: string;
+  targetType?: "supplier" | "product" | "segment" | "category";
+  triggerFrom?: number;
+  condition?: string;
+  reduceRate?: number;
+  minMixFamilies?: number;
+}
+
+export interface CommissionRule {
+  id: string;
+  name: string;
+  description: string | null;
+  type: "base_monthly" | "weekly_bonus" | "weekly_all_bonus" | "strategic" | "accelerator" | "mix" | "reducer";
+  is_active: number;
+  priority: number;
+  applies_to: string;
+  config: CommissionRuleConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommissionCalculationStep {
+  layer: number;
+  name: string;
+  ruleId: string | null;
+  base: number;
+  rate: number;
+  amount: number;
+  detail: string;
+}
+
+export interface CommissionResult {
+  salespersonId: string;
+  salespersonName: string;
+  month: number;
+  year: number;
+  companyId: string;
+  netSales: number;
+  eligibleSales: number;
+  goalMonthly: number;
+  goalAchievement: number;
+  weeksTotal: number;
+  weeksAchieved: number;
+  baseAmount: number;
+  bonusAmount: number;
+  strategicAmount: number;
+  deductions: number;
+  totalAmount: number;
+  steps: CommissionCalculationStep[];
+  summary: string;
+}
+
 export interface Company {
   id: string;
   name: string;
