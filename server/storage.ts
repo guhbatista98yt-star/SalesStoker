@@ -156,9 +156,9 @@ export class PostgresStorage implements IStorage {
 
   // Company name/CNPJ lookup — update via Configurações or this mapping:
   private static COMPANY_MAP: Record<string, { name: string; cnpj: string }> = {
-    "1": { name: "Conectubos",        cnpj: "" },
-    "2": { name: "Conectubos",        cnpj: "" },
-    "3": { name: "Conectubos Filial", cnpj: "" },
+    "1": { name: "Conectubos Atacarejo da Construção", cnpj: "05.443.069/0001-03" },
+    "2": { name: "D & C Comercial",                   cnpj: "05.443.069/0002-94" },
+    "3": { name: "Conectubos",                         cnpj: "52.846.814/0001-45" },
   };
 
   private async getCompaniesFromCache(): Promise<Company[]> {
