@@ -5,7 +5,7 @@ import {
   Legend, Line, ComposedChart, Area, AreaChart,
 } from "recharts";
 import { BarChart3, TrendingUp } from "lucide-react";
-import { formatCurrency, formatCurrencyCompact } from "@/lib/calendar-utils";
+import { formatCurrency } from "@/lib/calendar-utils";
 
 interface SalesChartData {
   label: string;
@@ -34,7 +34,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             <span className="inline-block w-2 h-2 rounded-full" style={{ background: entry.color }} />
             {entry.name}
           </span>
-          <span className="text-xs font-semibold text-foreground" title={formatCurrency(entry.value)}>{formatCurrencyCompact(entry.value)}</span>
+          <span className="text-xs font-semibold text-foreground">{formatCurrency(entry.value)}</span>
         </div>
       ))}
     </div>
@@ -62,7 +62,7 @@ function SalesBarChart({ data }: { data: SalesChartData[] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-baseline gap-2 px-0.5">
-        <span className="text-2xl font-bold tracking-tight tabular-nums" title={formatCurrency(total)}>{formatCurrencyCompact(total)}</span>
+        <span className="text-2xl font-bold tracking-tight tabular-nums">{formatCurrency(total)}</span>
         <TrendingUp className="h-4 w-4 text-emerald-500" />
       </div>
       <div className="h-[260px]">

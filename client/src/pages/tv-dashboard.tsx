@@ -162,7 +162,7 @@ export default function TVDashboard() {
                                         {vendor.achievement.toFixed(1)}%
                                     </span>
                                     <span className="text-xs text-zinc-400">
-                                        Meta: {new Intl.NumberFormat('pt-BR', { notation: "compact", compactDisplay: "short", style: 'currency', currency: 'BRL' }).format(vendor.goal.value)}
+                                        Meta: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(vendor.goal.value)}
                                     </span>
                                 </div>
 
@@ -186,10 +186,10 @@ export default function TVDashboard() {
                                 <div className="mt-2 flex justify-between text-xs text-zinc-500">
                                     <div className="flex items-center gap-1">
                                         <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                                        <span>{new Intl.NumberFormat('pt-BR', { notation: "compact", style: 'currency', currency: 'BRL' }).format(vendor.sales.loja01)}</span>
+                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(vendor.sales.loja01)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                        <span className="text-right">{new Intl.NumberFormat('pt-BR', { notation: "compact", style: 'currency', currency: 'BRL' }).format(vendor.sales.loja03)}</span>
+                                        <span className="text-right">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(vendor.sales.loja03)}</span>
                                         <div className="w-2 h-2 rounded-full bg-red-600"></div>
                                     </div>
                                 </div>
