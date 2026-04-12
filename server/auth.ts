@@ -116,7 +116,6 @@ async function seedSalespersonUsers() {
 }
 
 seedDefaultUsers().catch(console.error);
-seedSalespersonUsers().catch(console.error);
 
 function buildUserResponse(user: any, modulePermissions: Record<string, boolean>) {
   return {
