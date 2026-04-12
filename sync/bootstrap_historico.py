@@ -40,6 +40,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(__file__))
 from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS  # noqa: E402
+from erp_sync import _fix_monetary                            # noqa: E402
 
 load_dotenv()
 
@@ -332,12 +333,19 @@ def _sync_vendas_mes(
             'DELETE FROM cache_vendas WHERE "DT_MOVIMENTO" >= %s AND "DT_MOVIMENTO" <= %s',
             (inicio, fim),
         )
+        # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
+        #          IDPLANILHA[3] DT_MOVIMENTO[4] TOTALVENDA_LINHA[5]
         if rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 'INSERT INTO cache_vendas ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",'
                 '"IDPLANILHA","DT_MOVIMENTO","TOTALVENDA_LINHA",synced_at) VALUES %s',
-                [(*r, datetime.now(timezone.utc)) for r in rows],
+                [
+                    (r[0], r[1], r[2], r[3], r[4],
+                     _fix_monetary(r[5]),
+                     datetime.now(timezone.utc))
+                    for r in rows
+                ],
                 page_size=BATCH_SIZE,
             )
     pg.commit()
@@ -362,12 +370,19 @@ def _sync_campanhas_mes(
             'DELETE FROM cache_campanhas WHERE "DTMOVIMENTO" >= %s AND "DTMOVIMENTO" <= %s',
             (inicio, fim),
         )
+        # Columns: IDVENDEDOR[0] NOMEVENDEDOR[1] IDPRODUTO[2] FABRICANTE[3]
+        #          VALOR_LIQUIDO[4] QTD[5] DTMOVIMENTO[6]
         if rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 'INSERT INTO cache_campanhas ("IDVENDEDOR","NOMEVENDEDOR","IDPRODUTO",'
                 '"FABRICANTE","VALOR_LIQUIDO","QTD","DTMOVIMENTO",synced_at) VALUES %s',
-                [(*r, datetime.now(timezone.utc)) for r in rows],
+                [
+                    (r[0], r[1], r[2], r[3],
+                     _fix_monetary(r[4]), _fix_monetary(r[5]),
+                     r[6], datetime.now(timezone.utc))
+                    for r in rows
+                ],
                 page_size=BATCH_SIZE,
             )
     pg.commit()
@@ -393,12 +408,19 @@ def _sync_tubos_mes(
             'WHERE "DT_MOVIMENTO" >= %s AND "DT_MOVIMENTO" <= %s',
             (inicio, fim),
         )
+        # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
+        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4]
         if rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 'INSERT INTO cache_tubos_conexoes ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",'
                 '"DT_MOVIMENTO","TOTALVENDA_LINHA",synced_at) VALUES %s',
-                [(*r, datetime.now(timezone.utc)) for r in rows],
+                [
+                    (r[0], r[1], r[2], r[3],
+                     _fix_monetary(r[4]),
+                     datetime.now(timezone.utc))
+                    for r in rows
+                ],
                 page_size=BATCH_SIZE,
             )
     pg.commit()

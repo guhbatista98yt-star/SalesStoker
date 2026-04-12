@@ -6,6 +6,19 @@ All queries:
   - Filter WITH UR (uncommitted read) — no shared locks on ERP pages
   - Take exactly two positional parameters: (date_from, date_to) as date objects
   - Assume current schema is already set to DBA on the connection
+
+DECIMAL → DOUBLE fix
+─────────────────────
+DB2's ODBC driver returns DECIMAL(x,6) columns as raw unscaled integers
+(e.g. 407703.54 comes back as 407703540000).  Multiplying by 1E0 forces the
+expression to DOUBLE, which pyodbc always returns as a Python float with the
+decimal point in the correct position.  This is applied to every monetary
+column (VALTOTLIQUIDO, VALLUCRO, QTDPRODUTO) across all queries.
+
+NOTAS join fix
+──────────────
+Replaced INNER JOIN DBA.NOTAS with EXISTS to avoid row-multiplication when
+a planilha has multiple NF records (complement notes, partials, etc.).
 """
 
 # ─── Vendas (sales movements) ─────────────────────────────────────────────────
@@ -20,8 +33,8 @@ SELECT
     CAST(EA.IDPLANILHA AS VARCHAR(50))                                  AS IDPLANILHA,
     DATE(NES_H.DTMOVIMENTO)                                             AS DT_MOVIMENTO,
     COALESCE(CASE WHEN OI.TIPOMOVIMENTO = 'E'
-                  THEN EA.VALTOTLIQUIDO * -1
-                  ELSE EA.VALTOTLIQUIDO END, 0)                         AS TOTALVENDA_LINHA
+                  THEN EA.VALTOTLIQUIDO * -1E0
+                  ELSE EA.VALTOTLIQUIDO * 1E0 END, 0E0)                AS TOTALVENDA_LINHA
 FROM DBA.ESTOQUE_ANALITICO EA
 LEFT JOIN DBA.CLIENTE_FORNECEDOR VEN ON VEN.IDCLIFOR = EA.IDVENDEDOR
 INNER JOIN (
@@ -63,11 +76,11 @@ SELECT
     CAST(EA.IDPRODUTO AS VARCHAR(50))                                   AS IDPRODUTO,
     CAST(COALESCE(PRD.FABRICANTE, 'SEM FABRICANTE') AS VARCHAR(120))    AS FABRICANTE,
     COALESCE(CASE WHEN OI.TIPOMOVIMENTO = 'E'
-                  THEN EA.VALTOTLIQUIDO * -1
-                  ELSE EA.VALTOTLIQUIDO END, 0)                         AS VALOR_LIQUIDO,
+                  THEN EA.VALTOTLIQUIDO * -1E0
+                  ELSE EA.VALTOTLIQUIDO * 1E0 END, 0E0)                AS VALOR_LIQUIDO,
     COALESCE(CASE WHEN OI.TIPOMOVIMENTO = 'E'
-                  THEN EA.QTDPRODUTO * -1
-                  ELSE EA.QTDPRODUTO END, 0)                            AS QTD,
+                  THEN EA.QTDPRODUTO * -1E0
+                  ELSE EA.QTDPRODUTO * 1E0 END, 0E0)                   AS QTD,
     DATE(NES_H.DTMOVIMENTO)                                             AS DTMOVIMENTO
 FROM DBA.ESTOQUE_ANALITICO EA
 LEFT JOIN DBA.CLIENTE_FORNECEDOR VEN ON VEN.IDCLIFOR = EA.IDVENDEDOR
@@ -111,8 +124,8 @@ SELECT
     CAST(EA.IDEMPRESA AS INTEGER)                                       AS IDEMPRESA,
     DATE(NES_H.DTMOVIMENTO)                                             AS DT_MOVIMENTO,
     COALESCE(CASE WHEN OI.TIPOMOVIMENTO = 'E'
-                  THEN EA.VALTOTLIQUIDO * -1
-                  ELSE EA.VALTOTLIQUIDO END, 0)                         AS TOTALVENDA_LINHA
+                  THEN EA.VALTOTLIQUIDO * -1E0
+                  ELSE EA.VALTOTLIQUIDO * 1E0 END, 0E0)                AS TOTALVENDA_LINHA
 FROM DBA.ESTOQUE_ANALITICO EA
 LEFT JOIN DBA.CLIENTE_FORNECEDOR VEN ON VEN.IDCLIFOR = EA.IDVENDEDOR
 LEFT JOIN DBA.PRODUTO            PRD ON PRD.IDPRODUTO = EA.IDPRODUTO
@@ -158,25 +171,29 @@ SELECT
     CAST(EA.IDEMPRESA AS INTEGER)                                       AS IDEMPRESA,
     COALESCE(SUM(
         CASE WHEN OI.TIPOMOVIMENTO = 'E'
-             THEN EA.VALTOTLIQUIDO * -1
-             ELSE EA.VALTOTLIQUIDO END
-    ), 0)                                                               AS TOTALVENDA_LINHA
+             THEN EA.VALTOTLIQUIDO * -1E0
+             ELSE EA.VALTOTLIQUIDO * 1E0 END
+    ), 0E0)                                                             AS TOTALVENDA_LINHA
 FROM DBA.ESTOQUE_ANALITICO EA
-LEFT JOIN DBA.CLIENTE_FORNECEDOR VEN ON VEN.IDCLIFOR = EA.IDVENDEDOR,
-     DBA.NOTAS N,
-     DBA.NOTAS_ENTRADA_SAIDA NES,
-     DBA.OPERACAO_INTERNA OI
+LEFT JOIN DBA.CLIENTE_FORNECEDOR VEN ON VEN.IDCLIFOR = EA.IDVENDEDOR
+INNER JOIN DBA.NOTAS_ENTRADA_SAIDA NES
+    ON  NES.IDEMPRESA  = EA.IDEMPRESA
+    AND NES.IDPLANILHA = EA.IDPLANILHA
+    AND NES.IDOPERACAO = EA.IDOPERACAO
+INNER JOIN DBA.OPERACAO_INTERNA OI
+    ON  OI.IDOPERACAO      = NES.IDOPERACAO
+    AND OI.FLAGMOVPRODUTOS = 'T'
+    AND OI.TIPOMOVIMENTO   = 'P'
 WHERE NES.DTMOVIMENTO >= ?
   AND NES.DTMOVIMENTO <= ?
-  AND N.IDEMPRESA    = EA.IDEMPRESA  AND N.IDPLANILHA   = EA.IDPLANILHA
-  AND NES.IDEMPRESA  = EA.IDEMPRESA  AND NES.IDPLANILHA = EA.IDPLANILHA
-  AND NES.IDOPERACAO = EA.IDOPERACAO
-  AND OI.IDOPERACAO  = NES.IDOPERACAO
-  AND OI.FLAGMOVPRODUTOS = 'T'
-  AND OI.TIPOMOVIMENTO = 'P'
   AND EA.IDEMPRESA IN (1, 2, 3)
-  AND N.FLAGNOTACANCEL = 'F'
   AND (EA.NUMSEQUENCIAKIT IS NULL OR EA.NUMSEQUENCIAKIT <= 0)
+  AND EXISTS (
+      SELECT 1 FROM DBA.NOTAS N
+      WHERE  N.IDEMPRESA      = EA.IDEMPRESA
+        AND  N.IDPLANILHA     = EA.IDPLANILHA
+        AND  N.FLAGNOTACANCEL = 'F'
+  )
 GROUP BY VEN.NOME, EA.IDEMPRESA, EA.IDVENDEDOR
 WITH UR
 """

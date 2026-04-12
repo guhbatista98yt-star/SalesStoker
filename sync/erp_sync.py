@@ -268,6 +268,38 @@ def _fetch_batches(
         yield rows
 
 
+# ─── Monetary value normalizer ────────────────────────────────────────────────
+
+from decimal import Decimal as _Decimal
+
+def _fix_monetary(v: Any) -> float:
+    """
+    Convert a DB2 monetary column value to a plain Python float.
+
+    Problem: some DB2 ODBC driver versions return DECIMAL(x,6) columns as
+    raw unscaled integers — e.g. the value 407 703.54 comes back as the
+    integer 407_703_540_000 (= 407703.54 × 10^6).  The SQL queries already
+    use the `* 1E0` trick to force DOUBLE, but this function acts as a
+    second line of defense in case the driver ignores the hint.
+
+    Rules:
+      - float   → already correct, return as-is
+      - Decimal → convert with float()  (stdlib Decimal honours the scale)
+      - int     → divide by 10^6 to undo the implicit scale-6 storage
+      - None    → 0.0
+    """
+    if v is None:
+        return 0.0
+    if isinstance(v, float):
+        return v
+    if isinstance(v, _Decimal):
+        return float(v)
+    if isinstance(v, int):
+        # Raw unscaled DB2 DECIMAL(x,6) — undo the scale
+        return v / 1_000_000.0
+    return float(v)
+
+
 # ─── Routine: cache_vendas ────────────────────────────────────────────────────
 
 def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
@@ -333,6 +365,8 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
         )
 
         # Bulk insert using execute_values for performance
+        # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2] IDPLANILHA[3]
+        #          DT_MOVIMENTO[4] TOTALVENDA_LINHA[5]
         if all_rows:
             psycopg2.extras.execute_values(
                 pgcur,
@@ -342,7 +376,12 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                    "DT_MOVIMENTO","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.now(timezone.utc)) for r in all_rows],
+                [
+                    (r[0], r[1], r[2], r[3], r[4],
+                     _fix_monetary(r[5]),
+                     datetime.now(timezone.utc))
+                    for r in all_rows
+                ],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
@@ -400,6 +439,8 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             """,
             (watermark, date_to),
         )
+        # Columns: IDVENDEDOR[0] NOMEVENDEDOR[1] IDPRODUTO[2] FABRICANTE[3]
+        #          VALOR_LIQUIDO[4] QTD[5] DTMOVIMENTO[6]
         if all_rows:
             psycopg2.extras.execute_values(
                 pgcur,
@@ -409,7 +450,12 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                    "VALOR_LIQUIDO","QTD","DTMOVIMENTO", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.now(timezone.utc)) for r in all_rows],
+                [
+                    (r[0], r[1], r[2], r[3],
+                     _fix_monetary(r[4]), _fix_monetary(r[5]),
+                     r[6], datetime.now(timezone.utc))
+                    for r in all_rows
+                ],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
@@ -457,6 +503,8 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             """,
             (watermark, date_to),
         )
+        # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
+        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4]
         if all_rows:
             psycopg2.extras.execute_values(
                 pgcur,
@@ -466,7 +514,12 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                    "DT_MOVIMENTO","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.now(timezone.utc)) for r in all_rows],
+                [
+                    (r[0], r[1], r[2], r[3],
+                     _fix_monetary(r[4]),
+                     datetime.now(timezone.utc))
+                    for r in all_rows
+                ],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
@@ -512,6 +565,7 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
         cur.close()
 
     # Full replace — small table, safe to truncate
+    # Columns: NOME_VENDEDOR[0] IDEMPRESA[1] TOTALVENDA_LINHA[2]
     with pg.cursor() as pgcur:
         pgcur.execute("TRUNCATE TABLE cache_vendas_pendentes")
         if all_rows:
@@ -522,7 +576,12 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                   ("NOME_VENDEDOR","IDEMPRESA","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
-                [(*r, datetime.now(timezone.utc)) for r in all_rows],
+                [
+                    (r[0], r[1],
+                     _fix_monetary(r[2]),
+                     datetime.now(timezone.utc))
+                    for r in all_rows
+                ],
                 page_size=BATCH_SIZE,
             )
             total_written = len(all_rows)
