@@ -30,13 +30,16 @@ import socket
 import sys
 import time
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Generator, Iterator
 
 import psycopg2
 import psycopg2.extras
 import pyodbc
 from dotenv import load_dotenv
+
+sys.path.insert(0, os.path.dirname(__file__))
+from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS  # noqa: E402
 
 load_dotenv()
 
@@ -109,7 +112,7 @@ def pg_connection() -> Generator[psycopg2.extensions.connection, None, None]:
 
 def _acquire_lock(pg: psycopg2.extensions.connection, rotina: str) -> bool:
     host = socket.gethostname()
-    now  = datetime.utcnow()
+    now  = datetime.now(timezone.utc)
     exp  = now + timedelta(seconds=LOCK_TTL_SEC)
     with pg.cursor() as cur:
         cur.execute(
@@ -318,23 +321,7 @@ def _sync_vendas_mes(
 
     with db2_connection() as db2:
         cur = db2.cursor()
-        cur.execute(
-            """
-            SELECT
-                CAST(IDVENDEDOR     AS VARCHAR(50))  AS IDVENDEDOR,
-                CAST(NOME_VENDEDOR  AS VARCHAR(120)) AS NOME_VENDEDOR,
-                CAST(IDEMPRESA      AS INTEGER)      AS IDEMPRESA,
-                CAST(IDPLANILHA     AS VARCHAR(50))  AS IDPLANILHA,
-                DATE(DT_MOVIMENTO)                  AS DT_MOVIMENTO,
-                COALESCE(TOTALVENDA_LINHA, 0)        AS TOTALVENDA_LINHA
-            FROM DBA.VWCONECTUBOS_VENDAS
-            WHERE DT_MOVIMENTO >= ?
-              AND DT_MOVIMENTO <= ?
-              AND TOTALVENDA_LINHA IS NOT NULL
-            WITH UR
-            """,
-            (inicio, fim),
-        )
+        cur.execute(SQL_VENDAS, (inicio, fim))
         rows = _fetch_all(cur)
         cur.close()
 
@@ -350,7 +337,7 @@ def _sync_vendas_mes(
                 pgcur,
                 'INSERT INTO cache_vendas ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",'
                 '"IDPLANILHA","DT_MOVIMENTO","TOTALVENDA_LINHA",synced_at) VALUES %s',
-                [(*r, datetime.utcnow()) for r in rows],
+                [(*r, datetime.now(timezone.utc)) for r in rows],
                 page_size=BATCH_SIZE,
             )
     pg.commit()
@@ -364,23 +351,7 @@ def _sync_campanhas_mes(
 
     with db2_connection() as db2:
         cur = db2.cursor()
-        cur.execute(
-            """
-            SELECT
-                CAST(IDVENDEDOR   AS VARCHAR(50))  AS IDVENDEDOR,
-                CAST(NOMEVENDEDOR AS VARCHAR(120)) AS NOMEVENDEDOR,
-                CAST(IDPRODUTO    AS VARCHAR(50))  AS IDPRODUTO,
-                CAST(FABRICANTE   AS VARCHAR(120)) AS FABRICANTE,
-                COALESCE(VALOR_LIQUIDO, 0)         AS VALOR_LIQUIDO,
-                COALESCE(QTD, 0)                   AS QTD,
-                DATE(DTMOVIMENTO)                  AS DTMOVIMENTO
-            FROM DBA.VWCONECTUBOS_CAMPANHAS
-            WHERE DTMOVIMENTO >= ?
-              AND DTMOVIMENTO <= ?
-            WITH UR
-            """,
-            (inicio, fim),
-        )
+        cur.execute(SQL_CAMPANHAS, (inicio, fim))
         rows = _fetch_all(cur)
         cur.close()
 
@@ -396,7 +367,7 @@ def _sync_campanhas_mes(
                 pgcur,
                 'INSERT INTO cache_campanhas ("IDVENDEDOR","NOMEVENDEDOR","IDPRODUTO",'
                 '"FABRICANTE","VALOR_LIQUIDO","QTD","DTMOVIMENTO",synced_at) VALUES %s',
-                [(*r, datetime.utcnow()) for r in rows],
+                [(*r, datetime.now(timezone.utc)) for r in rows],
                 page_size=BATCH_SIZE,
             )
     pg.commit()
@@ -410,21 +381,7 @@ def _sync_tubos_mes(
 
     with db2_connection() as db2:
         cur = db2.cursor()
-        cur.execute(
-            """
-            SELECT
-                CAST(IDVENDEDOR     AS VARCHAR(50))  AS IDVENDEDOR,
-                CAST(NOME_VENDEDOR  AS VARCHAR(120)) AS NOME_VENDEDOR,
-                CAST(IDEMPRESA      AS INTEGER)      AS IDEMPRESA,
-                DATE(DT_MOVIMENTO)                  AS DT_MOVIMENTO,
-                COALESCE(TOTALVENDA_LINHA, 0)        AS TOTALVENDA_LINHA
-            FROM DBA.VWCONECTUBOS_TUBOS
-            WHERE DT_MOVIMENTO >= ?
-              AND DT_MOVIMENTO <= ?
-            WITH UR
-            """,
-            (inicio, fim),
-        )
+        cur.execute(SQL_TUBOS, (inicio, fim))
         rows = _fetch_all(cur)
         cur.close()
 
@@ -441,7 +398,7 @@ def _sync_tubos_mes(
                 pgcur,
                 'INSERT INTO cache_tubos_conexoes ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",'
                 '"DT_MOVIMENTO","TOTALVENDA_LINHA",synced_at) VALUES %s',
-                [(*r, datetime.utcnow()) for r in rows],
+                [(*r, datetime.now(timezone.utc)) for r in rows],
                 page_size=BATCH_SIZE,
             )
     pg.commit()

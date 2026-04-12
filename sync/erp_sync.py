@@ -45,6 +45,7 @@ from typing import Any, Generator, Iterator
 import psycopg2
 import psycopg2.extras
 import pyodbc
+from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS, SQL_PENDENTES
 from dotenv import load_dotenv
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ MAX_CACHE_DAYS = 730
 
 # Lock expiry: if a lock is older than this, treat it as stale
 LOCK_TTL_SECONDS = 3600
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -305,23 +307,7 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
         # ── DB2 read ──────────────────────────────────────────────────────
         # WITH UR = uncommitted read (no shared lock on ERP pages)
         # Columns: only what the app queries
-        cur.execute(
-            """
-            SELECT
-                CAST(IDVENDEDOR     AS VARCHAR(50))  AS IDVENDEDOR,
-                CAST(NOME_VENDEDOR  AS VARCHAR(120)) AS NOME_VENDEDOR,
-                CAST(IDEMPRESA      AS INTEGER)      AS IDEMPRESA,
-                CAST(IDPLANILHA     AS VARCHAR(50))  AS IDPLANILHA,
-                DATE(DT_MOVIMENTO)                  AS DT_MOVIMENTO,
-                COALESCE(TOTALVENDA_LINHA, 0)        AS TOTALVENDA_LINHA
-            FROM DBA.VWCONECTUBOS_VENDAS
-            WHERE DT_MOVIMENTO >= ?
-              AND DT_MOVIMENTO <= ?
-              AND TOTALVENDA_LINHA IS NOT NULL
-            WITH UR
-            """,
-            (watermark, date_to),
-        )
+        cur.execute(SQL_VENDAS, (watermark, date_to))
         log.info(f"[{routine}] Consulta DB2 executada. Lendo em lotes de {BATCH_SIZE}…")
 
         # ── Stream rows out of DB2 before closing the connection ──────────
@@ -383,7 +369,7 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     Incremental sync of product-level sales for campaign calculations.
 
     Differences from vendas:
-      - Different source view (DBA.VWCONECTUBOS_CAMPANHAS)
+      - Different query (SQL_CAMPANHAS) — includes product-level detail
       - Includes FABRICANTE, IDPRODUTO, QTD for product-mix calculations
       - Shorter window (campaigns rarely look > 90 days back)
     """
@@ -399,23 +385,7 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
 
     with db2_connection() as db2conn:
         cur = db2conn.cursor()
-        cur.execute(
-            """
-            SELECT
-                CAST(IDVENDEDOR   AS VARCHAR(50))  AS IDVENDEDOR,
-                CAST(NOMEVENDEDOR AS VARCHAR(120)) AS NOMEVENDEDOR,
-                CAST(IDPRODUTO    AS VARCHAR(50))  AS IDPRODUTO,
-                CAST(FABRICANTE   AS VARCHAR(120)) AS FABRICANTE,
-                COALESCE(VALOR_LIQUIDO, 0)         AS VALOR_LIQUIDO,
-                COALESCE(QTD, 0)                   AS QTD,
-                DATE(DTMOVIMENTO)                  AS DTMOVIMENTO
-            FROM DBA.VWCONECTUBOS_CAMPANHAS
-            WHERE DTMOVIMENTO >= ?
-              AND DTMOVIMENTO <= ?
-            WITH UR
-            """,
-            (watermark, date_to),
-        )
+        cur.execute(SQL_CAMPANHAS, (watermark, date_to))
         all_rows: list[tuple] = []
         for batch in _fetch_batches(cur):
             all_rows.extend(batch)
@@ -472,22 +442,7 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
 
     with db2_connection() as db2conn:
         cur = db2conn.cursor()
-        # Source view is already pre-filtered to tubes & connections category
-        cur.execute(
-            """
-            SELECT
-                CAST(IDVENDEDOR     AS VARCHAR(50))  AS IDVENDEDOR,
-                CAST(NOME_VENDEDOR  AS VARCHAR(120)) AS NOME_VENDEDOR,
-                CAST(IDEMPRESA      AS INTEGER)      AS IDEMPRESA,
-                DATE(DT_MOVIMENTO)                  AS DT_MOVIMENTO,
-                COALESCE(TOTALVENDA_LINHA, 0)        AS TOTALVENDA_LINHA
-            FROM DBA.VWCONECTUBOS_TUBOS
-            WHERE DT_MOVIMENTO >= ?
-              AND DT_MOVIMENTO <= ?
-            WITH UR
-            """,
-            (watermark, date_to),
-        )
+        cur.execute(SQL_TUBOS, (watermark, date_to))
         all_rows: list[tuple] = []
         for batch in _fetch_batches(cur):
             all_rows.extend(batch)
@@ -549,22 +504,7 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
 
     with db2_connection() as db2conn:
         cur = db2conn.cursor()
-        # Pre-aggregated at DB2 level — returns one row per vendor per company
-        cur.execute(
-            """
-            SELECT
-                CAST(NOME_VENDEDOR AS VARCHAR(120)) AS NOME_VENDEDOR,
-                CAST(IDEMPRESA     AS INTEGER)      AS IDEMPRESA,
-                COALESCE(SUM(TOTALVENDA_LINHA), 0)  AS TOTALVENDA_LINHA
-            FROM DBA.VWCONECTUBOS_PENDENTES
-            WHERE DT_MOVIMENTO >= ?
-              AND DT_MOVIMENTO <= ?
-              AND NOME_VENDEDOR IS NOT NULL
-            GROUP BY NOME_VENDEDOR, IDEMPRESA
-            WITH UR
-            """,
-            (month_start, today),
-        )
+        cur.execute(SQL_PENDENTES, (month_start, today))
         all_rows: list[tuple] = []
         for batch in _fetch_batches(cur):
             all_rows.extend(batch)
