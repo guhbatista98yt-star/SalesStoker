@@ -1,6 +1,6 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Target, Calendar, CalendarDays, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Target, Calendar, CalendarDays, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/calendar-utils";
 import type { GoalWithProgress } from "@shared/schema";
@@ -11,7 +11,8 @@ interface GoalsCardProps {
   dragHandle?: React.ReactNode;
 }
 
-/* ── Helpers ────────────────────────────────────────────────────────────────── */
+const VISIBLE_COUNT = 5;
+
 function getProgressBarColor(p: number) {
   if (p >= 100) return "bg-emerald-500";
   if (p >= 75) return "bg-primary";
@@ -56,7 +57,6 @@ function TypeChip({ type }: { type: "weekly" | "monthly" }) {
   );
 }
 
-/* ── Skeleton ───────────────────────────────────────────────────────────────── */
 function SkeletonGoals() {
   return (
     <div className="space-y-4">
@@ -77,9 +77,11 @@ function SkeletonGoals() {
   );
 }
 
-/* ── Main component ─────────────────────────────────────────────────────────── */
 export function GoalsCard({ goals, loading, dragHandle }: GoalsCardProps) {
-  const topGoals = goals.slice(0, 5);
+  const [showAll, setShowAll] = useState(false);
+
+  const displayed = showAll ? goals : goals.slice(0, VISIBLE_COUNT);
+  const hidden = goals.length - VISIBLE_COUNT;
 
   return (
     <Card data-testid="goals-card">
@@ -100,11 +102,10 @@ export function GoalsCard({ goals, loading, dragHandle }: GoalsCardProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {topGoals.map((goal) => {
+            {displayed.map((goal) => {
               const pct = Math.min(goal.progress, 100);
               return (
                 <div key={goal.id} className="space-y-1.5" data-testid={`goal-item-${goal.id}`}>
-                  {/* Row 1: name + chips */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-sm font-medium truncate">
@@ -117,16 +118,12 @@ export function GoalsCard({ goals, loading, dragHandle }: GoalsCardProps) {
                       <StatusBadge progress={goal.progress} />
                     </div>
                   </div>
-
-                  {/* Progress bar */}
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
                       className={cn("h-full rounded-full transition-all duration-500", getProgressBarColor(goal.progress))}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-
-                  {/* Row 3: values */}
                   <div className="flex justify-between text-[11px] text-muted-foreground">
                     <span>Atual: <span className="font-medium text-foreground">{formatCurrency(goal.currentValue)}</span></span>
                     <span>Meta: <span className="font-medium text-foreground">{formatCurrency(goal.targetValue)}</span></span>
@@ -134,10 +131,28 @@ export function GoalsCard({ goals, loading, dragHandle }: GoalsCardProps) {
                 </div>
               );
             })}
-            {goals.length > 5 && (
-              <p className="text-xs text-center text-muted-foreground pt-1">
-                +{goals.length - 5} outras metas
-              </p>
+            {hidden > 0 && (
+              <button
+                onClick={() => setShowAll(v => !v)}
+                className={cn(
+                  "w-full flex items-center justify-center gap-1.5 pt-1",
+                  "text-xs font-medium text-muted-foreground hover:text-foreground transition-colors",
+                  "rounded-md hover:bg-muted/60 py-1.5"
+                )}
+                data-testid="goals-toggle-more"
+              >
+                {showAll ? (
+                  <>
+                    <ChevronUp className="h-3.5 w-3.5" />
+                    Mostrar menos
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    +{hidden} {hidden === 1 ? "outra meta" : "outras metas"}
+                  </>
+                )}
+              </button>
             )}
           </div>
         )}

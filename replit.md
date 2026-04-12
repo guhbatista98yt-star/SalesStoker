@@ -20,6 +20,14 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (April 2026 — Feature Session)
+
+- **Dashboard padrão: semana atual** — Período inicial do dashboard alterado de "Mês Atual" para "Semana Atual" (usa `getCurrentWeekPeriod()`); label do toggle atualizado de "Mês Atual" → "Semana Atual"
+- **Filtro de Equipe no Dashboard** — Novo componente `GroupSelector` no header do dashboard (visível para admin e supervisor); seletor oculto quando não há equipes cadastradas; ao selecionar uma equipe, todos os dados do dashboard (KPIs, rankings, metas, mix, evolução, a faturar) são filtrados para os membros da equipe; backend: novo endpoint `GET /api/vendor-groups` (isAuthenticated), helper `resolveGroupTeamMembers()` que mapeia IDVENDEDOR → NOME_VENDEDOR, e suporte a `?groupId=xxx` em 6 rotas do dashboard
+- **"+X outros" expandível** — `AFaturarVendedores` e `GoalsCard`: o texto "+X outros vendedores/metas" virou botão clicável com ícone ChevronDown/Up; ao clicar expande para mostrar todos os itens com opção "Mostrar menos"
+- **Metas page — estado de erro** — Adicionado `isError` branch (antes: silenciosa, mostrava estado vazio em caso de falha de API)
+- **Indexes cache_campanhas** — Criados 5 índices: DTMOVIMENTO, FABRICANTE, (DTMOVIMENTO, IDVENDEDOR), (DTMOVIMENTO, FABRICANTE), IDPRODUTO; adicionados ao schema SQL
+
 ## Recent Changes
 
 - **Premium UI Redesign (April 2026)**: Complete visual overhaul inspired by Model 1 (Shopeers) premium SaaS aesthetic:

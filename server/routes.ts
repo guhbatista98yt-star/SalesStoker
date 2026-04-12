@@ -6,9 +6,32 @@ import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth"
 import campaignRoutes from "./campaigns/routes";
 import { initCampaignTables } from "./campaigns/init";
 import { startAlertEngine } from "./alert-engine";
-import { db } from "./db";
+import { db, sqlite } from "./db";
 import { users } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
+
+function resolveGroupTeamMembers(groupId: string, supervisorTeam?: string[]): string[] {
+  try {
+    const memberRows = sqlite.prepare(
+      `SELECT salesperson_id FROM vendor_group_members WHERE group_id = ?`
+    ).all(groupId) as { salesperson_id: string }[];
+    if (memberRows.length === 0) return supervisorTeam ?? [];
+    const ids = memberRows.map(r => r.salesperson_id);
+    const placeholders = ids.map(() => "?").join(",");
+    const nameRows = sqlite.prepare(
+      `SELECT DISTINCT NOME_VENDEDOR FROM cache_vendas WHERE IDVENDEDOR IN (${placeholders}) LIMIT 100`
+    ).all(...ids) as { NOME_VENDEDOR: string }[];
+    const groupNames = nameRows.map(r => r.NOME_VENDEDOR);
+    if (supervisorTeam && supervisorTeam.length > 0) {
+      return groupNames.filter(name =>
+        supervisorTeam.some(tm => name.toUpperCase().includes(tm.toUpperCase()))
+      );
+    }
+    return groupNames;
+  } catch {
+    return supervisorTeam ?? [];
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -71,12 +94,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/vendor-groups", isAuthenticated, async (req, res) => {
+    try {
+      const groups = await storage.getVendorGroups();
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar grupos de vendedores" });
+    }
+  });
+
   app.get("/api/kpis/:companyId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
       const companyId = req.params.companyId as string;
       const startDate = req.params.startDate as string;
       const endDate = req.params.endDate as string;
-      const kpis = await storage.getKPISummary(companyId, startDate, endDate, req.teamMembers);
+      const groupId = req.query.groupId as string | undefined;
+      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const kpis = await storage.getKPISummary(companyId, startDate, endDate, team);
       res.json(kpis);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar KPIs" });
@@ -89,12 +123,14 @@ export async function registerRoutes(
       const startDate = req.params.startDate as string;
       const endDate = req.params.endDate as string;
       const criteria = req.params.criteria as string;
+      const groupId = req.query.groupId as string | undefined;
+      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const rankings = await storage.getRankings(
         companyId,
         startDate,
         endDate,
         criteria as RankingCriteria,
-        req.teamMembers
+        team
       );
       res.json(rankings);
     } catch (error) {
@@ -107,7 +143,9 @@ export async function registerRoutes(
       const companyId = req.params.companyId as string;
       const startDate = req.params.startDate as string;
       const endDate = req.params.endDate as string;
-      const productMix = await storage.getProductMix(companyId, startDate, endDate, req.teamMembers);
+      const groupId = req.query.groupId as string | undefined;
+      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const productMix = await storage.getProductMix(companyId, startDate, endDate, team);
       res.json(productMix);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar mix de produtos" });
@@ -119,11 +157,13 @@ export async function registerRoutes(
       const companyId = req.params.companyId as string;
       const month = req.params.month as string;
       const year = req.params.year as string;
+      const groupId = req.query.groupId as string | undefined;
+      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const goals = await storage.getGoals(
         companyId,
         parseInt(month),
         parseInt(year),
-        req.teamMembers
+        team
       );
       res.json(goals);
     } catch (error) {
@@ -316,7 +356,9 @@ export async function registerRoutes(
   app.get("/api/afaturar-vendedores/:companyId", isAuthenticated, async (req: AuthRequest, res) => {
     try {
       const companyId = req.params.companyId as string;
-      const afaturar = await storage.getAFaturarPorVendedor(companyId, req.teamMembers);
+      const groupId = req.query.groupId as string | undefined;
+      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const afaturar = await storage.getAFaturarPorVendedor(companyId, team);
       res.json(afaturar);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar A Faturar por vendedor" });
@@ -360,7 +402,9 @@ export async function registerRoutes(
   app.get("/api/sales-evolution/:companyId", isAuthenticated, async (req: AuthRequest, res) => {
     try {
       const companyId = req.params.companyId as string;
-      const salesEvolution = await storage.getSalesEvolution(companyId, req.teamMembers);
+      const groupId = req.query.groupId as string | undefined;
+      const team = groupId ? resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
+      const salesEvolution = await storage.getSalesEvolution(companyId, team);
       res.json(salesEvolution);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar evolução de vendas" });

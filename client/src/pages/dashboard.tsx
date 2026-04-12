@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { RefreshCw, Calendar, Download, DollarSign, Receipt, Package, GripVertical } from "lucide-react";
+import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import {
   DndContext,
   closestCenter,
@@ -31,9 +32,9 @@ import { AFaturarVendedores } from "@/components/dashboard/afaturar-vendedores";
 import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getClosedMonthPeriod, getCurrentWeekPeriod, formatDateBR } from "@/lib/calendar-utils";
+import { getClosedMonthPeriod, getCurrentWeekPeriod } from "@/lib/calendar-utils";
 import type { DatePeriod, RankingCriteria, Company, KPISummary, SalespersonRanking, ProductMix, AlertNotification, GoalWithProgress, SalesEvolutionData, SalespersonAFaturar } from "@shared/schema";
 
 function DragHandle({ id, attributes, listeners }: { id: string; attributes: any; listeners: any }) {
@@ -97,10 +98,9 @@ export default function Dashboard() {
   const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>("maior_valor_vendido");
   const [isScrolled, setIsScrolled] = useState(false);
   const [useSemanaFechada, setUseSemanaFechada] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const currentWeek = getCurrentWeekPeriod();
-  const currentMonthStart = format(startOfMonth(today), "yyyy-MM-dd");
-  const currentMonthEnd = format(endOfMonth(today), "yyyy-MM-dd");
 
   const closedMonth = useMemo(() => {
     return getClosedMonthPeriod(today.getFullYear(), today.getMonth() + 1);
@@ -115,11 +115,15 @@ export default function Dashboard() {
       };
     }
     return {
-      startDate: currentMonthStart,
-      endDate: currentMonthEnd,
+      startDate: currentWeek.startDate,
+      endDate: currentWeek.endDate,
       mode: { type: "livre" as const },
     };
-  }, [useSemanaFechada, closedMonth, currentMonthStart, currentMonthEnd]);
+  }, [useSemanaFechada, closedMonth, currentWeek]);
+
+  function gUrl(base: string): string {
+    return selectedGroupId ? `${base}?groupId=${encodeURIComponent(selectedGroupId)}` : base;
+  }
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
@@ -143,20 +147,25 @@ export default function Dashboard() {
     queryKey: ["/api/companies"],
   });
 
+  const { data: groups = [] } = useQuery<VendorGroup[]>({
+    queryKey: ["/api/vendor-groups"],
+    enabled: user?.role === "admin" || user?.role === "supervisor",
+  });
+
   const { data: kpis, isLoading: kpisLoading } = useQuery<KPISummary>({
-    queryKey: ["/api/kpis", companyId, period.startDate, period.endDate],
+    queryKey: [gUrl(`/api/kpis/${companyId}/${period.startDate}/${period.endDate}`)],
   });
 
   const { data: rankings = [], isLoading: rankingsLoading } = useQuery<SalespersonRanking[]>({
-    queryKey: ["/api/rankings", companyId, period.startDate, period.endDate, rankingCriteria],
+    queryKey: [gUrl(`/api/rankings/${companyId}/${period.startDate}/${period.endDate}/${rankingCriteria}`)],
   });
 
   const { data: productMix = [], isLoading: productMixLoading } = useQuery<ProductMix[]>({
-    queryKey: ["/api/product-mix", companyId, period.startDate, period.endDate],
+    queryKey: [gUrl(`/api/product-mix/${companyId}/${period.startDate}/${period.endDate}`)],
   });
 
   const { data: alerts = [], isLoading: alertsLoading } = useQuery<AlertNotification[]>({
-    queryKey: ["/api/alerts", companyId],
+    queryKey: [gUrl(`/api/alerts/${companyId}`)],
     refetchInterval: 60 * 1000,
   });
 
@@ -164,15 +173,15 @@ export default function Dashboard() {
   const currentYear = today.getFullYear();
 
   const { data: goals = [], isLoading: goalsLoading } = useQuery<GoalWithProgress[]>({
-    queryKey: ["/api/goals", companyId, currentMonth.toString(), currentYear.toString()],
+    queryKey: [gUrl(`/api/goals/${companyId}/${currentMonth}/${currentYear}`)],
   });
 
   const { data: salesData, isLoading: salesLoading } = useQuery<SalesEvolutionData>({
-    queryKey: ["/api/sales-evolution", companyId],
+    queryKey: [gUrl(`/api/sales-evolution/${companyId}`)],
   });
 
   const { data: aFaturarData = [], isLoading: aFaturarLoading } = useQuery<SalespersonAFaturar[]>({
-    queryKey: ["/api/afaturar-vendedores", companyId],
+    queryKey: [gUrl(`/api/afaturar-vendedores/${companyId}`)],
   });
 
   const isLoading = companiesLoading || kpisLoading;
@@ -354,6 +363,12 @@ export default function Dashboard() {
               compact={false}
             />
 
+            <GroupSelector
+              groups={groups}
+              selectedGroupId={selectedGroupId}
+              onChange={setSelectedGroupId}
+            />
+
             <Button
               variant={useSemanaFechada ? "secondary" : "outline"}
               size="sm"
@@ -363,7 +378,7 @@ export default function Dashboard() {
             >
               <Calendar className="h-3.5 w-3.5" />
               <span className="hidden xs:inline">
-                {useSemanaFechada ? "S. Fechada" : "Mês Atual"}
+                {useSemanaFechada ? "S. Fechada" : "Semana Atual"}
               </span>
             </Button>
 

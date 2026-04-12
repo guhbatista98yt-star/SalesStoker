@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package } from "lucide-react";
+import { Package, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/calendar-utils";
 import type { SalespersonAFaturar } from "@shared/schema";
@@ -10,9 +11,14 @@ interface AFaturarVendedoresProps {
   dragHandle?: React.ReactNode;
 }
 
+const VISIBLE_COUNT = 7;
+
 export function AFaturarVendedores({ data, loading, dragHandle }: AFaturarVendedoresProps) {
-  const topItems = data.slice(0, 7);
-  const maxVal = topItems.reduce((m, d) => Math.max(m, d.valorAFaturar), 0);
+  const [showAll, setShowAll] = useState(false);
+
+  const displayed = showAll ? data : data.slice(0, VISIBLE_COUNT);
+  const maxVal = data.slice(0, VISIBLE_COUNT).reduce((m, d) => Math.max(m, d.valorAFaturar), 0);
+  const hidden = data.length - VISIBLE_COUNT;
 
   return (
     <Card data-testid="afaturar-vendedores-card">
@@ -43,7 +49,7 @@ export function AFaturarVendedores({ data, loading, dragHandle }: AFaturarVended
           </div>
         ) : (
           <div className="space-y-3">
-            {topItems.map((item, index) => {
+            {displayed.map((item, index) => {
               const pct = maxVal > 0 ? (item.valorAFaturar / maxVal) * 100 : 0;
               return (
                 <div key={item.salesperson.id} data-testid={`afaturar-item-${item.salesperson.id}`}>
@@ -65,10 +71,28 @@ export function AFaturarVendedores({ data, loading, dragHandle }: AFaturarVended
                 </div>
               );
             })}
-            {data.length > 7 && (
-              <p className="text-xs text-center text-muted-foreground pt-1">
-                +{data.length - 7} outros vendedores
-              </p>
+            {hidden > 0 && (
+              <button
+                onClick={() => setShowAll(v => !v)}
+                className={cn(
+                  "w-full flex items-center justify-center gap-1.5 pt-1",
+                  "text-xs font-medium text-muted-foreground hover:text-foreground transition-colors",
+                  "rounded-md hover:bg-muted/60 py-1.5"
+                )}
+                data-testid="afaturar-toggle-more"
+              >
+                {showAll ? (
+                  <>
+                    <ChevronUp className="h-3.5 w-3.5" />
+                    Mostrar menos
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    +{hidden} {hidden === 1 ? "outro vendedor" : "outros vendedores"}
+                  </>
+                )}
+              </button>
             )}
           </div>
         )}
