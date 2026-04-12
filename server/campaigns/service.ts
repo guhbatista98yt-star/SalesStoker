@@ -156,16 +156,18 @@ export function createCampaign(data: any, actor: string) {
 
   sqlite.prepare(`
     INSERT INTO campaigns (
-      id, code, name, description, objective, campaign_type, campaign_mode, sub_type,
+      id, code, name, description, objective, supplier_name, logo_url, brand_color,
+      campaign_type, campaign_mode, sub_type,
       status, priority, is_cumulative, is_exclusive, parent_id, current_version,
       starts_at, ends_at, time_start, time_end, valid_weekdays, recurrence,
       targets, bases, conditions, triggers, rewards, limits, exceptions,
       natural_language, internal_notes, created_by, updated_by, change_reason
     ) VALUES (
-      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
     )
   `).run(
     id, code, data.name, data.description || null, data.objective || null,
+    data.supplier_name || null, data.logo_url || null, data.brand_color || null,
     data.campaign_type || "padrao", data.campaign_mode || "atingimento", data.sub_type || null,
     "rascunho", data.priority ?? 50,
     data.is_cumulative !== false ? 1 : 0,
@@ -204,7 +206,8 @@ export function updateCampaign(id: string, data: any, actor: string, reason?: st
 
   sqlite.prepare(`
     UPDATE campaigns SET
-      name=?, description=?, objective=?, campaign_type=?, campaign_mode=?, sub_type=?,
+      name=?, description=?, objective=?, supplier_name=?, logo_url=?, brand_color=?,
+      campaign_type=?, campaign_mode=?, sub_type=?,
       priority=?, is_cumulative=?, is_exclusive=?,
       starts_at=?, ends_at=?, time_start=?, time_end=?, valid_weekdays=?, recurrence=?,
       targets=?, bases=?, conditions=?, triggers=?, rewards=?, limits=?, exceptions=?,
@@ -213,6 +216,9 @@ export function updateCampaign(id: string, data: any, actor: string, reason?: st
     WHERE id=?
   `).run(
     data.name, data.description || null, data.objective || null,
+    data.supplier_name !== undefined ? (data.supplier_name || null) : ((existing as any).supplier_name || null),
+    data.logo_url !== undefined ? (data.logo_url || null) : ((existing as any).logo_url || null),
+    data.brand_color !== undefined ? (data.brand_color || null) : ((existing as any).brand_color || null),
     data.campaign_type || (existing as any).campaign_type,
     data.campaign_mode || (existing as any).campaign_mode || "atingimento",
     data.sub_type || null,

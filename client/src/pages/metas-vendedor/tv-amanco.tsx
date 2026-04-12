@@ -31,6 +31,11 @@ export default function TvAmancoTab() {
     refetchInterval: 300000,
   });
 
+  const { data: logoSetting } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/tvAmancoLogoUrl"],
+    staleTime: 60000,
+  });
+
   if (isLoading) return <Skeleton />;
 
   if (isError || !data) {
@@ -127,6 +132,7 @@ export default function TvAmancoTab() {
       <CampaignHero
         supplierName="Amanco Wavin"
         supplierInitials="AW"
+        logoUrl={logoSetting?.value || undefined}
         brandColor="#0057A8"
         brandColorDark="#003D80"
         campaignName="Campanha TV Amanco"

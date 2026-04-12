@@ -24,6 +24,7 @@ import {
   ChevronLeft, Save, Loader2, AlertTriangle, CheckCircle2,
   Info, Plus, Trash2, Layers, ClipboardList, Zap,
   Users, GitBranch, Trophy, Shield, FlaskConical, BarChart3,
+  Upload, X as XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RuleBuilder } from "./components/rule-builder";
@@ -965,6 +966,96 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
                         onChange={e => update({ objective: e.target.value })}
                         disabled={isReadonly}
                       />
+                    </div>
+
+                    {/* ── Branding ── */}
+                    <div className="col-span-2 border-t pt-3 mt-1">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Identidade Visual</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Nome do Fornecedor</Label>
+                          <Input
+                            className="h-8 text-xs"
+                            placeholder="Ex: Amanco Wavin"
+                            value={form.supplier_name ?? ""}
+                            onChange={e => update({ supplier_name: e.target.value })}
+                            disabled={isReadonly}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Cor da Campanha</Label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              className="h-8 w-12 rounded border border-input cursor-pointer p-0.5"
+                              value={form.brand_color ?? "#0057A8"}
+                              onChange={e => update({ brand_color: e.target.value })}
+                              disabled={isReadonly}
+                            />
+                            <Input
+                              className="h-8 text-xs flex-1"
+                              placeholder="#0057A8"
+                              value={form.brand_color ?? ""}
+                              onChange={e => update({ brand_color: e.target.value })}
+                              disabled={isReadonly}
+                            />
+                          </div>
+                        </div>
+                        <div className="col-span-2 space-y-1.5">
+                          <Label className="text-xs">Logo do Fornecedor</Label>
+                          {form.logo_url ? (
+                            <div className="flex items-center gap-3 p-2 border rounded-lg bg-muted/30">
+                              <div className="h-12 w-12 rounded border bg-white flex items-center justify-center overflow-hidden shrink-0">
+                                <img src={form.logo_url} alt="Logo" className="h-full w-full object-contain p-1" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">Logo carregada</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {Math.round(form.logo_url.length * 0.75 / 1024)} KB
+                                </p>
+                              </div>
+                              {!isReadonly && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => update({ logo_url: undefined })}
+                                >
+                                  <XIcon className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          ) : (
+                            <label className={cn(
+                              "flex flex-col items-center justify-center gap-1.5 h-20 border-2 border-dashed rounded-lg cursor-pointer",
+                              "text-muted-foreground hover:border-primary hover:text-primary transition-colors",
+                              isReadonly && "opacity-50 cursor-not-allowed"
+                            )}>
+                              <Upload className="h-5 w-5" />
+                              <span className="text-xs font-medium">Clique para enviar logo</span>
+                              <span className="text-[10px]">PNG, JPG, SVG · máx. 500 KB</span>
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                                className="sr-only"
+                                disabled={isReadonly}
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  if (file.size > 512 * 1024) {
+                                    alert("Imagem muito grande. Use até 500 KB.");
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onload = ev => update({ logo_url: ev.target?.result as string });
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </Section>

@@ -241,6 +241,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
     name TEXT NOT NULL,
     description TEXT,
     objective TEXT,
+    supplier_name TEXT,
+    logo_url TEXT,
+    brand_color TEXT,
     campaign_type TEXT NOT NULL DEFAULT 'padrao',
     sub_type TEXT,
     status TEXT NOT NULL DEFAULT 'rascunho'

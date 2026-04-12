@@ -170,6 +170,9 @@ export interface Campaign {
   name: string;
   description?: string;
   objective?: string;
+  supplier_name?: string;
+  logo_url?: string;
+  brand_color?: string;
   campaign_type: CampaignType;
   campaign_mode: CampaignMode;
   sub_type?: CampaignSubType;

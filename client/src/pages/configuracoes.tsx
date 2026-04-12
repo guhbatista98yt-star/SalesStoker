@@ -57,6 +57,7 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronRight,
+  Upload,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GoalSwitch } from "@/components/goal-switch";
@@ -713,6 +714,74 @@ function getRoleLabel(role: string) {
   }
 }
 
+function LogoUploadRow({
+  label, description, currentUrl, isPending,
+  onUpload, onRemove,
+}: {
+  label: string;
+  description?: string;
+  currentUrl: string | null | undefined;
+  isPending: boolean;
+  onUpload: (dataUrl: string) => void;
+  onRemove: () => void;
+}) {
+  const { toast } = useToast();
+  const url = currentUrl || null;
+  return (
+    <div className="px-4 py-4">
+      <p className="text-sm font-medium">{label}</p>
+      {description && (
+        <p className="text-xs text-muted-foreground mt-0.5 mb-3">{description}</p>
+      )}
+      {url ? (
+        <div className="flex items-center gap-3 p-2 border rounded-lg bg-muted/20 max-w-sm mt-2">
+          <div className="h-14 w-14 rounded border bg-white flex items-center justify-center overflow-hidden shrink-0">
+            <img src={url} alt={label} className="h-full w-full object-contain p-1" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium">Logo atual</p>
+            <p className="text-[10px] text-muted-foreground">{Math.round(url.length * 0.75 / 1024)} KB</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 shrink-0 text-destructive border-destructive/40 hover:bg-destructive/10"
+            onClick={onRemove}
+            disabled={isPending}
+          >
+            Remover
+          </Button>
+        </div>
+      ) : (
+        <label className="inline-flex items-center gap-2 cursor-pointer mt-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 border border-dashed rounded-lg hover:border-primary hover:bg-muted/30 transition-colors text-sm text-muted-foreground hover:text-primary">
+            <Upload className="h-4 w-4" />
+            <span>Escolher arquivo</span>
+          </div>
+          <span className="text-xs text-muted-foreground">PNG, JPG ou SVG · máx. 500 KB</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+            className="sr-only"
+            disabled={isPending}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              if (file.size > 512 * 1024) {
+                toast({ title: "Imagem muito grande. Máx. 500 KB.", variant: "destructive" });
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = ev => onUpload(ev.target?.result as string);
+              reader.readAsDataURL(file);
+            }}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
 function PermissoesSection() {
   const { toast } = useToast();
   const { user: currentUser, refreshUser } = useAuth();
@@ -725,7 +794,10 @@ function PermissoesSection() {
   const { data: settingTv }    = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTvAmancoTab"],       staleTime: 0 });
   const { data: settingElit }  = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTintasElitTab"],     staleTime: 0 });
 
-  const { data: settingGrace } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/dtrGracePeriodDays"],   staleTime: 0 });
+  const { data: settingGrace }    = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/dtrGracePeriodDays"],   staleTime: 0 });
+  const { data: settingDtrLogo }  = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/dtrAmancoLogoUrl"],      staleTime: 0 });
+  const { data: settingTvLogo }   = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/tvAmancoLogoUrl"],       staleTime: 0 });
+  const { data: settingElitLogo } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/tintasElitLogoUrl"],     staleTime: 0 });
   const [graceDaysInput, setGraceDaysInput] = useState<string>("");
 
   useEffect(() => {
@@ -745,6 +817,33 @@ function PermissoesSection() {
     onError: () => {
       toast({ title: "Erro ao salvar prazo", variant: "destructive" });
     },
+  });
+
+  const saveDtrLogoMutation = useMutation({
+    mutationFn: async (logoUrl: string | null) => {
+      const res = await apiRequest("POST", "/api/admin/app-settings", { key: "dtrAmancoLogoUrl", value: logoUrl ?? "" });
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/app-settings/dtrAmancoLogoUrl"] }); toast({ title: "Logo salva." }); },
+    onError: () => toast({ title: "Erro ao salvar logo", variant: "destructive" }),
+  });
+
+  const saveTvLogoMutation = useMutation({
+    mutationFn: async (logoUrl: string | null) => {
+      const res = await apiRequest("POST", "/api/admin/app-settings", { key: "tvAmancoLogoUrl", value: logoUrl ?? "" });
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/app-settings/tvAmancoLogoUrl"] }); toast({ title: "Logo salva." }); },
+    onError: () => toast({ title: "Erro ao salvar logo", variant: "destructive" }),
+  });
+
+  const saveElitLogoMutation = useMutation({
+    mutationFn: async (logoUrl: string | null) => {
+      const res = await apiRequest("POST", "/api/admin/app-settings", { key: "tintasElitLogoUrl", value: logoUrl ?? "" });
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/app-settings/tintasElitLogoUrl"] }); toast({ title: "Logo salva." }); },
+    onError: () => toast({ title: "Erro ao salvar logo", variant: "destructive" }),
   });
 
   const TAB_FLAGS = [
@@ -898,6 +997,52 @@ function PermissoesSection() {
               </p>
             </div>
           </div>
+
+          {/* Logo da campanha DTR */}
+          <LogoUploadRow
+            label="Logo da campanha DTR Amanco"
+            description="Exibida no card de identificação da campanha na aba do vendedor."
+            currentUrl={settingDtrLogo?.value}
+            isPending={saveDtrLogoMutation.isPending}
+            onUpload={url => saveDtrLogoMutation.mutate(url)}
+            onRemove={() => saveDtrLogoMutation.mutate(null)}
+          />
+        </div>
+      </div>
+
+      {/* ── Campanha TV Amanco ───────────────────────────────── */}
+      <div>
+        <h2 className="text-lg font-semibold">Campanha TV Amanco</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Identidade visual da campanha de crescimento e sorteio Amanco.
+        </p>
+        <div className="border rounded-lg divide-y divide-border">
+          <LogoUploadRow
+            label="Logo da campanha TV Amanco"
+            description="Exibida no card de identificação da campanha na aba do vendedor."
+            currentUrl={settingTvLogo?.value}
+            isPending={saveTvLogoMutation.isPending}
+            onUpload={url => saveTvLogoMutation.mutate(url)}
+            onRemove={() => saveTvLogoMutation.mutate(null)}
+          />
+        </div>
+      </div>
+
+      {/* ── Campanha Tintas Elit ─────────────────────────────── */}
+      <div>
+        <h2 className="text-lg font-semibold">Campanha Tintas Elit</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Identidade visual da campanha semanal de bonificação Tintas Elit.
+        </p>
+        <div className="border rounded-lg divide-y divide-border">
+          <LogoUploadRow
+            label="Logo da campanha Tintas Elit"
+            description="Exibida no card de identificação da campanha na aba do vendedor."
+            currentUrl={settingElitLogo?.value}
+            isPending={saveElitLogoMutation.isPending}
+            onUpload={url => saveElitLogoMutation.mutate(url)}
+            onRemove={() => saveElitLogoMutation.mutate(null)}
+          />
         </div>
       </div>
 

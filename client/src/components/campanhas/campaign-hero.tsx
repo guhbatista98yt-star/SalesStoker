@@ -9,6 +9,7 @@ export type CampaignType = "atingimento" | "ranking" | "comissao" | "crescimento
 interface CampaignHeroProps {
   supplierName: string;
   supplierInitials: string;
+  logoUrl?: string;
   brandColor: string;
   brandColorDark: string;
   campaignName: string;
@@ -43,6 +44,7 @@ const typeConfig: Record<CampaignType, { label: string; icon: ReactNode }> = {
 export function CampaignHero({
   supplierName,
   supplierInitials,
+  logoUrl,
   brandColor,
   brandColorDark,
   campaignName,
@@ -73,9 +75,28 @@ export function CampaignHero({
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           {/* Left: logo + name */}
           <div className="flex items-center gap-4">
-            {/* Supplier logo placeholder */}
-            <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shrink-0">
-              <span className="text-white font-black text-lg tracking-tighter">{supplierInitials}</span>
+            {/* Supplier logo — real image or initials fallback */}
+            <div className="h-14 w-14 rounded-xl bg-white/95 backdrop-blur-sm border border-white/40 shadow-lg flex items-center justify-center shrink-0 overflow-hidden">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={supplierName}
+                  className="h-full w-full object-contain p-1.5"
+                  onError={e => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                    (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex");
+                  }}
+                />
+              ) : null}
+              <span
+                className={cn(
+                  "text-lg font-black tracking-tighter",
+                  logoUrl ? "hidden" : "flex"
+                )}
+                style={{ color: brandColor }}
+              >
+                {supplierInitials}
+              </span>
             </div>
             <div>
               <p className="text-white/70 text-xs font-semibold uppercase tracking-widest leading-none mb-1">

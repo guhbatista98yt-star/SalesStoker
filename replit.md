@@ -61,7 +61,7 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 
 - **Campaign Pages Premium Redesign (April 2026)**: Complete overhaul of salesperson campaign pages (metas-vendedor):
   - **Shared component library** in `client/src/components/campanhas/`:
-    - `campaign-hero.tsx` — Supplier-branded hero card with gradient band, logo initials, period, status badge, type badge, mini metric strip with thin progress bars
+    - `campaign-hero.tsx` — Supplier-branded hero card with gradient band; accepts optional `logoUrl` prop — renders real logo image in white box (falling back to initials). Also has `supplierInitials` fallback with brand-colored text.
     - `campaign-status-banner.tsx` — Smart eligibility/requirements block with individual requirement rows (value, progress bar, target, % chip, ok/warn/fail states)
     - `metric-card.tsx` — Premium executive metric card: top accent line, icon pill, large value, target label, progress bar, remaining/note colored pill
     - `calculation-memory.tsx` — "How was this calculated" block with step-by-step audit trail and colored conclusion

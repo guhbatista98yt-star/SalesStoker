@@ -28,6 +28,11 @@ export default function TintasElitTab() {
     refetchInterval: 300000,
   });
 
+  const { data: logoSetting } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/tintasElitLogoUrl"],
+    staleTime: 60000,
+  });
+
   if (isLoading) return <Skeleton />;
 
   if (isError || !data) {
@@ -65,6 +70,7 @@ export default function TintasElitTab() {
       <CampaignHero
         supplierName="Tintas Elit"
         supplierInitials="TE"
+        logoUrl={logoSetting?.value || undefined}
         brandColor="#EA580C"
         brandColorDark="#9A3412"
         campaignName="Campanha Tintas Elit"
