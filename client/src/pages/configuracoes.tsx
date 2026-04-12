@@ -803,9 +803,9 @@ function PermissoesSection() {
 
   const TAB_FLAGS = [
     { key: "showAcompanhamentoTab",    label: 'Aba "Acompanhamento"',              description: "Visão geral de metas semanais e mensais.",                                              defaultVisible: false, setting: settingAcomp  },
-    { key: "showDtrAmancoTab",         label: 'Aba "DTR Amanco"',                  description: "Campanha trimestral de faturamento e mix Amanco.",                                      defaultVisible: true,  setting: settingDtr    },
-    { key: "showTvAmancoTab",          label: 'Aba "TV Amanco"',                   description: "Campanha Amanco 15/02 a 15/04 — sorteio e crescimento.",                               defaultVisible: true,  setting: settingTv     },
-    { key: "showTintasElitTab",        label: 'Aba "Tintas Elit"',                 description: "Campanha semanal de bonificação para produtos Tintas Elit.",                           defaultVisible: true,  setting: settingElit   },
+    { key: "showDtrAmancoTab",         label: 'Aba "DTR Amanco"',                  description: "Campanha trimestral de faturamento e mix Amanco.",                                      defaultVisible: false, setting: settingDtr    },
+    { key: "showTvAmancoTab",          label: 'Aba "TV Amanco"',                   description: "Campanha Amanco 15/02 a 15/04 — sorteio e crescimento.",                               defaultVisible: false, setting: settingTv     },
+    { key: "showTintasElitTab",        label: 'Aba "Tintas Elit"',                 description: "Campanha semanal de bonificação para produtos Tintas Elit.",                           defaultVisible: false, setting: settingElit   },
     { key: "showMovimentacoesButton",  label: "Movimentações visíveis ao Supervisor", description: "Permite que o supervisor visualize as movimentações de vendas de cada vendedor.",  defaultVisible: true,  setting: settingMovimt },
   ] as const;
 

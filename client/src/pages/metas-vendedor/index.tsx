@@ -11,9 +11,9 @@ import TintasElitTab from "./tintas-elit";
 
 const ALL_TABS = [
   { value: "acompanhamento", label: "Acompanhamento", short: "Geral",  icon: LayoutDashboard, flagKey: "showAcompanhamentoTab", defaultVisible: false },
-  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",   icon: TrendingUp,       flagKey: "showDtrAmancoTab",      defaultVisible: true  },
-  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",    icon: Calendar,         flagKey: "showTvAmancoTab",       defaultVisible: true  },
-  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",  icon: PaintBucket,      flagKey: "showTintasElitTab",     defaultVisible: true  },
+  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",   icon: TrendingUp,       flagKey: "showDtrAmancoTab",      defaultVisible: false },
+  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",    icon: Calendar,         flagKey: "showTvAmancoTab",       defaultVisible: false },
+  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",  icon: PaintBucket,      flagKey: "showTintasElitTab",     defaultVisible: false },
 ] as const;
 
 type TabValue = typeof ALL_TABS[number]["value"];
