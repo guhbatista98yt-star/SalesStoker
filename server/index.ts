@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { runSchemaBootstrap } from "./schema-bootstrap";
+import { startComprasAlertEngine } from "./compras/alert-engine";
 
 const app = express();
 const httpServer = createServer(app);
@@ -58,6 +59,9 @@ app.use((req, res, next) => {
   await runSchemaBootstrap();
 
   await registerRoutes(httpServer, app);
+
+  // Initialize Compras alert engine after routes and schema are ready
+  startComprasAlertEngine();
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

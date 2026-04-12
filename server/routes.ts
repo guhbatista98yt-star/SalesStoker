@@ -8,6 +8,7 @@ import { initCampaignTables } from "./campaigns/init";
 import { initCommissionTables } from "./commissions/init";
 import { registerCommissionRoutes } from "./commissions/routes";
 import { startAlertEngine } from "./alert-engine";
+import comprasRoutes from "./compras/routes";
 import usersAdminRouter from "./routes/users-admin";
 import { db } from "./db";
 import { pgAll } from "./pg-client";
@@ -46,6 +47,8 @@ export async function registerRoutes(
   await initCommissionTables();
   registerCommissionRoutes(app);
   startAlertEngine();
+
+  app.use("/api/compras", comprasRoutes);
 
   app.use("/api/auth", createAuthRouter());
   app.use("/api/admin", usersAdminRouter);

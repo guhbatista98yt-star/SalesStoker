@@ -618,6 +618,154 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Compras tables
+// ---------------------------------------------------------------------------
+
+async function bootstrapCompras(): Promise<void> {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS purchase_alerts (
+      id           TEXT PRIMARY KEY,
+      tipo         TEXT NOT NULL,
+      produto_id   TEXT,
+      fabricante   TEXT,
+      hash         TEXT NOT NULL,
+      status       TEXT NOT NULL DEFAULT 'novo',
+      severidade   TEXT NOT NULL DEFAULT 'warning',
+      titulo       TEXT NOT NULL,
+      mensagem     TEXT NOT NULL,
+      dados        TEXT NOT NULL DEFAULT '{}',
+      cooldown_ate TEXT,
+      snooze_ate   TEXT,
+      user_id      INTEGER,
+      created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_alerts_hash
+    ON purchase_alerts (hash)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_purchase_alerts_status
+    ON purchase_alerts (status, severidade)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_purchase_alerts_produto
+    ON purchase_alerts (produto_id)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_purchase_alerts_fabricante
+    ON purchase_alerts (fabricante)`);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS purchase_alert_events (
+      id         TEXT PRIMARY KEY,
+      alert_id   TEXT NOT NULL REFERENCES purchase_alerts(id) ON DELETE CASCADE,
+      evento     TEXT NOT NULL,
+      dados      TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_pae_alert
+    ON purchase_alert_events (alert_id, created_at DESC)`);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS purchase_suggestions (
+      id                    TEXT PRIMARY KEY,
+      produto_id            TEXT NOT NULL,
+      fabricante            TEXT,
+      consumo_medio_diario  REAL NOT NULL DEFAULT 0,
+      cobertura_dias        REAL NOT NULL DEFAULT 0,
+      ponto_reposicao       REAL NOT NULL DEFAULT 0,
+      estoque_atual         REAL NOT NULL DEFAULT 0,
+      pedidos_abertos       REAL NOT NULL DEFAULT 0,
+      quantidade_sugerida   REAL NOT NULL DEFAULT 0,
+      urgencia              TEXT NOT NULL DEFAULT 'ok',
+      criticidade           INTEGER NOT NULL DEFAULT 0,
+      dados                 TEXT NOT NULL DEFAULT '{}',
+      calculado_em          TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at            TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at            TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_purchase_suggestions_produto
+    ON purchase_suggestions (produto_id)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_purchase_suggestions_urgencia
+    ON purchase_suggestions (urgencia, criticidade DESC)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_purchase_suggestions_fabricante
+    ON purchase_suggestions (fabricante, urgencia)`);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS purchase_settings (
+      chave      TEXT PRIMARY KEY,
+      valor      TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS user_alert_preferences (
+      id             TEXT PRIMARY KEY,
+      user_id        INTEGER NOT NULL,
+      configuracoes  TEXT NOT NULL DEFAULT '{}',
+      created_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_uap_user
+    ON user_alert_preferences (user_id)`);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS alert_sound_preferences (
+      id             TEXT PRIMARY KEY,
+      user_id        INTEGER NOT NULL,
+      configuracoes  TEXT NOT NULL DEFAULT '{}',
+      created_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_asp_user
+    ON alert_sound_preferences (user_id)`);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS alert_delivery_state (
+      id           TEXT PRIMARY KEY,
+      alert_id     TEXT NOT NULL REFERENCES purchase_alerts(id) ON DELETE CASCADE,
+      user_id      INTEGER NOT NULL,
+      lido_em      TEXT,
+      silenciado_em TEXT,
+      created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ads_alert_user
+    ON alert_delivery_state (alert_id, user_id)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_ads_user
+    ON alert_delivery_state (user_id)`);
+  // Migração: adiciona coluna silenciado_em se ainda não existir (ALTER TABLE idempotente)
+  await exec(`ALTER TABLE alert_delivery_state ADD COLUMN IF NOT EXISTS silenciado_em TEXT`);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS alert_snoozes (
+      id         TEXT PRIMARY KEY,
+      alert_id   TEXT NOT NULL REFERENCES purchase_alerts(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL,
+      snooze_ate TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_alert_snoozes_alert
+    ON alert_snoozes (alert_id, created_at DESC)`);
+
+  await exec(`
+    CREATE TABLE IF NOT EXISTS alert_acknowledgements (
+      id         TEXT PRIMARY KEY,
+      alert_id   TEXT NOT NULL REFERENCES purchase_alerts(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (alert_id, user_id)
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_alert_ack_alert
+    ON alert_acknowledgements (alert_id)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_alert_ack_user
+    ON alert_acknowledgements (user_id)`);
+}
+
+// ---------------------------------------------------------------------------
 // Roles & Permissions tables
 // ---------------------------------------------------------------------------
 
@@ -704,6 +852,9 @@ const REQUIRED_TABLES = [
   "bootstrap_historico", "bootstrap_status",
   "cache_vendas", "cache_vendas_pendentes", "cache_campanhas", "cache_tubos_conexoes",
   "roles", "role_permissions", "access_audit",
+  "purchase_alerts", "purchase_alert_events", "purchase_suggestions", "purchase_settings",
+  "user_alert_preferences", "alert_sound_preferences", "alert_delivery_state",
+  "alert_snoozes", "alert_acknowledgements",
 ];
 
 async function validateSchema(): Promise<void> {
@@ -760,6 +911,9 @@ export async function runSchemaBootstrap(): Promise<void> {
 
     // ── ERP cache ─────────────────────────────────────────────────────────
     await bootstrapCacheTables();
+
+    // ── Compras / Copiloto de Compras ──────────────────────────────────────
+    await bootstrapCompras();
 
     // ── Runtime column migrations ─────────────────────────────────────────
     const addedCols: string[] = [];
