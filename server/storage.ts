@@ -97,6 +97,10 @@ export interface IStorage {
 
   // Movimentações por vendedor
   getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string): Promise<any[]>;
+
+  // App feature flags / settings
+  getAppSetting(key: string): Promise<string | null>;
+  setAppSetting(key: string, value: string): Promise<void>;
 }
 
 const teams: Team[] = [
@@ -115,8 +119,23 @@ export class SqliteStorage implements IStorage {
     this.initVendorGroupsTable();
     this.initAlertConfigsTable();
     this.initAlertNotificationsTable();
+    this.initAppSettingsTable();
     this.loadGoalsFromDb();
     this.loadGoalSettingsFromDb();
+  }
+
+  private initAppSettingsTable() {
+    try {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+    } catch (err) {
+      console.error("Error creating app_settings table:", err);
+    }
   }
 
   private initCampaignGoalsTable() {
@@ -2141,6 +2160,23 @@ export class SqliteStorage implements IStorage {
         lucro: row.lucro ?? 0,
       };
     });
+  }
+
+  async getAppSetting(key: string): Promise<string | null> {
+    try {
+      const row = sqlite.prepare(`SELECT value FROM app_settings WHERE key = ?`).get(key) as { value: string } | undefined;
+      return row ? row.value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async setAppSetting(key: string, value: string): Promise<void> {
+    sqlite.prepare(`
+      INSERT INTO app_settings (key, value, updated_at)
+      VALUES (?, ?, datetime('now'))
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).run(key, value);
   }
 }
 

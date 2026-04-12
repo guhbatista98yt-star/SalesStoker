@@ -449,6 +449,27 @@ export async function registerRoutes(
       res.status(500).json({ error: "Erro ao salvar configuração" });
     }
   });
+
+  app.get("/api/app-settings/:key", isAuthenticated, async (req, res) => {
+    try {
+      const value = await storage.getAppSetting(req.params.key);
+      res.json({ key: req.params.key, value });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar configuração" });
+    }
+  });
+
+  app.post("/api/admin/app-settings", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { key, value } = req.body as { key: string; value: string };
+      if (!key || value === undefined) return res.status(400).json({ error: "key e value são obrigatórios" });
+      await storage.setAppSetting(key, value);
+      res.json({ key, value });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao salvar configuração" });
+    }
+  });
+
   // Metas de Vendas Module Routes
 
   app.get("/api/metas/admin/campaign-goals", isAuthenticated, isAdmin, async (req, res) => {

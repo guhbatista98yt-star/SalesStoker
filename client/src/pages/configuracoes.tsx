@@ -720,6 +720,29 @@ function PermissoesSection() {
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
   const [localPerms, setLocalPerms] = useState<Record<number, Record<string, boolean>>>({});
 
+  const { data: acompSetting } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/showAcompanhamentoTab"],
+    staleTime: 0,
+  });
+  const showAcompanhamento = acompSetting?.value === "true";
+
+  const toggleAcompMutation = useMutation({
+    mutationFn: async (value: boolean) => {
+      const res = await apiRequest("POST", "/api/admin/app-settings", {
+        key: "showAcompanhamentoTab",
+        value: String(value),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/app-settings/showAcompanhamentoTab"] });
+      toast({ title: "Configuração salva com sucesso." });
+    },
+    onError: () => {
+      toast({ title: "Erro ao salvar configuração", variant: "destructive" });
+    },
+  });
+
   const { data: userList = [], isLoading } = useQuery<UserWithPermissions[]>({
     queryKey: ["/api/users"],
   });
@@ -767,7 +790,31 @@ function PermissoesSection() {
     : userList;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* ── Feature flags de vendedores ────────────────────── */}
+      <div>
+        <h2 className="text-lg font-semibold">Funcionalidades dos Vendedores</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Controle quais recursos ficam visíveis para vendedores no portal deles.
+        </p>
+        <div className="border rounded-lg divide-y divide-border">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Aba "Acompanhamento" no portal do vendedor</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Quando desligado, a aba fica oculta. Vendedores não veem esta seção.
+              </p>
+            </div>
+            <Switch
+              checked={showAcompanhamento}
+              onCheckedChange={val => toggleAcompMutation.mutate(val)}
+              disabled={toggleAcompMutation.isPending}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Permissões por usuário ──────────────────────────── */}
       <div>
         <h2 className="text-lg font-semibold">Permissões de Acesso</h2>
         <p className="text-sm text-muted-foreground">

@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, LayoutDashboard, TrendingUp, Calendar, PaintBucket } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -8,24 +9,28 @@ import DtrAmancoTab from "./dtr-amanco";
 import TvAmancoTab from "./tv-amanco";
 import TintasElitTab from "./tintas-elit";
 
-const TABS = [
-  { value: "acompanhamento", label: "Acompanhamento", short: "Geral",  icon: LayoutDashboard },
-  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",   icon: TrendingUp },
-  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",    icon: Calendar },
-  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",  icon: PaintBucket },
+const ALL_TABS = [
+  { value: "acompanhamento", label: "Acompanhamento", short: "Geral",  icon: LayoutDashboard, requiresFlag: "showAcompanhamentoTab" },
+  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",   icon: TrendingUp,       requiresFlag: null },
+  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",    icon: Calendar,         requiresFlag: null },
+  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",  icon: PaintBucket,      requiresFlag: null },
 ] as const;
 
-type TabValue = typeof TABS[number]["value"];
-const VALID_TABS = TABS.map(t => t.value) as string[];
+type TabValue = typeof ALL_TABS[number]["value"];
 
-function getTabFromPath(path: string): TabValue {
+function getTabFromPath(path: string, validTabs: string[]): TabValue {
   const segment = path.split("/").filter(Boolean).pop() ?? "";
-  return (VALID_TABS.includes(segment) ? segment : "acompanhamento") as TabValue;
+  return (validTabs.includes(segment) ? segment : validTabs[0]) as TabValue;
 }
 
 export default function MetasVendedor() {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
+
+  const { data: acompSetting } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/showAcompanhamentoTab"],
+    staleTime: 30_000,
+  });
 
   if (!user || user.role !== "vendedor") {
     return (
@@ -43,7 +48,15 @@ export default function MetasVendedor() {
     );
   }
 
-  const activeTab = getTabFromPath(location);
+  const showAcompanhamento = acompSetting?.value === "true";
+
+  const visibleTabs = ALL_TABS.filter(tab => {
+    if (tab.requiresFlag === "showAcompanhamentoTab") return showAcompanhamento;
+    return true;
+  });
+
+  const validTabValues = visibleTabs.map(t => t.value) as string[];
+  const activeTab = getTabFromPath(location, validTabValues);
 
   function handleTabChange(tab: string) {
     setLocation(`/metas-vendedor/${tab}`);
@@ -65,10 +78,9 @@ export default function MetasVendedor() {
 
         {/* ── Tabs ── */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          {/* Tab bar — scrollable on mobile */}
           <div className="overflow-x-auto pb-0.5 -mx-1 px-1">
             <TabsList className="inline-flex w-max sm:w-full h-auto bg-card border border-border shadow-sm rounded-xl p-1 gap-0.5">
-              {TABS.map(tab => {
+              {visibleTabs.map(tab => {
                 const Icon = tab.icon;
                 return (
                   <TabsTrigger
@@ -88,11 +100,12 @@ export default function MetasVendedor() {
             </TabsList>
           </div>
 
-          {/* Tab content */}
           <div className="mt-4">
-            <TabsContent value="acompanhamento" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-              <AcompanhamentoTab />
-            </TabsContent>
+            {showAcompanhamento && (
+              <TabsContent value="acompanhamento" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+                <AcompanhamentoTab />
+              </TabsContent>
+            )}
             <TabsContent value="dtr-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
               <DtrAmancoTab />
             </TabsContent>
