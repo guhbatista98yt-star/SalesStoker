@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RefreshCw, Calendar, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown } from "lucide-react";
+import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import {
@@ -38,6 +38,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -105,8 +109,17 @@ export default function Dashboard() {
   const [companyId, setCompanyId] = useState<string>("all");
   const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>("maior_valor_vendido");
   const [isScrolled, setIsScrolled] = useState(false);
-  const [periodMode, setPeriodMode] = useState<"semana" | "mes" | "fechado">("semana");
+  const [periodMode, setPeriodMode] = useState<"semana" | "mes" | "fechado" | "custom">("semana");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [periodOpen, setPeriodOpen] = useState(false);
+
+  // Custom date range state
+  const [customStart, setCustomStart] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [customEnd, setCustomEnd] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [customDraft, setCustomDraft] = useState({ start: "", end: "" });
 
   const currentWeek = getCurrentWeekPeriod();
   const monthPeriod = useMemo(() => getCurrentMonthPeriod(), [today.getMonth(), today.getFullYear()]);
@@ -130,12 +143,19 @@ export default function Dashboard() {
         mode: { type: "livre" as const },
       };
     }
+    if (periodMode === "custom") {
+      return {
+        startDate: customStart,
+        endDate: customEnd,
+        mode: { type: "livre" as const },
+      };
+    }
     return {
       startDate: currentWeek.startDate,
       endDate: currentWeek.endDate,
       mode: { type: "livre" as const },
     };
-  }, [periodMode, closedMonth, currentWeek, monthPeriod]);
+  }, [periodMode, closedMonth, currentWeek, monthPeriod, customStart, customEnd]);
 
   function gUrl(base: string): string {
     return selectedGroupId ? `${base}?groupId=${encodeURIComponent(selectedGroupId)}` : base;
@@ -206,7 +226,8 @@ export default function Dashboard() {
     const now = new Date();
     const periodLabel =
       periodMode === "semana" ? "Semana Atual" :
-      periodMode === "mes" ? "Mês Atual" : "Semanas Fechadas";
+      periodMode === "mes" ? "Mês Atual" :
+      periodMode === "fechado" ? "Semanas Fechadas" : "Período Personalizado";
 
     const fmt = (v: number) =>
       v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
@@ -506,56 +527,118 @@ export default function Dashboard() {
               onChange={setSelectedGroupId}
             />
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <Popover open={periodOpen} onOpenChange={open => {
+              setPeriodOpen(open);
+              if (open) setCustomDraft({ start: customStart, end: customEnd });
+            }}>
+              <PopoverTrigger asChild>
                 <Button
                   variant={periodMode !== "semana" ? "secondary" : "outline"}
                   size="sm"
                   className="h-8 gap-1.5 px-2.5 text-xs font-medium rounded-lg"
                   data-testid="period-selector"
                 >
-                  <Calendar className="h-3.5 w-3.5 shrink-0" />
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0" />
                   <span>
-                    {periodMode === "semana" && `Semana · ${formatDateBR(currentWeek.startDate).slice(0, 5)}–${formatDateBR(currentWeek.endDate).slice(0, 5)}`}
-                    {periodMode === "mes"    && `Mês · ${monthPeriod.label}`}
+                    {periodMode === "semana"  && `Semana · ${formatDateBR(currentWeek.startDate).slice(0, 5)}–${formatDateBR(currentWeek.endDate).slice(0, 5)}`}
+                    {periodMode === "mes"     && `Mês · ${monthPeriod.label}`}
                     {periodMode === "fechado" && `Fechado · ${formatDateBR(closedMonth.periodStart).slice(0, 5)}–${formatDateBR(closedMonth.periodEnd).slice(0, 5)}`}
+                    {periodMode === "custom"  && `${formatDateBR(customStart).slice(0, 5)}–${formatDateBR(customEnd).slice(0, 5)}`}
                   </span>
                   <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem
-                  className={cn("flex flex-col items-start gap-0.5 cursor-pointer", periodMode === "semana" && "font-semibold")}
-                  onSelect={() => {
-                    setPeriodMode("semana");
-                    toast({ title: "Período: Semana Atual", description: `${formatDateBR(currentWeek.startDate)} a ${formatDateBR(currentWeek.endDate)}` });
-                  }}
-                >
-                  <span>Semana Atual</span>
-                  <span className="text-[11px] text-muted-foreground font-normal">{formatDateBR(currentWeek.startDate)} – {formatDateBR(currentWeek.endDate)}</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={cn("flex flex-col items-start gap-0.5 cursor-pointer", periodMode === "mes" && "font-semibold")}
-                  onSelect={() => {
-                    setPeriodMode("mes");
-                    toast({ title: "Período: Mês Atual", description: `${formatDateBR(monthPeriod.startDate)} a ${formatDateBR(monthPeriod.endDate)}` });
-                  }}
-                >
-                  <span>Mês Atual</span>
-                  <span className="text-[11px] text-muted-foreground font-normal">{formatDateBR(monthPeriod.startDate)} – {formatDateBR(monthPeriod.endDate)}</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={cn("flex flex-col items-start gap-0.5 cursor-pointer", periodMode === "fechado" && "font-semibold")}
-                  onSelect={() => {
-                    setPeriodMode("fechado");
-                    toast({ title: "Período: Semanas Fechadas", description: `${formatDateBR(closedMonth.periodStart)} a ${formatDateBR(closedMonth.periodEnd)}` });
-                  }}
-                >
-                  <span>Semanas Fechadas</span>
-                  <span className="text-[11px] text-muted-foreground font-normal">{formatDateBR(closedMonth.periodStart)} – {formatDateBR(closedMonth.periodEnd)}</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 p-0" sideOffset={6}>
+                {/* ── Presets ── */}
+                <div className="p-2 space-y-0.5">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">Períodos rápidos</p>
+                  {([
+                    {
+                      key: "semana" as const,
+                      label: "Semana Atual",
+                      sub: `${formatDateBR(currentWeek.startDate)} – ${formatDateBR(currentWeek.endDate)}`,
+                    },
+                    {
+                      key: "mes" as const,
+                      label: "Mês Atual",
+                      sub: `${formatDateBR(monthPeriod.startDate)} – ${formatDateBR(monthPeriod.endDate)}`,
+                    },
+                    {
+                      key: "fechado" as const,
+                      label: "Semanas Fechadas",
+                      sub: `${formatDateBR(closedMonth.periodStart)} – ${formatDateBR(closedMonth.periodEnd)}`,
+                    },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.key}
+                      className={cn(
+                        "w-full flex items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted transition-colors",
+                        periodMode === opt.key && "bg-primary/8 text-primary"
+                      )}
+                      onClick={() => {
+                        setPeriodMode(opt.key);
+                        setPeriodOpen(false);
+                      }}
+                    >
+                      <Check className={cn("h-3.5 w-3.5 shrink-0", periodMode === opt.key ? "opacity-100 text-primary" : "opacity-0")} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-none">{opt.label}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{opt.sub}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <Separator />
+
+                {/* ── Custom Range ── */}
+                <div className="p-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Período personalizado</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Início</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-xs"
+                        value={customDraft.start}
+                        max={customDraft.end || undefined}
+                        onChange={e => setCustomDraft(d => ({ ...d, start: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">Fim</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-xs"
+                        value={customDraft.end}
+                        min={customDraft.start || undefined}
+                        onChange={e => setCustomDraft(d => ({ ...d, end: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full h-8 text-xs"
+                    disabled={!customDraft.start || !customDraft.end || customDraft.start > customDraft.end}
+                    onClick={() => {
+                      setCustomStart(customDraft.start);
+                      setCustomEnd(customDraft.end);
+                      setPeriodMode("custom");
+                      setPeriodOpen(false);
+                      toast({
+                        title: "Período personalizado aplicado",
+                        description: `${formatDateBR(customDraft.start)} até ${formatDateBR(customDraft.end)}`,
+                      });
+                    }}
+                  >
+                    Aplicar período
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             <Button
               size="sm"
