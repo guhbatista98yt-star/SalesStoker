@@ -241,9 +241,16 @@ def _ensure_meses_planejados(
     pg: psycopg2.extensions.connection,
     rotina: str,
     meses: list[tuple[date, date]],
+    force: bool = False,
 ) -> None:
-    """Inserts pending rows for months not yet registered."""
+    """Inserts pending rows for months not yet registered.
+    When force=True, deletes existing rows first so all months are re-planned."""
     with pg.cursor() as cur:
+        if force:
+            cur.execute(
+                "DELETE FROM bootstrap_historico WHERE routine_name = %s",
+                (rotina,),
+            )
         for inicio, fim in meses:
             cur.execute(
                 """
@@ -460,7 +467,7 @@ def run_bootstrap_rotina(rotina: str, force: bool = False) -> None:
 
         with pg_connection() as pg:
             _init_bootstrap_status(pg, rotina, data_ini, data_fim, total_meses)
-            _ensure_meses_planejados(pg, rotina, meses)
+            _ensure_meses_planejados(pg, rotina, meses, force=force)
 
         with pg_connection() as pg:
             pendentes = _get_meses_pendentes(pg, rotina)
