@@ -7,6 +7,7 @@ import { CampaignStatusBanner, type Requirement } from "@/components/campanhas/c
 import { MetricCard } from "@/components/campanhas/metric-card";
 import { CalculationMemory } from "@/components/campanhas/calculation-memory";
 import { CampaignRules } from "@/components/campanhas/campaign-rules";
+import { CollapsibleSection } from "@/components/campanhas/collapsible-section";
 
 function Skeleton() {
   return (
@@ -109,24 +110,23 @@ export default function TintasElitTab() {
       )}
 
       {/* Status banner */}
-      <CampaignStatusBanner
-        eligible={participando}
-        requirements={requirements}
-        callToAction={
-          participando
-            ? `Gatilho atingido! Prêmio confirmado para sábado ${formatDateBR(periodo.pagamento_em)}.`
-            : faltante > 0
-            ? `Faltam ${formatCurrency(faltante)} para atingir o gatilho e receber o prêmio do ciclo.`
-            : "Acompanhe seu progresso abaixo."
-        }
-        rewardLabel={participando ? "Prêmio garantido" : `Faltam ${formatCurrency(faltante)}`}
-      />
+      <CollapsibleSection id="elit-status" title="Critérios de Elegibilidade">
+        <CampaignStatusBanner
+          eligible={participando}
+          requirements={requirements}
+          callToAction={
+            participando
+              ? `Gatilho atingido! Prêmio confirmado para sábado ${formatDateBR(periodo.pagamento_em)}.`
+              : faltante > 0
+              ? `Faltam ${formatCurrency(faltante)} para atingir o gatilho e receber o prêmio do ciclo.`
+              : "Acompanhe seu progresso abaixo."
+          }
+          rewardLabel={participando ? "Prêmio garantido" : `Faltam ${formatCurrency(faltante)}`}
+        />
+      </CollapsibleSection>
 
       {/* Main metric card - large */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground mb-3">
-          Desempenho no Ciclo Atual
-        </h2>
+      <CollapsibleSection id="elit-desempenho" title="Desempenho no Ciclo Atual">
         <MetricCard
           title="Vendas Tintas Elit no Ciclo"
           subtitle={`Ciclo semanal: ${formatDateBR(periodo.inicio)} – ${formatDateBR(periodo.fim)}`}
@@ -148,90 +148,92 @@ export default function TintasElitTab() {
           iconBg="bg-orange-50 dark:bg-orange-900/20"
           className="max-w-lg"
         />
-      </div>
+      </CollapsibleSection>
 
       {/* Calculation memory + Rules */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CalculationMemory
-          steps={[
-            {
-              label: "Faturamento Elit no ciclo",
-              value: formatCurrency(valor_vendido),
-              status: participando ? "ok" : "fail",
-              note: `Produtos Tintas Elit apenas`,
-            },
-            {
-              label: "Gatilho mínimo do ciclo",
-              value: formatCurrency(gatilho_minimo),
-              status: "neutral",
-              note: "Valor fixo definido pela campanha",
-            },
-            {
-              label: "Percentual atingido",
-              value: `${Math.min(progressPct, 100).toFixed(1)}%`,
-              status: participando ? "ok" : progressPct >= 75 ? "warn" : "fail",
-              note: participando ? "Gatilho superado" : `Faltam ${formatCurrency(faltante)}`,
-            },
-            {
-              label: "Pagamento previsto",
-              value: periodo.pagamento_em ? formatDateBR(periodo.pagamento_em) : "—",
-              status: participando ? "ok" : "neutral",
-              note: participando ? "Prêmio confirmado" : "Condicionado ao atingimento do gatilho",
-            },
-          ]}
-          conclusion={
-            participando
-              ? `Gatilho atingido! Prêmio confirmado para ${formatDateBR(periodo.pagamento_em)}.`
-              : `Ainda não elegível. Faltam ${formatCurrency(faltante)} para destravar o prêmio deste ciclo.`
-          }
-          conclusionStatus={participando ? "ok" : progressPct >= 75 ? "warn" : "fail"}
-        />
+      <CollapsibleSection id="elit-calculo" title="Como foi Calculado" defaultOpen={false}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CalculationMemory
+            steps={[
+              {
+                label: "Faturamento Elit no ciclo",
+                value: formatCurrency(valor_vendido),
+                status: participando ? "ok" : "fail",
+                note: `Produtos Tintas Elit apenas`,
+              },
+              {
+                label: "Gatilho mínimo do ciclo",
+                value: formatCurrency(gatilho_minimo),
+                status: "neutral",
+                note: "Valor fixo definido pela campanha",
+              },
+              {
+                label: "Percentual atingido",
+                value: `${Math.min(progressPct, 100).toFixed(1)}%`,
+                status: participando ? "ok" : progressPct >= 75 ? "warn" : "fail",
+                note: participando ? "Gatilho superado" : `Faltam ${formatCurrency(faltante)}`,
+              },
+              {
+                label: "Pagamento previsto",
+                value: periodo.pagamento_em ? formatDateBR(periodo.pagamento_em) : "—",
+                status: participando ? "ok" : "neutral",
+                note: participando ? "Prêmio confirmado" : "Condicionado ao atingimento do gatilho",
+              },
+            ]}
+            conclusion={
+              participando
+                ? `Gatilho atingido! Prêmio confirmado para ${formatDateBR(periodo.pagamento_em)}.`
+                : `Ainda não elegível. Faltam ${formatCurrency(faltante)} para destravar o prêmio deste ciclo.`
+            }
+            conclusionStatus={participando ? "ok" : progressPct >= 75 ? "warn" : "fail"}
+          />
 
-        <CampaignRules
-          groups={[
-            {
-              title: "Como funciona",
-              icon: Zap,
-              iconColor: "text-orange-500",
-              items: [
-                "Campanha com ciclo semanal (sábado a sexta)",
-                "Prêmio pago no sábado seguinte se o gatilho for atingido",
-                "Cada ciclo é independente — você pode ganhar toda semana",
-              ],
-            },
-            {
-              title: "O que conta",
-              icon: CheckCircle2,
-              iconColor: "text-emerald-500",
-              items: [
-                "Apenas produtos Tintas Elit são considerados",
-                "Faturamento apurado no período de sábado a sexta",
-                "Notas fiscais emitidas dentro do ciclo",
-              ],
-            },
-            {
-              title: "Premiação",
-              icon: Gift,
-              iconColor: "text-amber-500",
-              items: [
-                "Prêmio fixo por ciclo ao atingir o gatilho mínimo",
-                "Pagamento realizado no sábado seguinte ao ciclo",
-                "Não há acúmulo entre ciclos",
-              ],
-            },
-            {
-              title: "Regras importantes",
-              icon: ShieldCheck,
-              iconColor: "text-slate-500",
-              items: [
-                "O gatilho mínimo é definido pela Tintas Elit por ciclo",
-                "Dados atualizados automaticamente a cada 5 minutos",
-                "Em caso de dúvida, consulte o regulamento oficial",
-              ],
-            },
-          ]}
-        />
-      </div>
+          <CampaignRules
+            groups={[
+              {
+                title: "Como funciona",
+                icon: Zap,
+                iconColor: "text-orange-500",
+                items: [
+                  "Campanha com ciclo semanal (sábado a sexta)",
+                  "Prêmio pago no sábado seguinte se o gatilho for atingido",
+                  "Cada ciclo é independente — você pode ganhar toda semana",
+                ],
+              },
+              {
+                title: "O que conta",
+                icon: CheckCircle2,
+                iconColor: "text-emerald-500",
+                items: [
+                  "Apenas produtos Tintas Elit são considerados",
+                  "Faturamento apurado no período de sábado a sexta",
+                  "Notas fiscais emitidas dentro do ciclo",
+                ],
+              },
+              {
+                title: "Premiação",
+                icon: Gift,
+                iconColor: "text-amber-500",
+                items: [
+                  "Prêmio fixo por ciclo ao atingir o gatilho mínimo",
+                  "Pagamento realizado no sábado seguinte ao ciclo",
+                  "Não há acúmulo entre ciclos",
+                ],
+              },
+              {
+                title: "Regras importantes",
+                icon: ShieldCheck,
+                iconColor: "text-slate-500",
+                items: [
+                  "O gatilho mínimo é definido pela Tintas Elit por ciclo",
+                  "Dados atualizados automaticamente a cada 5 minutos",
+                  "Em caso de dúvida, consulte o regulamento oficial",
+                ],
+              },
+            ]}
+          />
+        </div>
+      </CollapsibleSection>
 
       <p className="text-center text-xs text-muted-foreground pt-1">
         Dados atualizados em {formatDateBR(last_update)} · Ciclo: {formatDateBR(periodo.inicio)} – {formatDateBR(periodo.fim)}

@@ -3,6 +3,7 @@ import { AlertCircle, Target, PieChart, Clock, CheckCircle2, TrendingUp, Refresh
 import { formatCurrency, formatDateBR } from "@/lib/calendar-utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { CollapsibleSection } from "@/components/campanhas/collapsible-section";
 import { cn } from "@/lib/utils";
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -270,35 +271,37 @@ export default function AcompanhamentoTab() {
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <GoalCard
-          title="Varejo"
-          subtitle={`Meta semanal · ${formatDateBR(periodoData.inicio)} – ${formatDateBR(periodoData.fim)}`}
-          valorAtual={loja1.valor_atual}
-          meta={loja1.meta}
-          percentual={loja1.percentual}
-          faltante={loja1.faltante}
-          diasRestantes={periodoData.dias_restantes}
-          accentColor="text-blue-600"
-          accentBg="bg-blue-50 dark:bg-blue-900/20"
-          icon={<Target className="h-5 w-5" />}
-        />
+      <CollapsibleSection id="acomp-metas" title="Metas da Semana">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <GoalCard
+            title="Varejo"
+            subtitle={`Meta semanal · ${formatDateBR(periodoData.inicio)} – ${formatDateBR(periodoData.fim)}`}
+            valorAtual={loja1.valor_atual}
+            meta={loja1.meta}
+            percentual={loja1.percentual}
+            faltante={loja1.faltante}
+            diasRestantes={periodoData.dias_restantes}
+            accentColor="text-blue-600"
+            accentBg="bg-blue-50 dark:bg-blue-900/20"
+            icon={<Target className="h-5 w-5" />}
+          />
 
-        <GoalCard
-          title="Atacado"
-          subtitle={`Meta semanal · ${formatDateBR(periodoData.inicio)} – ${formatDateBR(periodoData.fim)}`}
-          valorAtual={loja3.valor_atual}
-          meta={loja3.meta}
-          percentual={loja3.percentual}
-          faltante={loja3.faltante}
-          diasRestantes={periodoData.dias_restantes}
-          accentColor="text-red-600"
-          accentBg="bg-red-50 dark:bg-red-900/20"
-          icon={<TrendingUp className="h-5 w-5" />}
-        />
+          <GoalCard
+            title="Atacado"
+            subtitle={`Meta semanal · ${formatDateBR(periodoData.inicio)} – ${formatDateBR(periodoData.fim)}`}
+            valorAtual={loja3.valor_atual}
+            meta={loja3.meta}
+            percentual={loja3.percentual}
+            faltante={loja3.faltante}
+            diasRestantes={periodoData.dias_restantes}
+            accentColor="text-red-600"
+            accentBg="bg-red-50 dark:bg-red-900/20"
+            icon={<TrendingUp className="h-5 w-5" />}
+          />
 
-        <MixCard mix_geral={mix_geral} />
-      </div>
+          <MixCard mix_geral={mix_geral} />
+        </div>
+      </CollapsibleSection>
     </div>
   );
 }

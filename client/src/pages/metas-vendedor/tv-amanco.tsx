@@ -8,6 +8,7 @@ import { CampaignStatusBanner, type Requirement } from "@/components/campanhas/c
 import { MetricCard } from "@/components/campanhas/metric-card";
 import { CalculationMemory } from "@/components/campanhas/calculation-memory";
 import { CampaignRules } from "@/components/campanhas/campaign-rules";
+import { CollapsibleSection } from "@/components/campanhas/collapsible-section";
 
 function Skeleton() {
   return (
@@ -162,18 +163,17 @@ export default function TvAmancoTab() {
       )}
 
       {/* Status banner */}
-      <CampaignStatusBanner
-        eligible={el.participando}
-        requirements={requirements}
-        callToAction={callToAction}
-        rewardLabel={el.participando ? "Elegível ao sorteio" : "Verifique critérios"}
-      />
+      <CollapsibleSection id="tv-status" title="Critérios de Elegibilidade">
+        <CampaignStatusBanner
+          eligible={el.participando}
+          requirements={requirements}
+          callToAction={callToAction}
+          rewardLabel={el.participando ? "Elegível ao sorteio" : "Verifique critérios"}
+        />
+      </CollapsibleSection>
 
       {/* Metric cards */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground mb-3">
-          Métricas de Desempenho
-        </h2>
+      <CollapsibleSection id="tv-metricas" title="Métricas de Desempenho">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <MetricCard
             title="Gatilho Mínimo"
@@ -244,91 +244,93 @@ export default function TvAmancoTab() {
             iconBg="bg-indigo-50 dark:bg-indigo-900/20"
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Calculation memory + Rules */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CalculationMemory
-          steps={[
-            {
-              label: "Faturamento Amanco apurado",
-              value: formatCurrency(fat.valor_atual),
-              status: fat.gatilho_atingido ? "ok" : "fail",
-              note: `Meta de gatilho: ${formatCurrency(fat.meta_gatilho)}`,
-            },
-            {
-              label: "% Conexões sobre Tubos",
-              value: `${mx.percentual_conexoes.toFixed(1)}%`,
-              status: mx.status_ok ? "ok" : "fail",
-              note: `Meta mínima: ${mx.meta_percentual}%`,
-            },
-            {
-              label: "Crescimento pessoal vs. ano anterior",
-              value: `${cv.crescimento_percentual >= 0 ? "+" : ""}${cv.crescimento_percentual.toFixed(1)}%`,
-              status: cv.status_ok ? "ok" : "fail",
-              note: `Meta: +${cv.meta_percentual}%`,
-            },
-            {
-              label: "Crescimento global da loja",
-              value: `${cl.crescimento_percentual >= 0 ? "+" : ""}${cl.crescimento_percentual.toFixed(2)}%`,
-              status: cl.status_ok ? "ok" : "warn",
-              note: `Meta da trava: +${cl.meta_percentual}%`,
-            },
-          ]}
-          conclusion={
-            el.participando
-              ? "Todos os critérios atingidos. Você está elegível para participar do sorteio."
-              : callToAction
-          }
-          conclusionStatus={el.participando ? "ok" : "fail"}
-        />
+      <CollapsibleSection id="tv-calculo" title="Como foi Calculado" defaultOpen={false}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CalculationMemory
+            steps={[
+              {
+                label: "Faturamento Amanco apurado",
+                value: formatCurrency(fat.valor_atual),
+                status: fat.gatilho_atingido ? "ok" : "fail",
+                note: `Meta de gatilho: ${formatCurrency(fat.meta_gatilho)}`,
+              },
+              {
+                label: "% Conexões sobre Tubos",
+                value: `${mx.percentual_conexoes.toFixed(1)}%`,
+                status: mx.status_ok ? "ok" : "fail",
+                note: `Meta mínima: ${mx.meta_percentual}%`,
+              },
+              {
+                label: "Crescimento pessoal vs. ano anterior",
+                value: `${cv.crescimento_percentual >= 0 ? "+" : ""}${cv.crescimento_percentual.toFixed(1)}%`,
+                status: cv.status_ok ? "ok" : "fail",
+                note: `Meta: +${cv.meta_percentual}%`,
+              },
+              {
+                label: "Crescimento global da loja",
+                value: `${cl.crescimento_percentual >= 0 ? "+" : ""}${cl.crescimento_percentual.toFixed(2)}%`,
+                status: cl.status_ok ? "ok" : "warn",
+                note: `Meta da trava: +${cl.meta_percentual}%`,
+              },
+            ]}
+            conclusion={
+              el.participando
+                ? "Todos os critérios atingidos. Você está elegível para participar do sorteio."
+                : callToAction
+            }
+            conclusionStatus={el.participando ? "ok" : "fail"}
+          />
 
-        <CampaignRules
-          groups={[
-            {
-              title: "Prêmio — O sorteio",
-              icon: Tv2,
-              iconColor: "text-blue-500",
-              items: [
-                "Sorteio de televisores entre os vendedores elegíveis",
-                "Para participar, você precisa atingir todos os critérios",
-                "Quanto mais critérios atingir, maior a chance (se aplicável)",
-              ],
-            },
-            {
-              title: "Critérios de elegibilidade",
-              icon: CheckCircle2,
-              iconColor: "text-emerald-500",
-              items: [
-                "Atingir o faturamento mínimo de produtos Amanco",
-                `Manter ${mx.meta_percentual}% de conexões sobre o total`,
-                `Crescer ${cv.meta_percentual}% vs. ano anterior`,
-                "Loja deve crescer globalmente vs. ano anterior",
-              ],
-            },
-            {
-              title: "Regras importantes",
-              icon: ShieldCheck,
-              iconColor: "text-slate-500",
-              items: [
-                "A trava da loja é coletiva e impacta todos os vendedores",
-                "Faturamento apurado apenas com produtos Amanco DTR",
-                "Sorteio realizado após encerramento da campanha",
-              ],
-            },
-            {
-              title: "Como funciona",
-              icon: Zap,
-              iconColor: "text-amber-500",
-              items: [
-                "Dados atualizados automaticamente a cada 5 minutos",
-                "Critérios verificados em tempo real",
-                "Resultado final apurado após encerramento do período",
-              ],
-            },
-          ]}
-        />
-      </div>
+          <CampaignRules
+            groups={[
+              {
+                title: "Prêmio — O sorteio",
+                icon: Tv2,
+                iconColor: "text-blue-500",
+                items: [
+                  "Sorteio de televisores entre os vendedores elegíveis",
+                  "Para participar, você precisa atingir todos os critérios",
+                  "Quanto mais critérios atingir, maior a chance (se aplicável)",
+                ],
+              },
+              {
+                title: "Critérios de elegibilidade",
+                icon: CheckCircle2,
+                iconColor: "text-emerald-500",
+                items: [
+                  "Atingir o faturamento mínimo de produtos Amanco",
+                  `Manter ${mx.meta_percentual}% de conexões sobre o total`,
+                  `Crescer ${cv.meta_percentual}% vs. ano anterior`,
+                  "Loja deve crescer globalmente vs. ano anterior",
+                ],
+              },
+              {
+                title: "Regras importantes",
+                icon: ShieldCheck,
+                iconColor: "text-slate-500",
+                items: [
+                  "A trava da loja é coletiva e impacta todos os vendedores",
+                  "Faturamento apurado apenas com produtos Amanco DTR",
+                  "Sorteio realizado após encerramento da campanha",
+                ],
+              },
+              {
+                title: "Como funciona",
+                icon: Zap,
+                iconColor: "text-amber-500",
+                items: [
+                  "Dados atualizados automaticamente a cada 5 minutos",
+                  "Critérios verificados em tempo real",
+                  "Resultado final apurado após encerramento do período",
+                ],
+              },
+            ]}
+          />
+        </div>
+      </CollapsibleSection>
 
       <p className="text-center text-xs text-muted-foreground pt-1">
         Dados atualizados em {formatDateBR(last_update)} · Apuração automática a cada 5 minutos

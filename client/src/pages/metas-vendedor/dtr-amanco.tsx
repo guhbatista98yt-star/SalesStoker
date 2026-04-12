@@ -8,6 +8,7 @@ import { CampaignStatusBanner, type Requirement } from "@/components/campanhas/c
 import { MetricCard } from "@/components/campanhas/metric-card";
 import { CalculationMemory } from "@/components/campanhas/calculation-memory";
 import { CampaignRules } from "@/components/campanhas/campaign-rules";
+import { CollapsibleSection } from "@/components/campanhas/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -263,18 +264,17 @@ export default function DtrAmancoTab() {
       />
 
       {/* ── Status banner ── */}
-      <CampaignStatusBanner
-        eligible={el.participando}
-        requirements={requirements}
-        callToAction={callToAction}
-        rewardLabel={el.participando ? "Elegível ao prêmio" : "Verifique critérios"}
-      />
+      <CollapsibleSection id="dtr-status" title="Critérios de Elegibilidade">
+        <CampaignStatusBanner
+          eligible={el.participando}
+          requirements={requirements}
+          callToAction={callToAction}
+          rewardLabel={el.participando ? "Elegível ao prêmio" : "Verifique critérios"}
+        />
+      </CollapsibleSection>
 
       {/* ── Metric cards ── */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground mb-3">
-          Métricas de Desempenho
-        </h2>
+      <CollapsibleSection id="dtr-metricas" title="Métricas de Desempenho">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* Gatilho */}
           <MetricCard
@@ -345,65 +345,67 @@ export default function DtrAmancoTab() {
             iconBg="bg-indigo-50 dark:bg-indigo-900/20"
           />
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* ── Calculation memory + Rules side by side ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CalculationMemory
-          steps={calcSteps}
-          conclusion={
-            el.participando
-              ? "Todos os critérios estão atingidos. Você está elegível para receber o prêmio desta campanha."
-              : `Ainda não elegível. ${callToAction}`
-          }
-          conclusionStatus={el.participando ? "ok" : "fail"}
-        />
+      <CollapsibleSection id="dtr-calculo" title="Como foi Calculado" defaultOpen={false}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CalculationMemory
+            steps={calcSteps}
+            conclusion={
+              el.participando
+                ? "Todos os critérios estão atingidos. Você está elegível para receber o prêmio desta campanha."
+                : `Ainda não elegível. ${callToAction}`
+            }
+            conclusionStatus={el.participando ? "ok" : "fail"}
+          />
 
-        <CampaignRules
-          groups={[
-            {
-              title: "O que conta",
-              icon: CheckCircle2,
-              iconColor: "text-emerald-500",
-              items: [
-                "Faturamento de produtos Amanco DTR no trimestre",
-                "Conexões Amanco sobre tubos (todas as marcas)",
-                "Crescimento global da loja vs. ano anterior",
-              ],
-            },
-            {
-              title: "Como participar",
-              icon: Zap,
-              iconColor: "text-blue-500",
-              items: [
-                "Bater o gatilho mínimo de faturamento Amanco",
-                "Atingir o percentual mínimo de conexões",
-                "Sua loja precisa ter crescimento positivo vs. ano anterior",
-              ],
-            },
-            {
-              title: "Premiação",
-              icon: Gift,
-              iconColor: "text-amber-500",
-              items: [
-                "Prêmio por atingimento de todos os critérios",
-                "Calculado sobre o faturamento elegível do período",
-                "Pagamento após encerramento e apuração da campanha",
-              ],
-            },
-            {
-              title: "Regras importantes",
-              icon: ShieldCheck,
-              iconColor: "text-slate-500",
-              items: [
-                "A trava da loja é coletiva — impacta todos os vendedores",
-                "Crescimento pessoal é informativo nesta campanha",
-                "Dados apurados com base nas notas fiscais do período",
-              ],
-            },
-          ]}
-        />
-      </div>
+          <CampaignRules
+            groups={[
+              {
+                title: "O que conta",
+                icon: CheckCircle2,
+                iconColor: "text-emerald-500",
+                items: [
+                  "Faturamento de produtos Amanco DTR no trimestre",
+                  "Conexões Amanco sobre tubos (todas as marcas)",
+                  "Crescimento global da loja vs. ano anterior",
+                ],
+              },
+              {
+                title: "Como participar",
+                icon: Zap,
+                iconColor: "text-blue-500",
+                items: [
+                  "Bater o gatilho mínimo de faturamento Amanco",
+                  "Atingir o percentual mínimo de conexões",
+                  "Sua loja precisa ter crescimento positivo vs. ano anterior",
+                ],
+              },
+              {
+                title: "Premiação",
+                icon: Gift,
+                iconColor: "text-amber-500",
+                items: [
+                  "Prêmio por atingimento de todos os critérios",
+                  "Calculado sobre o faturamento elegível do período",
+                  "Pagamento após encerramento e apuração da campanha",
+                ],
+              },
+              {
+                title: "Regras importantes",
+                icon: ShieldCheck,
+                iconColor: "text-slate-500",
+                items: [
+                  "A trava da loja é coletiva — impacta todos os vendedores",
+                  "Crescimento pessoal é informativo nesta campanha",
+                  "Dados apurados com base nas notas fiscais do período",
+                ],
+              },
+            ]}
+          />
+        </div>
+      </CollapsibleSection>
 
       {/* ── Footer ── */}
       <p className="text-center text-xs text-muted-foreground pt-1">
