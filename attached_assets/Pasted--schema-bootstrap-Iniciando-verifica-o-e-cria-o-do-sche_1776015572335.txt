@@ -1,0 +1,112 @@
+[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...
+[schema-bootstrap] Schema OK — 30 tabelas verificadas em 287ms
+[Campanhas] Módulo inicializado.
+[Comissões] Módulo inicializado.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+2:24:51 PM [express] serving on http://localhost:9001
+[AlertEngine] Evaluation cycle complete.
+Criados 30 usuários de vendedores.
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+2:33:32 PM [express] loja is logged in
+Loaded 0 goals from database
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+2:38:08 PM [express] admin is logged in
+Error getting rankings: error: coluna "LUCRO_LINHA" não existe
+    at C:\Users\Micro\Documents\SalesStoker\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async pgAll (C:\Users\Micro\Documents\SalesStoker\server\pg-client.ts:62:13)
+    at async PostgresStorage.getRankings (C:\Users\Micro\Documents\SalesStoker\server\storage.ts:356:25)
+    at async <anonymous> (C:\Users\Micro\Documents\SalesStoker\server\routes.ts:135:24) {
+  length: 108,
+  severity: 'ERRO',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '227',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3827',
+  routine: 'errorMissingColumn'
+}
+Error getting KPIs: error: coluna "VALOR_TOTAL" não existe
+    at C:\Users\Micro\Documents\SalesStoker\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async pgGet (C:\Users\Micro\Documents\SalesStoker\server\pg-client.ts:56:13)
+    at async PostgresStorage.getKPISummary (C:\Users\Micro\Documents\SalesStoker\server\storage.ts:314:30)
+    at async <anonymous> (C:\Users\Micro\Documents\SalesStoker\server\routes.ts:120:20) {
+  length: 107,
+  severity: 'ERRO',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '30',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3827',
+  routine: 'errorMissingColumn'
+}
+Error getting product mix: error: coluna "DESCRRESPRODUTO" não existe
+    at C:\Users\Micro\Documents\SalesStoker\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async pgAll (C:\Users\Micro\Documents\SalesStoker\server\pg-client.ts:62:13)
+    at async PostgresStorage.getProductMix (C:\Users\Micro\Documents\SalesStoker\server\storage.ts:442:20)
+    at async <anonymous> (C:\Users\Micro\Documents\SalesStoker\server\routes.ts:155:26) {
+  length: 111,
+  severity: 'ERRO',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '27',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3827',
+  routine: 'errorMissingColumn'
+}
+Error getting A Faturar: error: coluna "CODIGO_VENDEDOR" não existe
+    at C:\Users\Micro\Documents\SalesStoker\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async pgAll (C:\Users\Micro\Documents\SalesStoker\server\pg-client.ts:62:13)
+    at async PostgresStorage.getAFaturarPorVendedor (C:\Users\Micro\Documents\SalesStoker\server\storage.ts:887:20)
+    at async <anonymous> (C:\Users\Micro\Documents\SalesStoker\server\routes.ts:368:24) {
+  length: 111,
+  severity: 'ERRO',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '27',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3827',
+  routine: 'errorMissingColumn'
+}

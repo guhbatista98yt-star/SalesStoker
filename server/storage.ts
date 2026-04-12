@@ -312,7 +312,7 @@ export class PostgresStorage implements IStorage {
       }
 
       const aFaturarResult = await pgGet<{ total: number }>(`
-        SELECT COALESCE(SUM("VALOR_TOTAL"), 0) as total
+        SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas_pendentes
         WHERE 1=1 ${whereCompanyPendentes} ${teamFilterPendentes}
       `);
@@ -363,9 +363,9 @@ export class PostgresStorage implements IStorage {
           "NOME_VENDEDOR" as name,
           MIN(CAST("IDEMPRESA" AS TEXT)) as "companyId",
           COALESCE(SUM("TOTALVENDA_LINHA"), 0) as "totalVendas",
-          COALESCE(SUM("LUCRO_LINHA"), 0) as "totalLucro",
-          COUNT(DISTINCT "IDCLIENTE") as positivacao,
-          COUNT(DISTINCT "IDPRODUTO") as "mixProdutos",
+          0::numeric as "totalLucro",
+          0 as positivacao,
+          COUNT(DISTINCT "IDPLANILHA") as "mixProdutos",
           COUNT(DISTINCT "IDPLANILHA") as "qtdPedidos"
         FROM cache_vendas
         WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
@@ -439,16 +439,17 @@ export class PostgresStorage implements IStorage {
       }
       const teamFilter = this.buildTeamFilter(teamMembers);
 
+      const teamFilterCamp = this.buildTeamFilter(teamMembers, `"IDVENDEDOR"`);
       const rows = await pgAll<{ category: string; totalValue: number; quantity: number }>(`
         SELECT
-          "DESCRRESPRODUTO" as category,
-          COALESCE(SUM("TOTALVENDA_LINHA"), 0) as "totalValue",
-          COALESCE(SUM("QTDPRODUTO"), 0) as quantity
-        FROM cache_vendas
-        WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-          AND "DESCRRESPRODUTO" IS NOT NULL
-          ${whereCompany} ${teamFilter}
-        GROUP BY "DESCRRESPRODUTO"
+          COALESCE("FABRICANTE", 'Sem Fabricante') as category,
+          COALESCE(SUM("VALOR_LIQUIDO"), 0) as "totalValue",
+          COALESCE(SUM("QTD"), 0) as quantity
+        FROM cache_campanhas
+        WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
+          AND "FABRICANTE" IS NOT NULL
+          ${teamFilterCamp}
+        GROUP BY "FABRICANTE"
         ORDER BY "totalValue" DESC
         LIMIT 20
       `, [startDate, endDate]);
@@ -886,13 +887,13 @@ export class PostgresStorage implements IStorage {
 
       const rows = await pgAll<{ id: string; name: string; valorAFaturar: number }>(`
         SELECT
-          "CODIGO_VENDEDOR" as id,
+          "NOME_VENDEDOR" as id,
           "NOME_VENDEDOR" as name,
-          SUM("VALOR_TOTAL") as "valorAFaturar"
+          SUM("TOTALVENDA_LINHA") as "valorAFaturar"
         FROM cache_vendas_pendentes
         WHERE 1=1 ${whereCompany} ${teamFilter}
-        GROUP BY "CODIGO_VENDEDOR", "NOME_VENDEDOR"
-        HAVING SUM("VALOR_TOTAL") > 0
+        GROUP BY "NOME_VENDEDOR"
+        HAVING SUM("TOTALVENDA_LINHA") > 0
         ORDER BY "valorAFaturar" DESC
       `);
 
@@ -1435,11 +1436,11 @@ export class PostgresStorage implements IStorage {
     const result = await pgAll<{ total: number; DESCRICAOPRODUTO: string; qty: number }>(`
       SELECT
         COALESCE(SUM("VALOR_LIQUIDO"), 0) as total,
-        "DESCRICAO_PRODUTO" as "DESCRICAOPRODUTO",
+        "IDPRODUTO" as "DESCRICAOPRODUTO",
         SUM("QTD") as qty
       FROM cache_campanhas
       WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND ("FABRICANTE" IS NULL OR "FABRICANTE" <> 'AMANCO')
-      GROUP BY "DESCRICAO_PRODUTO"
+      GROUP BY "IDPRODUTO"
     `, [vendedorId, inicioStr, fimStr]);
 
     const valor_vendido = result.reduce((acc, curr) => acc + curr.total, 0);
@@ -1601,18 +1602,18 @@ export class PostgresStorage implements IStorage {
       const rows = await pgAll(`
         SELECT
           "DT_MOVIMENTO" as data,
-          "IDCLIENTE" as clienteId,
-          "NOME_CLIENTE" as clienteNome,
+          NULL::text as clienteId,
+          NULL::text as clienteNome,
           "IDPLANILHA" as pedidoId,
-          "IDPRODUTO" as produtoId,
-          "DESCRRESPRODUTO" as produtoCategoria,
-          "DESCRICAOPRODUTO" as produtoNome,
-          "QTDPRODUTO" as quantidade,
+          NULL::text as produtoId,
+          NULL::text as produtoCategoria,
+          NULL::text as produtoNome,
+          NULL::numeric as quantidade,
           "TOTALVENDA_LINHA" as valorTotal,
           CAST("IDEMPRESA" AS TEXT) as empresa
         FROM cache_vendas
         WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-        ORDER BY "DT_MOVIMENTO" DESC, "IDPLANILHA", "NUMSEQUENCIA"
+        ORDER BY "DT_MOVIMENTO" DESC, "IDPLANILHA"
       `, [vendedorId, startDate, endDate]);
       return rows;
     } catch (err) {
