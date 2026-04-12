@@ -382,23 +382,21 @@ export class PostgresStorage implements IStorage {
       }
       const teamFilter = this.buildTeamFilter(teamMembers);
 
-      const vendasResult = await pgGet<{ total: number }>(`
+      const vendasPeriodoResult = await pgGet<{ total: number }>(`
         SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas
         WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany} ${teamFilter}
       `, [startDate, endDate]);
 
       const now = new Date();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      const weekStart = startOfWeek.toISOString().split('T')[0];
-      const today = now.toISOString().split('T')[0];
+      const mesStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const hoje = now.toISOString().split('T')[0];
 
-      const weeklyResult = await pgGet<{ total: number }>(`
+      const vendasMesResult = await pgGet<{ total: number }>(`
         SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas
         WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany} ${teamFilter}
-      `, [weekStart, today]);
+      `, [mesStart, hoje]);
 
       const teamFilterPendentes = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`);
       let whereCompanyPendentes = "";
@@ -419,8 +417,8 @@ export class PostgresStorage implements IStorage {
       `);
 
       return {
-        totalVendasSemanal: Number(weeklyResult?.total ?? 0),
-        totalVendasMensal: Number(vendasResult?.total ?? 0),
+        totalVendasSemanal: Number(vendasPeriodoResult?.total ?? 0),
+        totalVendasMensal: Number(vendasMesResult?.total ?? 0),
         valorAFaturar: Number(aFaturarResult?.total ?? 0),
         pedidosAtendidos: Number(pedidosResult?.total ?? 0),
       };

@@ -251,8 +251,8 @@ export default function Dashboard() {
     lines.push(row(["=== KPIs DO PERÍODO ==="]));
     lines.push(row(["Indicador", "Valor"]));
     if (kpis) {
-      lines.push(row(["Vendas Semanal", fmt(kpis.totalVendasSemanal)]));
-      lines.push(row(["Vendas Mensal", fmt(kpis.totalVendasMensal)]));
+      lines.push(row([periodoCardTitle, fmt(kpis.totalVendasSemanal)]));
+      lines.push(row(["Mês Atual", fmt(kpis.totalVendasMensal)]));
       lines.push(row(["A Faturar Total", fmt(kpis.valorAFaturar)]));
       lines.push(row(["Pedidos Atendidos", kpis.pedidosAtendidos]));
     }
@@ -390,17 +390,33 @@ export default function Dashboard() {
     return last != null ? last.variacao : null;
   }, [salesData?.monthly]);
 
+  const periodoCardTitle = periodMode === "semana"
+    ? "Vendas da Semana"
+    : periodMode === "mes"
+    ? "Vendas do Mês"
+    : periodMode === "fechado"
+    ? "Período Fechado"
+    : "Vendas do Período";
+
+  const periodoCardSubtitle = periodMode === "semana"
+    ? "semana selecionada"
+    : periodMode === "mes"
+    ? "mês selecionado"
+    : periodMode === "fechado"
+    ? "semanas fechadas"
+    : `${period.startDate} — ${period.endDate}`;
+
   const renderKpiCard = (id: string, dragHandle: React.ReactNode) => {
     switch (id) {
       case "vendas-semanal":
         return (
           <KPICard
-            title="Vendas Semanal"
+            title={periodoCardTitle}
             value={kpis?.totalVendasSemanal ?? 0}
             format="currency"
             icon={DollarSign}
             loading={isLoading}
-            subtitle="vs semana anterior"
+            subtitle={periodoCardSubtitle}
             yoyChange={weeklyVariacao}
             dragHandle={dragHandle}
             sparklineData={weeklySparkline}
@@ -410,12 +426,12 @@ export default function Dashboard() {
       case "vendas-mensal":
         return (
           <KPICard
-            title="Vendas Mensal"
+            title="Mês Atual"
             value={kpis?.totalVendasMensal ?? 0}
             format="currency"
             icon={Receipt}
             loading={isLoading}
-            subtitle="vs mês anterior"
+            subtitle="acumulado do mês corrente"
             yoyChange={monthlyVariacao}
             dragHandle={dragHandle}
             sparklineData={monthlySparkline}
