@@ -79,9 +79,10 @@ export const mockFornecedorDetalhe: Record<string, FornecedorDetalhe> = {
 export const mockProdutoDetalhe: Record<string, ProdutoDetalhe> = {
   p1: {
     id: "p1", codigo: "TIG-100", descricao: "Tubo PVC 100mm x 6m", fornecedor: "Tigre", fornecedorId: "f1",
-    estoqueAtual: 4, estoqueSeguranca: 20, coberturaDias: 1, dataEstimadaRuptura: "2026-04-13",
+    estoqueAtual: 4, qtdReserva: 0, saldoDisponivel: 4, estoqueSeguranca: 20, pedidosAbertos: 0,
+    coberturaDias: 1, dataEstimadaRuptura: "2026-04-13",
     sugestaoCompra: 50, criticidade: "critico", consumoDiario: 4, consumoSemanal: 28, consumoMensal: 120,
-    ultimaCompra: "2026-03-15",
+    estoqueErpDisponivel: false, ultimaCompra: "2026-03-15",
     historico: [
       { data: "Mar/26", consumo: 124 }, { data: "Fev/26", consumo: 115 }, { data: "Jan/26", consumo: 98 },
       { data: "Dez/25", consumo: 131 }, { data: "Nov/25", consumo: 109 }, { data: "Out/25", consumo: 118 },
@@ -89,8 +90,10 @@ export const mockProdutoDetalhe: Record<string, ProdutoDetalhe> = {
   },
   p2: {
     id: "p2", codigo: "AMA-5090", descricao: "Conexão 90° 50mm", fornecedor: "Amanco", fornecedorId: "f2",
-    estoqueAtual: 0, estoqueSeguranca: 30, coberturaDias: 0, dataEstimadaRuptura: "Hoje",
+    estoqueAtual: 0, qtdReserva: 0, saldoDisponivel: 0, estoqueSeguranca: 30, pedidosAbertos: 0,
+    coberturaDias: 0, dataEstimadaRuptura: "Hoje",
     sugestaoCompra: 120, criticidade: "critico", consumoDiario: 8, consumoSemanal: 56, consumoMensal: 240,
+    estoqueErpDisponivel: false,
     historico: [
       { data: "Mar/26", consumo: 245 }, { data: "Fev/26", consumo: 220 }, { data: "Jan/26", consumo: 198 },
       { data: "Dez/25", consumo: 260 }, { data: "Nov/25", consumo: 215 }, { data: "Out/25", consumo: 230 },
@@ -98,8 +101,10 @@ export const mockProdutoDetalhe: Record<string, ProdutoDetalhe> = {
   },
   p3: {
     id: "p3", codigo: "TIG-COLA", descricao: "Cola PVC 175g", fornecedor: "Tigre", fornecedorId: "f1",
-    estoqueAtual: 8, estoqueSeguranca: 15, coberturaDias: 4, dataEstimadaRuptura: "2026-04-16",
+    estoqueAtual: 8, qtdReserva: 0, saldoDisponivel: 8, estoqueSeguranca: 15, pedidosAbertos: 0,
+    coberturaDias: 4, dataEstimadaRuptura: "2026-04-16",
     sugestaoCompra: 60, criticidade: "alto", consumoDiario: 2, consumoSemanal: 14, consumoMensal: 60,
+    estoqueErpDisponivel: false,
     historico: [
       { data: "Mar/26", consumo: 62 }, { data: "Fev/26", consumo: 55 }, { data: "Jan/26", consumo: 48 },
       { data: "Dez/25", consumo: 71 }, { data: "Nov/25", consumo: 58 }, { data: "Out/25", consumo: 63 },

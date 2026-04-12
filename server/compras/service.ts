@@ -131,10 +131,10 @@ export async function getDashboardKPIs(): Promise<ComprasDashboardKPIs> {
     urgenciaMaxima: string;
   }> = [];
 
-  for (const [fab, data] of fabricantesMap.entries()) {
+  for (const [fab, data] of Array.from(fabricantesMap.entries())) {
     if (data.skusCriticos > 0) {
       const urgenciaMaxima = data.urgencias.sort(
-        (a, b) => (urgenciaOrder[a] ?? 5) - (urgenciaOrder[b] ?? 5),
+        (a: string, b: string) => (urgenciaOrder[a] ?? 5) - (urgenciaOrder[b] ?? 5),
       )[0];
       fornecedoresCriticos.push({
         fabricante: fab,
@@ -172,20 +172,20 @@ export async function getRankingFornecedores(): Promise<FornecedorRankingItem[]>
   const urgenciaOrder: Record<string, number> = { critica: 0, alta: 1, media: 2, baixa: 3, ok: 4 };
 
   const ranking: FornecedorRankingItem[] = [];
-  for (const [fab, skus] of fabricantesMap.entries()) {
+  for (const [fab, skus] of Array.from(fabricantesMap.entries())) {
     const skusCriticos = skus.filter(
-      (s) => s.urgencia === "critica" || s.urgencia === "alta",
+      (s: ProductSuggestion) => s.urgencia === "critica" || s.urgencia === "alta",
     ).length;
-    const skusAlerta = skus.filter((s) => s.urgencia === "media").length;
-    const skusOk = skus.filter((s) => s.urgencia === "baixa" || s.urgencia === "ok").length;
+    const skusAlerta = skus.filter((s: ProductSuggestion) => s.urgencia === "media").length;
+    const skusOk = skus.filter((s: ProductSuggestion) => s.urgencia === "baixa" || s.urgencia === "ok").length;
     const criticidadeMedia =
-      skus.reduce((sum, s) => sum + s.criticidade, 0) / Math.max(1, skus.length);
+      skus.reduce((sum: number, s: ProductSuggestion) => sum + s.criticidade, 0) / Math.max(1, skus.length);
     const coberturaMedia =
-      skus.reduce((sum, s) => sum + s.coberturaDias, 0) / Math.max(1, skus.length);
-    const consumoTotal = skus.reduce((sum, s) => sum + s.consumoMedioDiario, 0);
+      skus.reduce((sum: number, s: ProductSuggestion) => sum + s.coberturaDias, 0) / Math.max(1, skus.length);
+    const consumoTotal = skus.reduce((sum: number, s: ProductSuggestion) => sum + s.consumoMedioDiario, 0);
     const urgenciaMaxima = skus
-      .map((s) => s.urgencia)
-      .sort((a, b) => (urgenciaOrder[a] ?? 5) - (urgenciaOrder[b] ?? 5))[0];
+      .map((s: ProductSuggestion) => s.urgencia)
+      .sort((a: string, b: string) => (urgenciaOrder[a] ?? 5) - (urgenciaOrder[b] ?? 5))[0];
 
     ranking.push({
       fabricante: fab,

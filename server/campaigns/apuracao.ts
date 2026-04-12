@@ -272,8 +272,8 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
 
   // Union of all vendedores who had any sales in the apuracao period
   const allVendedorIds = new Set([
-    ...salesApuracao.keys(),
-    ...(eligibleIds ? [...eligibleIds] : []),
+    ...Array.from(salesApuracao.keys()),
+    ...(eligibleIds ? Array.from(eligibleIds) : []),
   ]);
 
   // Remove excluded vendedores
@@ -291,7 +291,7 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   // ── Process each vendedor ───────────────────────────────────────────────
   const detalhes: (VendedorApuracao & { crescimentoPerc?: number })[] = [];
 
-  for (const vid of allVendedorIds) {
+  for (const vid of Array.from(allVendedorIds)) {
     if (excluded.has(vid)) continue;
     if (eligibleIds && !eligibleIds.has(vid)) continue;
 

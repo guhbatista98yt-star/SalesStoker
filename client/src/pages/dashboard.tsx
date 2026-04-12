@@ -265,7 +265,7 @@ export default function Dashboard() {
       lines.push(row([
         r.rank,
         r.salesperson.name,
-        r.salesperson.company ?? "",
+        r.salesperson.companyId ?? "",
         fmt(r.value),
         r.yoyVariacao != null ? pct(r.yoyVariacao) : "-",
         pct(r.positivacao),
@@ -282,7 +282,7 @@ export default function Dashboard() {
       for (const a of aFaturarData) {
         lines.push(row([
           a.salesperson.name,
-          a.salesperson.company ?? "",
+          a.salesperson.companyId ?? "",
           fmt(a.valorAFaturar),
         ]));
       }

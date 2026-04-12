@@ -820,7 +820,7 @@ function PermissionsTab() {
       .map(a => localPerms[`${module}::${a.key}`])
       .filter(Boolean);
     if (!scopes.length) return "all";
-    const unique = [...new Set(scopes)];
+    const unique = Array.from(new Set(scopes));
     return unique.length === 1 ? unique[0] : scopes[0];
   }
 

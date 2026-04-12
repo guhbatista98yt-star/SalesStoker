@@ -119,8 +119,8 @@ function Router() {
       <Route path="/tv" component={TVDashboard} />
       <Route path="/campanhas" component={CampanhasList} />
       <Route path="/campanhas/nova" component={() => <CampaignForm />} />
-      <Route path="/campanhas/:id/editar" component={(params: { id: string }) => <CampaignForm campaignId={params.id} />} />
-      <Route path="/campanhas/:id" component={(params: { id: string }) => <CampaignView campaignId={params.id} />} />
+      <Route path="/campanhas/:id/editar" component={({ params }: { params: { id: string } }) => <CampaignForm campaignId={params.id} />} />
+      <Route path="/campanhas/:id" component={({ params }: { params: { id: string } }) => <CampaignView campaignId={params.id} />} />
       <Route path="/comissoes" component={Comissoes} />
       <Route path="/comissoes/configurar" component={ConfigurarComissoes} />
       <Route path="/usuarios" component={Usuarios} />

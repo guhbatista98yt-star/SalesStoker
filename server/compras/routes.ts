@@ -102,7 +102,7 @@ router.get("/fornecedores", isAuthenticated, async (req: AuthRequest, res) => {
 
 router.get("/fornecedores/:id", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const fabricante = decodeURIComponent(req.params.id);
+    const fabricante = decodeURIComponent(String(req.params.id));
     const detalhe = await service.getDetalheFornecedor(fabricante);
     res.json(detalhe);
   } catch (err: any) {
@@ -130,7 +130,7 @@ router.get("/produtos", isAuthenticated, async (req: AuthRequest, res) => {
 
 router.get("/produtos/:id", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const produtoId = decodeURIComponent(req.params.id);
+    const produtoId = decodeURIComponent(String(req.params.id));
     const detalhe = await service.getDetalheProduto(produtoId);
     res.json(detalhe);
   } catch (err: any) {
@@ -158,7 +158,7 @@ router.get("/sugestoes", isAuthenticated, async (req: AuthRequest, res) => {
 
 router.get("/sugestoes/fornecedor/:id", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const fabricante = decodeURIComponent(req.params.id);
+    const fabricante = decodeURIComponent(String(req.params.id));
     const sugestoes = await service.getSugestoesPorFornecedor(fabricante);
     res.json(sugestoes);
   } catch (err: any) {
@@ -630,7 +630,7 @@ router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res
 
 router.put("/fornecedores-config/:fabricante", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const fabricante = decodeURIComponent(req.params.fabricante);
+    const fabricante = decodeURIComponent(String(req.params.fabricante));
     const {
       codigo, razao_social, nome_fantasia, ativo,
       periodo_compra_dias, lead_time_dias, pedido_minimo_valor, observacoes,
@@ -760,8 +760,8 @@ router.get("/produtos-config", isAuthenticated, async (req: AuthRequest, res) =>
 
 router.put("/produtos-config/:produtoId/:fornecedor", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const produtoId = decodeURIComponent(req.params.produtoId);
-    const fornecedorNome = decodeURIComponent(req.params.fornecedor);
+    const produtoId = decodeURIComponent(String(req.params.produtoId));
+    const fornecedorNome = decodeURIComponent(String(req.params.fornecedor));
     const {
       estoque_minimo, estoque_maximo, lote_minimo,
       multiplo_embalagem, giro_periodo_dias, ativo,

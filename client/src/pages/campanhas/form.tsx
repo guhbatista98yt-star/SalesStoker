@@ -791,7 +791,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
     if (isEditing && existing?.status === "ativa") {
       setShowReasonDialog(true);
     } else {
-      saveMutation.mutate();
+      saveMutation.mutate(undefined);
     }
   }
 

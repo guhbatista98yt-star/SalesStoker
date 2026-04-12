@@ -166,7 +166,7 @@ router.post("/users", isAuthenticated, isAdmin, async (req: AuthRequest, res: Re
 // Update user
 router.put("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const uid = parseInt(req.params.id);
+    const uid = parseInt(String(req.params.id));
     const before = await pgGet<any>("SELECT * FROM users WHERE id = $1", [uid]);
     if (!before) return res.status(404).json({ message: "Usuário não encontrado" });
 
@@ -230,7 +230,7 @@ router.put("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res:
 // Change user status (ativo/inativo/bloqueado)
 router.patch("/users/:id/status", isAuthenticated, isAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const uid = parseInt(req.params.id);
+    const uid = parseInt(String(req.params.id));
     const { status } = req.body;
     const allowed = ["ativo", "inativo", "bloqueado"];
     if (!allowed.includes(status)) {
@@ -261,7 +261,7 @@ router.patch("/users/:id/status", isAuthenticated, isAdmin, async (req: AuthRequ
 // Reset password
 router.post("/users/:id/reset-password", isAuthenticated, isAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const uid = parseInt(req.params.id);
+    const uid = parseInt(String(req.params.id));
     const { newPassword } = req.body;
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ message: "Senha mínima: 6 caracteres" });
@@ -393,7 +393,7 @@ router.get("/roles/:id/permissions", isAuthenticated, isAdmin, async (req: AuthR
 // Set permissions for a role (full replace)
 router.put("/roles/:id/permissions", isAuthenticated, isAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const roleId = parseInt(req.params.id);
+    const roleId = parseInt(String(req.params.id));
     const role = await pgGet<any>("SELECT id, name FROM roles WHERE id = $1", [roleId]);
     if (!role) return res.status(404).json({ message: "Perfil não encontrado" });
 

@@ -1833,7 +1833,7 @@ export const storage = {
   saveGoalSettings: (set: GoalSetting) => getStorage().then(s => s.saveGoalSettings(set)),
   getSalespersonGoalsRaw: (m: number, y: number) => getStorage().then(s => s.getSalespersonGoalsRaw(m, y)),
   getVendedorIdByEmail: (email: string) => getStorage().then(s => s.getVendedorIdByEmail(email)),
-  getMetasAcompanhamento: (vid: string, p?: any) => getStorage().then(s => s.getMetasAcompanhamento(vid, p)),
+  getMetasAcompanhamento: (vid: string, _p?: any) => getStorage().then(s => s.getMetasAcompanhamento(vid)),
   getMetasAmancoDTR: (vid: string, ty?: number, tq?: number) => getStorage().then(s => s.getMetasAmancoDTR(vid, ty, tq)),
   getMetasAmancoTV: (vid: string) => getStorage().then(s => s.getMetasAmancoTV(vid)),
   getMetasElit: (vid: string) => getStorage().then(s => s.getMetasElit(vid)),

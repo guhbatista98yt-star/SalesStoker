@@ -16,23 +16,23 @@ export function removeSseClient(clientId: string): void {
 }
 
 export function broadcastToUser(userId: number, event: string, data: unknown): void {
-  for (const [, client] of clients) {
+  clients.forEach((client) => {
     if (client.userId === userId) {
       try {
         client.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       } catch {
       }
     }
-  }
+  });
 }
 
 export function broadcastToAll(event: string, data: unknown): void {
-  for (const [, client] of clients) {
+  clients.forEach((client) => {
     try {
       client.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     } catch {
     }
-  }
+  });
 }
 
 export function getClientCount(): number {

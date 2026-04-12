@@ -26,7 +26,7 @@ router.get("/", isAuthenticated, async (req: AuthRequest, res) => {
 // ─── Get single campaign ──────────────────────────────────────────────────────
 router.get("/:id", isAuthenticated, async (req, res) => {
   try {
-    const campaign = await service.getCampaignById(req.params.id);
+    const campaign = await service.getCampaignById(String(req.params.id));
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
     res.json(campaign);
   } catch (err: any) {
@@ -37,7 +37,7 @@ router.get("/:id", isAuthenticated, async (req, res) => {
 // ─── Create campaign ──────────────────────────────────────────────────────────
 router.post("/", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const actor = req.user?.email || "sistema";
+    const actor = req.userEmail || "sistema";
     const campaign = await service.createCampaign(req.body, actor);
     res.status(201).json(campaign);
   } catch (err: any) {
@@ -48,9 +48,9 @@ router.post("/", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
 // ─── Update campaign ──────────────────────────────────────────────────────────
 router.put("/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const actor = req.user?.email || "sistema";
+    const actor = req.userEmail || "sistema";
     const { change_reason, ...data } = req.body;
-    const campaign = await service.updateCampaign(req.params.id, data, actor, change_reason);
+    const campaign = await service.updateCampaign(String(req.params.id), data, actor, change_reason);
     res.json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -60,10 +60,10 @@ router.put("/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
 // ─── Change campaign status ───────────────────────────────────────────────────
 router.post("/:id/status", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const actor = req.user?.email || "sistema";
+    const actor = req.userEmail || "sistema";
     const { status, reason } = req.body;
     if (!status) return res.status(400).json({ error: "status é obrigatório" });
-    const campaign = await service.changeStatus(req.params.id, status, actor, reason);
+    const campaign = await service.changeStatus(String(req.params.id), status, actor, reason);
     res.json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -73,8 +73,8 @@ router.post("/:id/status", isAuthenticated, isAdmin, async (req: AuthRequest, re
 // ─── Clone campaign ───────────────────────────────────────────────────────────
 router.post("/:id/clone", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const actor = req.user?.email || "sistema";
-    const campaign = await service.cloneCampaign(req.params.id, actor);
+    const actor = req.userEmail || "sistema";
+    const campaign = await service.cloneCampaign(String(req.params.id), actor);
     res.status(201).json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -84,7 +84,7 @@ router.post("/:id/clone", isAuthenticated, isAdmin, async (req: AuthRequest, res
 // ─── Validate campaign ────────────────────────────────────────────────────────
 router.get("/:id/validate", isAuthenticated, async (req, res) => {
   try {
-    const result = await service.validateCampaign(req.params.id);
+    const result = await service.validateCampaign(String(req.params.id));
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -94,7 +94,7 @@ router.get("/:id/validate", isAuthenticated, async (req, res) => {
 // ─── Detect conflicts ─────────────────────────────────────────────────────────
 router.get("/:id/conflicts", isAuthenticated, async (req, res) => {
   try {
-    const conflicts = await service.detectConflicts(req.params.id);
+    const conflicts = await service.detectConflicts(String(req.params.id));
     res.json(conflicts);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -104,8 +104,8 @@ router.get("/:id/conflicts", isAuthenticated, async (req, res) => {
 // ─── Simulate campaign ────────────────────────────────────────────────────────
 router.post("/:id/simulate", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const actor = req.user?.email;
-    const result = await service.simulateCampaign(req.params.id, req.body, actor);
+    const actor = req.userEmail;
+    const result = await service.simulateCampaign(String(req.params.id), req.body, actor);
     res.json(result);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -115,7 +115,7 @@ router.post("/:id/simulate", isAuthenticated, async (req: AuthRequest, res) => {
 // ─── Audit log ────────────────────────────────────────────────────────────────
 router.get("/:id/audit", isAuthenticated, async (req, res) => {
   try {
-    const log = await service.getAuditLog(req.params.id);
+    const log = await service.getAuditLog(String(req.params.id));
     res.json(log);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -125,7 +125,7 @@ router.get("/:id/audit", isAuthenticated, async (req, res) => {
 // ─── Version history ──────────────────────────────────────────────────────────
 router.get("/:id/versions", isAuthenticated, async (req, res) => {
   try {
-    const versions = await service.getVersions(req.params.id);
+    const versions = await service.getVersions(String(req.params.id));
     res.json(versions);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -135,9 +135,9 @@ router.get("/:id/versions", isAuthenticated, async (req, res) => {
 // ─── Restore version ──────────────────────────────────────────────────────────
 router.post("/:id/restore/:version", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const actor = req.user?.email || "sistema";
+    const actor = req.userEmail || "sistema";
     const { reason } = req.body;
-    const campaign = await service.restoreVersion(req.params.id, Number(req.params.version), actor, reason);
+    const campaign = await service.restoreVersion(String(req.params.id), Number(String(req.params.version)), actor, reason);
     res.json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -147,7 +147,7 @@ router.post("/:id/restore/:version", isAuthenticated, isAdmin, async (req: AuthR
 // ─── Gatilhos: per-vendedor trigger goals for this campaign ───────────────────
 router.get("/:id/gatilhos", isAuthenticated, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const campaign = await service.getCampaignById(id);
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
 
@@ -179,7 +179,7 @@ router.get("/:id/gatilhos", isAuthenticated, async (req, res) => {
 
 router.post("/:id/gatilhos", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const campaign = await service.getCampaignById(id);
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
 
@@ -217,7 +217,7 @@ router.post("/:id/gatilhos", isAuthenticated, isAdmin, async (req: AuthRequest, 
 // ─── Relatório: performance report for this campaign ─────────────────────────
 router.get("/:id/relatorio", isAuthenticated, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const campaign = await service.getCampaignById(id);
     if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
 
@@ -332,8 +332,8 @@ router.get("/:id/groups", isAuthenticated, async (_req, res) => {
 // ─── Apuração: run full calculation against sales data ────────────────────────
 router.post("/:id/apurar", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
-    const actor = req.user?.email || "sistema";
-    const result = await apuracao.apurarCampanha(req.params.id, actor);
+    const actor = req.userEmail || "sistema";
+    const result = await apuracao.apurarCampanha(String(req.params.id), actor);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -343,7 +343,7 @@ router.post("/:id/apurar", isAuthenticated, isAdmin, async (req: AuthRequest, re
 // ─── Resultados: get latest apuração result ───────────────────────────────────
 router.get("/:id/resultados", isAuthenticated, async (req, res) => {
   try {
-    const result = await apuracao.getLatestResult(req.params.id);
+    const result = await apuracao.getLatestResult(String(req.params.id));
     if (!result) return res.status(404).json({ error: "Nenhuma apuração encontrada para esta campanha" });
     res.json(result);
   } catch (err: any) {
@@ -354,7 +354,7 @@ router.get("/:id/resultados", isAuthenticated, async (req, res) => {
 // ─── Resultados histórico ─────────────────────────────────────────────────────
 router.get("/:id/resultados/historico", isAuthenticated, async (req, res) => {
   try {
-    const results = await apuracao.listResults(req.params.id);
+    const results = await apuracao.listResults(String(req.params.id));
     res.json(results);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -364,10 +364,10 @@ router.get("/:id/resultados/historico", isAuthenticated, async (req, res) => {
 // ─── Export: resultados como CSV ──────────────────────────────────────────────
 router.get("/:id/resultados/export.csv", isAuthenticated, async (req, res) => {
   try {
-    const result = await apuracao.getLatestResult(req.params.id);
+    const result = await apuracao.getLatestResult(String(req.params.id));
     if (!result) return res.status(404).json({ error: "Nenhuma apuração disponível" });
 
-    const campaign = await service.getCampaignById(req.params.id);
+    const campaign = await service.getCampaignById(String(req.params.id));
     const lines: string[] = [];
     lines.push(`"Campanha";"${result.campaignName}";"${result.campaignCode}"`);
     lines.push(`"Período";"${result.periodoInicio} a ${result.periodoFim}"`);
@@ -409,7 +409,7 @@ router.get("/:id/resultados/export.csv", isAuthenticated, async (req, res) => {
     lines.push(`"Valor total premiação (R$)";"${result.valorTotalPremio.toFixed(2).replace(".", ",")}"`);
 
     const csv = lines.join("\r\n");
-    const filename = `apuracao_${campaign?.code || req.params.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = `apuracao_${campaign?.code || String(req.params.id)}_${new Date().toISOString().slice(0, 10)}.csv`;
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

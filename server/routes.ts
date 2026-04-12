@@ -467,7 +467,7 @@ export async function registerRoutes(
   // Vendor visibility management (admin + supervisor)
   app.get("/api/admin/vendor-visibility", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role !== "admin" && req.user?.role !== "supervisor" && req.user?.role !== "manager") {
+      if (req.userRole !== "admin" && req.userRole !== "supervisor" && req.userRole !== "manager") {
         return res.status(403).json({ error: "Sem permissão" });
       }
       const vendors = await storage.getAllSalespersonsWithVisibility();
@@ -479,13 +479,13 @@ export async function registerRoutes(
 
   app.patch("/api/admin/vendor-visibility/:vendorId", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role !== "admin" && req.user?.role !== "supervisor" && req.user?.role !== "manager") {
+      if (req.userRole !== "admin" && req.userRole !== "supervisor" && req.userRole !== "manager") {
         return res.status(403).json({ error: "Sem permissão" });
       }
       const { vendorId } = req.params;
       const { isHidden } = req.body as { isHidden: boolean };
       if (typeof isHidden !== "boolean") return res.status(400).json({ error: "isHidden deve ser boolean" });
-      await storage.setVendorHidden(vendorId, isHidden);
+      await storage.setVendorHidden(String(vendorId), isHidden);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Erro ao atualizar visibilidade do vendedor" });
@@ -494,7 +494,7 @@ export async function registerRoutes(
 
   app.get("/api/app-settings/:key", isAuthenticated, async (req, res) => {
     try {
-      const value = await storage.getAppSetting(req.params.key);
+      const value = await storage.getAppSetting(String(req.params.key));
       res.json({ key: req.params.key, value });
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar configuração" });
@@ -592,7 +592,7 @@ export async function registerRoutes(
       }
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
       const quarter = req.query.quarter !== undefined ? parseInt(req.query.quarter as string) : undefined;
-      const data = await storage.getCampaignReport(campaignName, year, quarter);
+      const data = await storage.getCampaignReport(campaignName);
       res.json(data);
     } catch (error) {
       console.error("Erro getCampaignReport:", error);
@@ -747,7 +747,7 @@ export async function registerRoutes(
 
   app.patch("/api/users/:id/permissions", isAuthenticated, isAdminOnly, async (req: AuthRequest, res) => {
     try {
-      const userId = parseInt(req.params.id, 10);
+      const userId = parseInt(String(req.params.id), 10);
       if (isNaN(userId)) {
         return res.status(400).json({ error: "ID inválido" });
       }
@@ -812,7 +812,9 @@ export async function registerRoutes(
   // Movimentações por vendedor
   app.get("/api/movimentacoes/:vendedorId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const { vendedorId, startDate, endDate } = req.params;
+      const vendedorId = String(req.params.vendedorId);
+      const startDate = String(req.params.startDate);
+      const endDate = String(req.params.endDate);
 
       // Vendedores only see their own data; admin/supervisor can see any
       if (req.userRole !== "admin" && req.userRole !== "supervisor") {

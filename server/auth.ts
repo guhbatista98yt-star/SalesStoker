@@ -168,7 +168,7 @@ export function createAuthRouter(): Router {
         lastName: lastName || null,
       }).returning();
 
-      const token = jwt.sign({ userId: newUser.id }, JWT_SECRET!, { expiresIn: TOKEN_EXPIRY });
+      const token = jwt.sign({ userId: newUser.id }, JWT_SECRET!, { expiresIn: TOKEN_EXPIRY as any });
 
       res.json({
         token,
@@ -217,7 +217,7 @@ export function createAuthRouter(): Router {
       // Record last login
       await pgRun("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
 
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: TOKEN_EXPIRY });
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: TOKEN_EXPIRY as any });
       const modulePermissions = mergeModulePermissions(user.modulePermissions);
 
       res.json({ token, user: buildUserResponse(user, modulePermissions) });

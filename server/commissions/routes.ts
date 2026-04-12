@@ -102,12 +102,12 @@ export function registerCommissionRoutes(app: Express) {
 
   app.get("/api/commissions/calculate/:salespersonId/:month/:year", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const month = parseIntParam(req.params.month, "month");
-      const year  = parseIntParam(req.params.year, "year");
+      const month = parseIntParam(String(req.params.month), "month");
+      const year  = parseIntParam(String(req.params.year), "year");
       if (month < 1 || month > 12) return res.status(400).json({ error: "Mês inválido (1–12)" });
       if (year < 2000 || year > 2100) return res.status(400).json({ error: "Ano inválido" });
 
-      const { salespersonId } = req.params;
+      const salespersonId = String(req.params.salespersonId);
       const companyId = typeof req.query.companyId === "string" ? req.query.companyId : "all";
 
       const sp = await pgGet<{ NOME_VENDEDOR: string }>(
@@ -127,8 +127,8 @@ export function registerCommissionRoutes(app: Express) {
 
   app.get("/api/commissions/team/:month/:year", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const month = parseIntParam(req.params.month, "month");
-      const year  = parseIntParam(req.params.year, "year");
+      const month = parseIntParam(String(req.params.month), "month");
+      const year  = parseIntParam(String(req.params.year), "year");
       if (month < 1 || month > 12) return res.status(400).json({ error: "Mês inválido (1–12)" });
       if (year < 2000 || year > 2100) return res.status(400).json({ error: "Ano inválido" });
 
@@ -169,8 +169,8 @@ export function registerCommissionRoutes(app: Express) {
 
   app.get("/api/commissions/me/:month/:year", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const month = parseIntParam(req.params.month, "month");
-      const year  = parseIntParam(req.params.year, "year");
+      const month = parseIntParam(String(req.params.month), "month");
+      const year  = parseIntParam(String(req.params.year), "year");
       if (month < 1 || month > 12) return res.status(400).json({ error: "Mês inválido (1–12)" });
       if (year < 2000 || year > 2100) return res.status(400).json({ error: "Ano inválido" });
 

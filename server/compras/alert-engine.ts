@@ -454,7 +454,7 @@ async function runBIEvaluationCycle(): Promise<void> {
       }
     }
 
-    for (const [fab, count] of fabricantesCriticos.entries()) {
+    for (const [fab, count] of Array.from(fabricantesCriticos.entries())) {
       if (count >= 3) {
         await dispararAlertaPorUsuarios(
           "fornecedor_critico",

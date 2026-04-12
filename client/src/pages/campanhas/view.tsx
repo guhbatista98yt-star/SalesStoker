@@ -175,7 +175,7 @@ function LimitsSummary({ limits }: { limits: Campaign["limits"] }) {
       {entries.map(([label, value]) => (
         <div key={label} className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">{label}</span>
-          <span className="font-medium">R$ {value.toFixed(2)}</span>
+          <span className="font-medium">R$ {(value ?? 0).toFixed(2)}</span>
         </div>
       ))}
     </div>
@@ -319,9 +319,9 @@ export default function CampaignView({ campaignId }: { campaignId: string }) {
                 {campaign.conditions.conditions.length} condição(ões) + {campaign.conditions.groups.length} grupo(s) configurados.
                 {canEdit && (
                   <Button
-                    variant="link"
+                    variant="ghost"
                     size="sm"
-                    className="h-auto p-0 ml-2 text-xs"
+                    className="h-auto p-0 ml-2 text-xs underline"
                     onClick={() => navigate(`/campanhas/${campaign.id}/editar`)}
                   >
                     Ver no editor →
