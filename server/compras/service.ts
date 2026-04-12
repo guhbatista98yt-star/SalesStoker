@@ -224,7 +224,7 @@ export async function getDetalheFornecedor(fabricante: string): Promise<{
   const sugestoes = await calcularSugestoesPorFornecedor(fabricante, engineCfg);
   const alertas = await pgAll<any>(
     `SELECT * FROM purchase_alerts
-     WHERE fabricante = ? AND status NOT IN ('resolvido', 'silenciado')
+     WHERE reference_key = ? AND status NOT IN ('resolvido', 'silenciado')
      ORDER BY created_at DESC`,
     [fabricante],
   );
