@@ -117,10 +117,15 @@ export class PostgresStorage implements IStorage {
   }
 
   private buildTeamFilter(teamMembers?: string[], columnName: string = `"NOME_VENDEDOR"`): string {
-    const excludeBruno = ` AND UPPER(${columnName}) NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%' `;
-    if (!teamMembers || teamMembers.length === 0) return excludeBruno;
-    const conditions = teamMembers.map(name => `UPPER(${columnName}) LIKE '%${name.toUpperCase()}%'`).join(" OR ");
-    return `${excludeBruno} AND (${conditions})`;
+    const excludeInternal = ` AND UPPER(${columnName}) NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%' `;
+    if (!teamMembers || teamMembers.length === 0) return excludeInternal;
+    const validNames = teamMembers.filter(n => n.trim().length > 0);
+    if (validNames.length === 0) return excludeInternal;
+    const conditions = validNames.map(name => {
+      const safe = name.replace(/\\/g, "\\\\").replace(/'/g, "''").toUpperCase();
+      return `UPPER(${columnName}) LIKE '%${safe}%'`;
+    }).join(" OR ");
+    return `${excludeInternal} AND (${conditions})`;
   }
 
   private async getConexoesSobreTubos(vendedorId: string, companyId?: string, startDate?: string, endDate?: string): Promise<number | null> {

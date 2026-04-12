@@ -4,15 +4,19 @@ import { Router, Request, Response, NextFunction } from "express";
 import { db } from "./db";
 import { pgGet, pgAll, pgRun } from "./pg-client";
 import { users, DEFAULT_MODULE_PERMISSIONS } from "@shared/models/auth";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
-const JWT_SECRET = process.env.SESSION_SECRET || "sales-dashboard-secret-key";
-const TOKEN_EXPIRY = "365d";
+const JWT_SECRET = process.env.SESSION_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("SESSION_SECRET environment variable is required");
+}
+const TOKEN_EXPIRY = process.env.TOKEN_EXPIRY ?? "30d";
 
 export interface AuthRequest extends Request {
   userId?: number;
   userRole?: string;
   userEmail?: string;
+  userFirstName?: string;
   teamMembers?: string[];
 }
 
@@ -114,6 +118,27 @@ async function seedSalespersonUsers() {
 seedDefaultUsers().catch(console.error);
 seedSalespersonUsers().catch(console.error);
 
+function buildUserResponse(user: any, modulePermissions: Record<string, boolean>) {
+  return {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role || "admin",
+    teamMembers: user.teamMembers ? user.teamMembers.split(",").map((m: string) => m.trim()) : null,
+    modulePermissions,
+  };
+}
+
+function mergeModulePermissions(raw: string | null): Record<string, boolean> {
+  if (!raw) return DEFAULT_MODULE_PERMISSIONS;
+  try {
+    return { ...DEFAULT_MODULE_PERMISSIONS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_MODULE_PERMISSIONS;
+  }
+}
+
 export function createAuthRouter(): Router {
   const router = Router();
 
@@ -123,6 +148,9 @@ export function createAuthRouter(): Router {
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email e senha são obrigatórios" });
+      }
+      if (typeof password !== "string" || password.length < 6) {
+        return res.status(400).json({ message: "A senha deve ter pelo menos 6 caracteres" });
       }
 
       const existing = await db.select().from(users).where(eq(users.email, email));
@@ -139,7 +167,7 @@ export function createAuthRouter(): Router {
         lastName: lastName || null,
       }).returning();
 
-      const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+      const token = jwt.sign({ userId: newUser.id }, JWT_SECRET!, { expiresIn: TOKEN_EXPIRY });
 
       res.json({
         token,
@@ -164,8 +192,9 @@ export function createAuthRouter(): Router {
         return res.status(400).json({ message: "Email e senha são obrigatórios" });
       }
 
-      const userList = await db.select().from(users);
-      const user = userList.find(u => u.email.toLowerCase() === email.toLowerCase());
+      const normalizedEmail = email.toLowerCase().trim();
+      const [user] = await db.select().from(users)
+        .where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
 
       if (!user) {
         return res.status(401).json({ message: "Email ou senha incorretos" });
@@ -176,27 +205,10 @@ export function createAuthRouter(): Router {
         return res.status(401).json({ message: "Email ou senha incorretos" });
       }
 
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: TOKEN_EXPIRY });
+      const modulePermissions = mergeModulePermissions(user.modulePermissions);
 
-      let modulePermissions = DEFAULT_MODULE_PERMISSIONS;
-      if (user.modulePermissions) {
-        try {
-          modulePermissions = { ...DEFAULT_MODULE_PERMISSIONS, ...JSON.parse(user.modulePermissions) };
-        } catch { }
-      }
-
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role || "admin",
-          teamMembers: user.teamMembers ? user.teamMembers.split(",").map((m: string) => m.trim()) : null,
-          modulePermissions,
-        },
-      });
+      res.json({ token, user: buildUserResponse(user, modulePermissions) });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Erro ao fazer login" });
@@ -210,22 +222,8 @@ export function createAuthRouter(): Router {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
 
-      let modulePermissions = DEFAULT_MODULE_PERMISSIONS;
-      if (user.modulePermissions) {
-        try {
-          modulePermissions = { ...DEFAULT_MODULE_PERMISSIONS, ...JSON.parse(user.modulePermissions) };
-        } catch { }
-      }
-
-      res.json({
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role || "admin",
-        teamMembers: user.teamMembers ? user.teamMembers.split(",").map((m: string) => m.trim()) : null,
-        modulePermissions,
-      });
+      const modulePermissions = mergeModulePermissions(user.modulePermissions);
+      res.json(buildUserResponse(user, modulePermissions));
     } catch (error) {
       console.error("Get user error:", error);
       res.status(500).json({ message: "Erro ao buscar usuário" });
@@ -237,6 +235,9 @@ export function createAuthRouter(): Router {
       const { currentPassword, newPassword } = req.body;
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ message: "Senha atual e nova senha são obrigatórias" });
+      }
+      if (typeof newPassword !== "string" || newPassword.length < 6) {
+        return res.status(400).json({ message: "A nova senha deve ter pelo menos 6 caracteres" });
       }
 
       const [user] = await db.select().from(users).where(eq(users.id, req.userId!));
@@ -275,16 +276,19 @@ export async function isAuthenticated(req: AuthRequest, res: Response, next: Nex
   const token = authHeader.substring(7);
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+    const decoded = jwt.verify(token, JWT_SECRET!) as { userId: number };
     req.userId = decoded.userId;
 
     const [user] = await db.select().from(users).where(eq(users.id, decoded.userId));
-    if (user) {
-      req.userRole = user.role || "admin";
-      req.userEmail = user.email;
-      if (user.teamMembers) {
-        req.teamMembers = user.teamMembers.split(",").map(m => m.trim());
-      }
+    if (!user) {
+      return res.status(401).json({ message: "Usuário não encontrado" });
+    }
+
+    req.userRole = user.role || "admin";
+    req.userEmail = user.email;
+    req.userFirstName = user.firstName ?? undefined;
+    if (user.teamMembers) {
+      req.teamMembers = user.teamMembers.split(",").map(m => m.trim()).filter(Boolean);
     }
 
     next();

@@ -112,6 +112,30 @@ function ruleToForm(rule: CommissionRule): RuleFormState {
   };
 }
 
+function isFormValid(form: RuleFormState): boolean {
+  if (!form.name.trim()) return false;
+  if (!form.type) return false;
+  if (form.type === "base_monthly") {
+    return form.thresholds.length > 0 && form.thresholds.every(
+      t => t.from !== "" && t.to !== "" && t.rate !== ""
+    );
+  }
+  if (form.type === "weekly_bonus" || form.type === "weekly_all_bonus") {
+    return form.rate !== "" && !isNaN(parseFloat(form.rate));
+  }
+  if (form.type === "strategic") {
+    return form.target.trim() !== "" && form.rate !== "" && !isNaN(parseFloat(form.rate));
+  }
+  if (form.type === "accelerator") {
+    return form.rate !== "" && !isNaN(parseFloat(form.rate)) &&
+           form.triggerFrom !== "" && !isNaN(parseFloat(form.triggerFrom));
+  }
+  if (form.type === "reducer") {
+    return form.condition.trim() !== "" && form.reduceRate !== "" && !isNaN(parseFloat(form.reduceRate));
+  }
+  return true;
+}
+
 function formToPayload(form: RuleFormState) {
   let config: any = {};
   if (form.type === "base_monthly") {
@@ -430,8 +454,11 @@ export default function ConfigurarComissoes() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={() => saveMutation.mutate(formToPayload(form))} disabled={!form.name || saveMutation.isPending}>
-              {editingId ? "Salvar Alterações" : "Criar Regra"}
+            <Button
+              onClick={() => saveMutation.mutate(formToPayload(form))}
+              disabled={saveMutation.isPending || !isFormValid(form)}
+            >
+              {saveMutation.isPending ? "Salvando..." : editingId ? "Salvar Alterações" : "Criar Regra"}
             </Button>
           </DialogFooter>
         </DialogContent>

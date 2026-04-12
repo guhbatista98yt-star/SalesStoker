@@ -12,12 +12,8 @@ import {
 import { format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/lib/auth-context";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { CommissionResult } from "@shared/schema";
-
-const today = new Date();
-const MONTH = today.getMonth() + 1;
-const YEAR = today.getFullYear();
 
 function fmtBRL(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
@@ -55,6 +51,11 @@ function layerColor(layer: number): string {
 export default function VendedorView() {
   const { user } = useAuth();
   const [auditOpen, setAuditOpen] = useState(false);
+
+  const { today, MONTH, YEAR } = useMemo(() => {
+    const d = new Date();
+    return { today: d, MONTH: d.getMonth() + 1, YEAR: d.getFullYear() };
+  }, []);
 
   const { data, isLoading, error } = useQuery<CommissionResult>({
     queryKey: ["/api/commissions/me", MONTH, YEAR],

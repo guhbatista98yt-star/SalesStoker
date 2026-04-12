@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -18,10 +18,6 @@ import { ptBR } from "date-fns/locale";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth-context";
 import type { CommissionResult } from "@shared/schema";
-
-const today = new Date();
-const MONTH = today.getMonth() + 1;
-const YEAR = today.getFullYear();
 
 function fmtBRL(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
@@ -45,6 +41,11 @@ export default function GestorView() {
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const { today, MONTH, YEAR } = useMemo(() => {
+    const d = new Date();
+    return { today: d, MONTH: d.getMonth() + 1, YEAR: d.getFullYear() };
+  }, []);
 
   const monthLabel = format(startOfMonth(today), "MMMM yyyy", { locale: ptBR });
 
