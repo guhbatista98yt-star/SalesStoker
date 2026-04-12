@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import type { RankingCriteria } from "@shared/schema";
@@ -6,6 +6,9 @@ import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth"
 import campaignRoutes from "./campaigns/routes";
 import { initCampaignTables } from "./campaigns/init";
 import { startAlertEngine } from "./alert-engine";
+import { db } from "./db";
+import { users } from "@shared/models/auth";
+import { eq } from "drizzle-orm";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -554,6 +557,78 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Erro metas elit:", error);
       res.status(500).json({ error: "Erro ao buscar metas elit" });
+    }
+  });
+
+  const isAdminOnly = (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.userRole !== "admin") {
+      return res.status(403).json({ message: "Acesso restrito a administradores" });
+    }
+    next();
+  };
+
+  app.get("/api/users", isAuthenticated, isAdminOnly, async (req: AuthRequest, res) => {
+    try {
+      const allUsers = db.select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+        modulePermissions: users.modulePermissions,
+      }).from(users).all();
+
+      const result = allUsers.map(u => ({
+        id: u.id,
+        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        role: u.role || "admin",
+        modulePermissions: u.modulePermissions ? (() => {
+          try { return JSON.parse(u.modulePermissions!); } catch { return null; }
+        })() : null,
+      }));
+
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao listar usuários:", error);
+      res.status(500).json({ error: "Erro ao listar usuários" });
+    }
+  });
+
+  app.patch("/api/users/:id/permissions", isAuthenticated, isAdminOnly, async (req: AuthRequest, res) => {
+    try {
+      const userId = parseInt(req.params.id, 10);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "ID inválido" });
+      }
+
+      const { modulePermissions } = req.body;
+      if (!modulePermissions || typeof modulePermissions !== "object" || Array.isArray(modulePermissions)) {
+        return res.status(400).json({ error: "Permissões inválidas" });
+      }
+
+      const ALLOWED_MODULES = [
+        "Dashboard", "Vendedores", "Metas", "Alertas",
+        "Visão Semanal", "Visão Mensal", "Visão em Loja", "Campanhas",
+      ];
+
+      const sanitized: Record<string, boolean> = {};
+      for (const key of ALLOWED_MODULES) {
+        if (key in modulePermissions) {
+          sanitized[key] = Boolean(modulePermissions[key]);
+        }
+      }
+
+      db.update(users)
+        .set({ modulePermissions: JSON.stringify(sanitized) })
+        .where(eq(users.id, userId))
+        .run();
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Erro ao atualizar permissões:", error);
+      res.status(500).json({ error: "Erro ao atualizar permissões" });
     }
   });
 

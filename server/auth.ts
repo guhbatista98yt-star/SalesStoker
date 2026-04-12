@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Router, Request, Response, NextFunction } from "express";
 import { db, sqlite } from "./db";
-import { users } from "@shared/models/auth";
+import { users, DEFAULT_MODULE_PERMISSIONS } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "sales-dashboard-secret-key";
@@ -35,6 +35,9 @@ function initializeDatabase() {
   } catch { }
   try {
     sqlite.exec(`ALTER TABLE users ADD COLUMN team_members TEXT`);
+  } catch { }
+  try {
+    sqlite.exec(`ALTER TABLE users ADD COLUMN module_permissions TEXT`);
   } catch { }
 
   try {
@@ -217,6 +220,13 @@ export function createAuthRouter(): Router {
 
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
 
+      let modulePermissions = DEFAULT_MODULE_PERMISSIONS;
+      if (user.modulePermissions) {
+        try {
+          modulePermissions = { ...DEFAULT_MODULE_PERMISSIONS, ...JSON.parse(user.modulePermissions) };
+        } catch { }
+      }
+
       res.json({
         token,
         user: {
@@ -226,6 +236,7 @@ export function createAuthRouter(): Router {
           lastName: user.lastName,
           role: user.role || "admin",
           teamMembers: user.teamMembers ? user.teamMembers.split(",").map((m: string) => m.trim()) : null,
+          modulePermissions,
         },
       });
     } catch (error) {
@@ -241,6 +252,13 @@ export function createAuthRouter(): Router {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
 
+      let modulePermissions = DEFAULT_MODULE_PERMISSIONS;
+      if (user.modulePermissions) {
+        try {
+          modulePermissions = { ...DEFAULT_MODULE_PERMISSIONS, ...JSON.parse(user.modulePermissions) };
+        } catch { }
+      }
+
       res.json({
         id: user.id,
         email: user.email,
@@ -248,6 +266,7 @@ export function createAuthRouter(): Router {
         lastName: user.lastName,
         role: user.role || "admin",
         teamMembers: user.teamMembers ? user.teamMembers.split(",").map((m: string) => m.trim()) : null,
+        modulePermissions,
       });
     } catch (error) {
       console.error("Get user error:", error);

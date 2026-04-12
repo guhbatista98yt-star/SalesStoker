@@ -81,16 +81,24 @@ export function AppSidebar() {
   const isLoja = role === "loja";
   const isSupervisor = role === "supervisor";
   const isVendedor = role === "vendedor";
+  const modPerms = user?.modulePermissions ?? null;
+
+  function isModuleEnabled(moduleName: string): boolean {
+    if (!modPerms) return true;
+    return modPerms[moduleName] !== false;
+  }
 
   // loja: só Visão em Loja; supervisor: sem Visão em Loja; vendedor: campanhas; admin: tudo
-  const filteredMenuItems = isLoja ? [] : isVendedor ? [] : menuItems;
+  const filteredMenuItems = isLoja ? [] : isVendedor ? [] : menuItems.filter(i => isModuleEnabled(i.title));
   const filteredAnalysisItems = isLoja
-    ? analysisItems.filter(i => i.title === "Visão em Loja")
+    ? analysisItems.filter(i => i.title === "Visão em Loja" && isModuleEnabled(i.title))
     : isVendedor
       ? []
       : isSupervisor
-        ? analysisItems.filter(i => i.title !== "Visão em Loja")
-        : analysisItems;
+        ? analysisItems.filter(i => i.title !== "Visão em Loja" && isModuleEnabled(i.title))
+        : analysisItems.filter(i => isModuleEnabled(i.title));
+
+  const showCampanhas = role === "admin" && isModuleEnabled("Campanhas");
 
   return (
     <Sidebar>
@@ -107,7 +115,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {/* Campanhas do Vendedor */}
-        {isVendedor && (
+        {isVendedor && isModuleEnabled("Campanhas") && (
           <SidebarGroup>
             <SidebarGroupLabel>Campanhas</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -178,14 +186,16 @@ export function AppSidebar() {
       {role === "admin" && !isLoja && (
         <SidebarFooter className="p-4 border-t border-sidebar-border space-y-1">
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={location.startsWith("/campanhas")}>
-                <Link href="/campanhas" data-testid="nav-link-campanhas">
-                  <Megaphone className="h-4 w-4" />
-                  <span>Campanhas</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {showCampanhas && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/campanhas")}>
+                  <Link href="/campanhas" data-testid="nav-link-campanhas">
+                    <Megaphone className="h-4 w-4" />
+                    <span>Campanhas</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={location === "/configuracoes"}>
                 <Link href="/configuracoes" data-testid="nav-link-configuracoes">

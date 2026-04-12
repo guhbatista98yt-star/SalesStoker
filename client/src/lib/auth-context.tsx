@@ -8,6 +8,7 @@ interface User {
   lastName: string | null;
   role?: string;
   teamMembers?: string[] | null;
+  modulePermissions?: Record<string, boolean> | null;
 }
 
 interface AuthContextType {
@@ -19,6 +20,7 @@ interface AuthContextType {
   register: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   getAuthHeader: () => Record<string, string>;
+  refreshUser: () => Promise<void>;
 }
 
 const TOKEN_KEY = "auth_token";
@@ -162,6 +164,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
+  const refreshUser = async (): Promise<void> => {
+    const stored = getStoredAuth();
+    if (!stored.token) return;
+    try {
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${stored.token}` },
+      });
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        setStoredAuth(stored.token, userData);
+      }
+    } catch { }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -172,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       getAuthHeader,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

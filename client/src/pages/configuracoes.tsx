@@ -54,7 +54,11 @@ import {
   Pencil,
   Megaphone,
   ArrowRight,
+  ShieldCheck,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { GoalSwitch } from "@/components/goal-switch";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -85,7 +89,28 @@ const YEARS = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 1 +
 const NAV_ITEMS = [
   { id: "equipes", label: "Equipes", icon: Users },
   { id: "metas", label: "Metas de Venda", icon: Target },
+  { id: "permissoes", label: "Permissões", icon: ShieldCheck },
 ];
+
+const ALL_MODULES = [
+  "Dashboard",
+  "Vendedores",
+  "Metas",
+  "Alertas",
+  "Visão Semanal",
+  "Visão Mensal",
+  "Visão em Loja",
+  "Campanhas",
+] as const;
+
+interface UserWithPermissions {
+  id: number;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  role: string;
+  modulePermissions: Record<string, boolean> | null;
+}
 
 // ─── Goal helpers ─────────────────────────────────────────────────────────────
 
@@ -675,6 +700,152 @@ function MetasSection({ salespersons, serverConfig, isLoading, isAdmin }: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: Permissões de Módulos
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getRoleLabel(role: string) {
+  switch (role) {
+    case "admin": return "Admin";
+    case "supervisor": return "Supervisor";
+    case "vendedor": return "Vendedor";
+    case "loja": return "Loja";
+    default: return role;
+  }
+}
+
+function PermissoesSection() {
+  const { toast } = useToast();
+  const { user: currentUser, refreshUser } = useAuth();
+  const [search, setSearch] = useState("");
+  const [expandedUser, setExpandedUser] = useState<number | null>(null);
+  const [localPerms, setLocalPerms] = useState<Record<number, Record<string, boolean>>>({});
+
+  const { data: userList = [], isLoading } = useQuery<UserWithPermissions[]>({
+    queryKey: ["/api/users"],
+  });
+
+  useEffect(() => {
+    if (userList.length > 0) {
+      const perms: Record<number, Record<string, boolean>> = {};
+      for (const u of userList) {
+        perms[u.id] = {};
+        for (const mod of ALL_MODULES) {
+          perms[u.id][mod] = u.modulePermissions ? (u.modulePermissions[mod] !== false) : true;
+        }
+      }
+      setLocalPerms(perms);
+    }
+  }, [userList]);
+
+  const updatePermMutation = useMutation({
+    mutationFn: async ({ userId, permissions }: { userId: number; permissions: Record<string, boolean> }) => {
+      const res = await apiRequest("PATCH", `/api/users/${userId}/permissions`, { modulePermissions: permissions });
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      if (currentUser && String(vars.userId) === String(currentUser.id)) {
+        refreshUser();
+      }
+    },
+    onError: () => {
+      toast({ title: "Erro ao salvar permissão", variant: "destructive" });
+    },
+  });
+
+  function handleToggle(userId: number, moduleName: string, value: boolean) {
+    const newPerms = { ...localPerms[userId], [moduleName]: value };
+    setLocalPerms(prev => ({ ...prev, [userId]: newPerms }));
+    updatePermMutation.mutate({ userId, permissions: newPerms });
+  }
+
+  const filtered = search
+    ? userList.filter(u => {
+        const name = [u.firstName, u.lastName].filter(Boolean).join(" ").toLowerCase();
+        return name.includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
+      })
+    : userList;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold">Permissões de Acesso</h2>
+        <p className="text-sm text-muted-foreground">
+          Controle quais módulos cada usuário pode visualizar no menu de navegação.
+        </p>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar usuário..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-sm text-muted-foreground">Nenhum usuário encontrado.</div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(u => {
+            const isExpanded = expandedUser === u.id;
+            const perms = localPerms[u.id] ?? {};
+            const displayName = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
+            const enabledCount = ALL_MODULES.filter(m => perms[m] !== false).length;
+
+            return (
+              <div key={u.id} className="border rounded-lg overflow-hidden">
+                <button
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+                  onClick={() => setExpandedUser(isExpanded ? null : u.id)}
+                >
+                  {isExpanded
+                    ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{displayName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {getRoleLabel(u.role)}
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {enabledCount}/{ALL_MODULES.length} módulos
+                  </Badge>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 py-3 border-t bg-background">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {ALL_MODULES.map(mod => (
+                        <div key={mod} className="flex items-center justify-between gap-3 py-1.5">
+                          <span className="text-sm">{mod}</span>
+                          <Switch
+                            checked={perms[mod] !== false}
+                            onCheckedChange={val => handleToggle(u.id, mod, val)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN: Configurações Hub
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -780,6 +951,9 @@ export default function Configuracoes() {
                 isLoading={isLoading}
                 isAdmin={isAdmin}
               />
+            )}
+            {activeSection === "permissoes" && (
+              <PermissoesSection />
             )}
           </div>
         </main>
