@@ -1,0 +1,428 @@
+Quero que você faça uma NOVA revisão completa e crítica da aplicação, de ponta a ponta, agora considerando que depois da revisão anterior foram implementadas novas funções, novos módulos, novas telas, novas regras e novos fluxos.
+
+IMPORTANTE:
+Não quero uma revisão superficial.
+Não quero apenas uma olhada rápida.
+Quero uma nova auditoria técnica e funcional com postura de programador sênior, procurando regressões, erros, bugs, fragilidades, inconsistências, conflitos entre módulos, problemas de cálculo, problemas de dados, problemas de UX/UI, problemas de responsividade, riscos futuros e tudo que possa comprometer a aplicação em produção.
+
+OBJETIVO:
+Refazer uma revisão completa da aplicação com foco total em encontrar e corrigir qualquer problema novo ou antigo que tenha surgido depois das últimas implementações.
+
+Quero que você trate isso como uma nova etapa de hardening e validação profissional antes da operação.
+
+============================================================
+1. CONTEXTO
+============================================================
+
+A aplicação já passou por revisão anterior, mas depois disso foram adicionadas novas funções, novos módulos, novas melhorias e novos fluxos.
+
+Então agora preciso de uma NOVA revisão completa.
+Considere que toda alteração recente pode ter introduzido:
+- regressões
+- quebras silenciosas
+- bugs
+- inconsistência entre módulos
+- falhas de cálculo
+- falhas de integração
+- falhas de permissões
+- falhas de layout
+- falhas de mobile
+- falhas de performance
+- comportamentos imprevisíveis
+
+Não assuma que o que já foi revisado anteriormente continua íntegro.
+Revalide tudo.
+
+============================================================
+2. POSTURA ESPERADA
+============================================================
+
+Atue como um programador sênior extremamente criterioso.
+
+Quero que você:
+- revise com olhar crítico
+- desconfie de fluxos frágeis
+- procure bugs reais e potenciais
+- encontre regressões
+- refatore o que ficou abaixo do nível profissional
+- corrija tudo que um sênior condenaria
+- endureça os pontos frágeis
+- elimine comportamentos imprevisíveis
+- trate a aplicação como produto real de produção
+
+============================================================
+3. ESCOPO DA NOVA REVISÃO
+============================================================
+
+Quero revisão completa de:
+- frontend
+- backend
+- banco de dados
+- APIs
+- rotas
+- autenticação
+- autorização
+- sessões
+- dashboards
+- campanhas
+- comissões
+- metas
+- cards e indicadores
+- relatórios
+- exportações
+- filtros
+- formulários
+- novos módulos
+- novas funções
+- novas telas
+- novas integrações
+- responsividade
+- mobile
+- performance
+- integridade dos dados
+- experiência do usuário
+- consistência visual
+
+Nada deve ficar fora da revisão.
+
+============================================================
+4. FOCO ESPECIAL EM REGRESSÕES
+============================================================
+
+Quero que você procure especificamente:
+- funcionalidades que deixaram de funcionar depois das alterações recentes
+- telas antigas quebradas por novos módulos
+- cálculos que mudaram sem querer
+- conflitos entre regras novas e regras antigas
+- permissões que deixaram brechas
+- componentes reutilizados que quebraram outras páginas
+- estilos novos que afetaram telas antigas
+- filtros que pararam de funcionar
+- cards mostrando dados errados
+- dashboards divergindo de relatórios
+- mobile quebrado por alterações recentes
+- performance piorada após os novos recursos
+
+============================================================
+5. NOVOS MÓDULOS E NOVAS FUNÇÕES
+============================================================
+
+Quero revisão severa do que foi implementado recentemente.
+
+Validar:
+- se a nova função realmente funciona de ponta a ponta
+- se o fluxo novo está consistente
+- se a regra está correta
+- se há validação suficiente
+- se o módulo novo conversa bem com o restante do sistema
+- se o banco suporta a nova funcionalidade corretamente
+- se existem tabelas, colunas, índices e relacionamentos faltando
+- se há risco de resultado errado
+- se a nova funcionalidade está segura para múltiplos usuários
+
+============================================================
+6. CÁLCULOS E RESULTADOS — CRÍTICO
+============================================================
+
+Revisar novamente todos os cálculos e resultados do sistema, principalmente onde houve alteração recente.
+
+Procurar e corrigir:
+- percentuais errados
+- arredondamentos errados
+- bases de cálculo incorretas
+- divergência entre dashboard e relatório
+- divergência entre vendedor e supervisor
+- meta semanal errada
+- meta mensal errada
+- comissão errada
+- ranking errado
+- progresso errado
+- barras de progresso inconsistentes
+- memória de cálculo divergente
+- filtros alterando o resultado de forma indevida
+- dados nulos ou zero quebrando resultado
+
+Quero tolerância zero para resultado inconsistente.
+
+============================================================
+7. DADOS E INTEGRIDADE
+============================================================
+
+Quero nova revisão da integridade dos dados.
+
+Procurar:
+- duplicidade
+- perda de consistência
+- gravação parcial
+- criação inválida
+- edição quebrando relacionamento
+- ausência de validação
+- upsert incorreto
+- dados divergentes entre telas
+- valores antigos sendo mostrados como atuais
+- problemas de sync
+- erros silenciosos de persistência
+- risco de dado incorreto em produção
+
+Quero que os dados apresentados sejam confiáveis para qualquer usuário.
+
+============================================================
+8. MÚLTIPLOS USUÁRIOS E CONCORRÊNCIA
+============================================================
+
+A aplicação será usada por vários usuários.
+
+Quero revisar novamente os riscos de:
+- clique duplo
+- duas gravações ao mesmo tempo
+- edição simultânea
+- conflito entre sessões
+- dados desatualizados em tela
+- corrida entre leitura e gravação
+- conflitos entre mudança de status
+- campanhas alteradas simultaneamente
+- meta/comissão sendo recalculada em momento errado
+- usuário vendo dado intermediário inconsistente
+
+Se houver risco, corrigir.
+
+============================================================
+9. PERMISSÕES E ACESSO
+============================================================
+
+Como existem novos módulos e novas funções, revisar novamente:
+- controle de acesso
+- perfis
+- escopos
+- proteção de rotas
+- bloqueio no backend
+- menus por permissão
+- visualização de resultados sensíveis
+- edição de regras
+- exportação
+- alterações críticas
+
+Quero garantir que:
+- ninguém veja o que não deveria
+- ninguém altere o que não deveria
+- novas funções respeitem a política de acesso
+- o backend realmente proteja os fluxos
+
+============================================================
+10. UX/UI — NOVA RODADA DE REVISÃO
+============================================================
+
+Quero reforço na revisão visual e funcional.
+
+Procurar:
+- telas que ficaram simples demais
+- desalinhamentos
+- hierarquia fraca
+- cards genéricos
+- excesso de informação
+- falta de clareza
+- botões inconsistentes
+- modais ruins
+- tabelas secas
+- cores mal aplicadas
+- problemas no redesign
+- telas novas que não seguem o padrão
+- telas antigas quebradas por componentes novos
+- experiência inconsistente entre módulos
+
+Quero manter padrão premium, profissional e coerente na aplicação inteira.
+
+============================================================
+11. RESPONSIVIDADE E MOBILE
+============================================================
+
+Quero nova revisão completa de responsividade, porque mudanças recentes podem ter quebrado telas em mobile.
+
+Revisar em:
+- desktop grande
+- notebook
+- tablet
+- celular pequeno
+- celular médio
+- celular grande
+
+Procurar e corrigir:
+- card fora da tela
+- texto estourando
+- botão cortado
+- barra de progresso quebrada
+- ranking ilegível
+- tabela ruim no celular
+- filtros quebrados
+- modal grande demais
+- heros mal adaptados
+- cards empilhados errado
+- elementos sobrepostos
+- layout fora de esquadro
+- scroll lateral desnecessário
+
+Quero revisão séria em todas as telas, especialmente nas novas.
+
+============================================================
+12. PERFORMANCE
+============================================================
+
+Quero revisão novamente de performance, principalmente após os novos módulos.
+
+Verificar:
+- telas que ficaram lentas
+- dashboards pesados
+- consultas desnecessárias
+- loops
+- re-render excessivo
+- filtros ineficientes
+- processamento duplicado
+- carga excessiva
+- telas grandes sem otimização
+- problemas causados pelas funções novas
+
+Se houver degradação, corrigir.
+
+============================================================
+13. FORMULÁRIOS E FLUXOS DE CRIAÇÃO/EDIÇÃO
+============================================================
+
+Revisar todos os formulários novamente, principalmente os novos ou alterados.
+
+Corrigir:
+- validações fracas
+- mensagens ruins
+- campos obrigatórios ausentes
+- tipos errados
+- submit duplicado
+- loading ausente
+- feedback ruim
+- gravação parcial
+- edição inconsistente
+- criação de registros inválidos
+- risco de configuração quebrada
+
+============================================================
+14. RELATÓRIOS, EXPORTAÇÕES E DASHBOARDS
+============================================================
+
+Quero revalidar tudo.
+
+Procurar:
+- divergência entre tela e exportação
+- filtros não respeitados
+- totais errados
+- agrupamentos errados
+- colunas erradas
+- dashboards mostrando valores diferentes dos relatórios
+- exportação com resultado diferente do sistema
+- memória de cálculo inconsistente
+- widgets quebrados ou superficiais
+
+Quero confiabilidade total.
+
+============================================================
+15. CÓDIGO E ARQUITETURA
+============================================================
+
+Quero nova revisão de qualidade do código.
+
+Corrigir ou refatorar:
+- duplicações novas
+- lógica espalhada
+- componentes grandes demais
+- funções confusas
+- hardcode indevido
+- regras críticas no lugar errado
+- nomes ruins
+- tratamento de erro insuficiente
+- fluxo frágil
+- acoplamento excessivo
+- dependência perigosa entre módulos
+- pontos que ficaram com cara de improviso
+
+Tudo que um sênior condenaria deve ser corrigido ou refeito.
+
+============================================================
+16. TESTES DE CENÁRIOS CRÍTICOS
+============================================================
+
+Quero validação dos cenários críticos, inclusive nos módulos novos.
+
+Testar e corrigir:
+- login
+- sessão
+- dashboards
+- campanhas
+- criação e edição de campanha
+- metas
+- comissão
+- ranking
+- vendedor elegível
+- vendedor não elegível
+- supervisor vendo equipe
+- filtros
+- exportações
+- mobile
+- erro de rede
+- valores nulos
+- valores zerados
+- estados futuros, ativos, pausados e encerrados
+- novos módulos implementados
+- navegação entre telas
+- estados de loading e erro
+
+============================================================
+17. O QUE NÃO ACEITO
+============================================================
+
+Não quero:
+- revisão superficial
+- só comentários
+- só melhorias visuais
+- falso “está tudo certo”
+- cálculo bonito mas errado
+- tela nova quebrando tela antiga
+- regra nova gerando inconsistência
+- comportamento imprevisível
+- bugs silenciosos
+- regressão não percebida
+- aplicação aparentemente pronta, mas frágil
+
+============================================================
+18. ENTREGA ESPERADA
+============================================================
+
+Quero que você:
+1. refaça a revisão completa da aplicação
+2. procure erros, bugs e regressões com olhar sênior
+3. corrija os problemas encontrados
+4. refatore o que ficou abaixo do nível profissional
+5. valide novamente cálculos, resultados, dashboards e relatórios
+6. revise novamente responsividade e mobile
+7. revise permissões, segurança e concorrência
+8. fortaleça a aplicação após as novas implementações
+9. deixe tudo no nível que um programador sênior não condenaria
+
+============================================================
+19. CHECKLIST FINAL OBRIGATÓRIO
+============================================================
+
+Antes de concluir, me entregue um checklist com:
+- bugs encontrados
+- bugs corrigidos
+- regressões encontradas
+- regressões corrigidas
+- módulos novos revisados
+- módulos antigos revalidados
+- cálculos revisados
+- dashboards revisados
+- exportações revisadas
+- mobile validado
+- responsividade validada
+- riscos mitigados
+- pontos que ainda exigem atenção, se houver
+
+Se ainda houver qualquer ponto sensível, sinalize claramente.
+Não quero falsa sensação de estabilidade.
+Quero revisão madura, técnica e confiável.

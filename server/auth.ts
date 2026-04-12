@@ -205,6 +205,17 @@ export function createAuthRouter(): Router {
         return res.status(401).json({ message: "Email ou senha incorretos" });
       }
 
+      const userStatus = (user as any).status ?? "ativo";
+      if (userStatus === "bloqueado") {
+        return res.status(403).json({ message: "Usuário bloqueado. Contate o administrador." });
+      }
+      if (userStatus === "inativo") {
+        return res.status(403).json({ message: "Usuário inativo. Contate o administrador." });
+      }
+
+      // Record last login
+      await pgRun("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
+
       const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: TOKEN_EXPIRY });
       const modulePermissions = mergeModulePermissions(user.modulePermissions);
 

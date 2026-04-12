@@ -44,6 +44,7 @@ import CampaignForm from "@/pages/campanhas/form";
 import CampaignView from "@/pages/campanhas/view";
 import Comissoes from "@/pages/comissoes/index";
 import ConfigurarComissoes from "@/pages/comissoes/configurar";
+import Usuarios from "@/pages/usuarios";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +97,7 @@ function Router() {
       <Route path="/campanhas/:id" component={(params: { id: string }) => <CampaignView campaignId={params.id} />} />
       <Route path="/comissoes" component={Comissoes} />
       <Route path="/comissoes/configurar" component={ConfigurarComissoes} />
+      <Route path="/usuarios" component={Usuarios} />
       {(role === "admin" || role === "supervisor") && (
         <>
           <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
@@ -187,9 +189,10 @@ function CommandPalette() {
     { label: "Alertas",         href: "/alertas",     icon: AlertTriangle },
     { label: "Visão Semanal",   href: "/semanal",     icon: CalendarDays },
     { label: "Visão Mensal",    href: "/mensal",      icon: CalendarRange },
-    { label: "Campanhas",       href: "/campanhas",   icon: Megaphone },
-    { label: "Comissões",       href: "/comissoes",   icon: DollarSign },
-    { label: "Configurações",   href: "/configuracoes", icon: Settings },
+    { label: "Campanhas",            href: "/campanhas",   icon: Megaphone },
+    { label: "Comissões",            href: "/comissoes",   icon: DollarSign },
+    { label: "Usuários & Permissões", href: "/usuarios",   icon: Users },
+    { label: "Configurações",        href: "/configuracoes", icon: Settings },
   ];
 
   const lojaItems = [

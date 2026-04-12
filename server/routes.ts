@@ -8,6 +8,7 @@ import { initCampaignTables } from "./campaigns/init";
 import { initCommissionTables } from "./commissions/init";
 import { registerCommissionRoutes } from "./commissions/routes";
 import { startAlertEngine } from "./alert-engine";
+import usersAdminRouter from "./routes/users-admin";
 import { db } from "./db";
 import { pgAll } from "./pg-client";
 import { users } from "@shared/models/auth";
@@ -47,6 +48,7 @@ export async function registerRoutes(
   startAlertEngine();
 
   app.use("/api/auth", createAuthRouter());
+  app.use("/api/admin", usersAdminRouter);
 
   app.get("/api/companies", isAuthenticated, async (req, res) => {
     try {

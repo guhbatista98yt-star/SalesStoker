@@ -20,6 +20,17 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (April 2026 — IAM Module: Usuários & Permissões)
+
+- **Módulo Usuários & Permissões** — Nova página `/usuarios` (admin-only) com 4 abas: Usuários, Perfis, Permissões, Auditoria. Acesso via sidebar e command palette.
+- **Schema — 3 novas tabelas**: `roles` (perfis de acesso com seed dos 7 perfis padrão: admin, supervisor, gerente, vendedor, loja, financeiro, marketing), `role_permissions` (permissões granulares por módulo × ação × escopo), `access_audit` (auditoria de todas as operações de acesso).
+- **Schema — 10 novas colunas em `users`**: `display_name`, `vendor_code`, `phone`, `cargo`, `company_id`, `supervisor_id`, `status` (ativo/inativo/bloqueado), `last_login_at`, `notes`, `created_by`.
+- **Backend `/api/admin/*`**: CRUD completo de usuários, CRUD de perfis, gestão de matriz de permissões (módulo × ação × escopo), log de auditoria. Todas as rotas com `isAuthenticated + isAdmin`.
+- **Auth hardened**: Login agora verifica `status` do usuário (bloqueado/inativo recebem 403). `last_login_at` atualizado a cada login bem-sucedido. Falhas de acesso registradas em `access_audit`.
+- **Sidebar**: Novo item "Usuários" (ShieldCheck icon) no footer admin, entre Campanhas e Configurações.
+- **Permissões granulares**: 11 módulos × 7 ações × 4 escopos (own/team/loja/all). Matriz salva por perfil. Interface de checkbox com escopo por linha.
+- **Auditoria completa**: Toda criação/edição/bloqueio/redefinição de senha/alteração de permissão grava `actor_id`, `actor_email`, `target_id`, `target_email`, `action`, `before_val`, `after_val`, `ip`, `created_at`.
+
 ## Recent Changes (April 2026 — Data Layer Audit & Hardening)
 
 - **Schema Bootstrap (`server/schema-bootstrap.ts`)** — Single source of truth for ALL PostgreSQL structure. Runs idempotently on every startup. Creates 25 tables (application, campaigns, commissions, sync-control, ERP cache) with indexes and constraints. Validates that every required table exists before the app accepts requests.

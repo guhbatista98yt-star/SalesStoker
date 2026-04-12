@@ -560,12 +560,96 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["campaigns", "brand_color",    "TEXT"],
     ["goals",     "created_at",     "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"],
     ["goals",     "updated_at",     "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"],
+    // Users — extended profile & governance fields
+    ["users", "display_name",   "TEXT"],
+    ["users", "vendor_code",    "TEXT"],
+    ["users", "phone",          "TEXT"],
+    ["users", "cargo",          "TEXT"],
+    ["users", "company_id",     "TEXT"],
+    ["users", "supervisor_id",  "INTEGER"],
+    ["users", "status",         "TEXT NOT NULL DEFAULT 'ativo'"],
+    ["users", "last_login_at",  "TEXT"],
+    ["users", "notes",          "TEXT"],
+    ["users", "created_by",     "INTEGER"],
   ];
 
   for (const [table, col, def] of migrations) {
     const did = await addColumnIfMissing(table, col, def);
     if (did) added.push(`${table}.${col}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Roles & Permissions tables
+// ---------------------------------------------------------------------------
+
+async function bootstrapRoles(): Promise<void> {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS roles (
+      id            SERIAL PRIMARY KEY,
+      name          TEXT NOT NULL UNIQUE,
+      display_name  TEXT NOT NULL,
+      description   TEXT,
+      is_system     BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_roles_name ON roles (name)`);
+
+  const SYSTEM_ROLES = [
+    { name: "admin",       display_name: "Administrador",      description: "Acesso total ao sistema",           is_system: true  },
+    { name: "supervisor",  display_name: "Supervisor",         description: "Gerencia equipes e resultados",     is_system: true  },
+    { name: "gerente",     display_name: "Gerente de Loja",    description: "Visão de loja e equipe",            is_system: true  },
+    { name: "vendedor",    display_name: "Vendedor",           description: "Acesso a dados próprios",           is_system: true  },
+    { name: "loja",        display_name: "Display de Loja",    description: "Exibição em televisão/monitor",     is_system: true  },
+    { name: "financeiro",  display_name: "Financeiro",         description: "Acesso a valores e comissões",      is_system: false },
+    { name: "marketing",   display_name: "Marketing / Indústria", description: "Visualização de campanhas",     is_system: false },
+  ];
+
+  for (const r of SYSTEM_ROLES) {
+    await exec(`
+      INSERT INTO roles (name, display_name, description, is_system)
+      VALUES ('${r.name}', '${r.display_name.replace(/'/g, "''")}', '${r.description.replace(/'/g, "''")}', ${r.is_system})
+      ON CONFLICT (name) DO NOTHING
+    `);
+  }
+}
+
+async function bootstrapRolePermissions(): Promise<void> {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      id          SERIAL PRIMARY KEY,
+      role_id     INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+      module      TEXT NOT NULL,
+      action      TEXT NOT NULL,
+      scope       TEXT NOT NULL DEFAULT 'all',
+      created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (role_id, module, action)
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_rp_role ON role_permissions (role_id)`);
+}
+
+async function bootstrapAccessAudit(): Promise<void> {
+  await exec(`
+    CREATE TABLE IF NOT EXISTS access_audit (
+      id           SERIAL PRIMARY KEY,
+      actor_id     INTEGER,
+      actor_email  TEXT,
+      target_id    INTEGER,
+      target_email TEXT,
+      action       TEXT NOT NULL,
+      entity       TEXT NOT NULL,
+      before_val   TEXT,
+      after_val    TEXT,
+      ip           TEXT,
+      created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_audit_actor ON access_audit (actor_id)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_audit_target ON access_audit (target_id)`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_audit_created ON access_audit (created_at)`);
 }
 
 // ---------------------------------------------------------------------------
@@ -580,6 +664,7 @@ const REQUIRED_TABLES = [
   "commission_rules", "commission_records",
   "sync_state", "sync_logs", "job_locks",
   "cache_vendas", "cache_vendas_pendentes", "cache_campanhas", "cache_tubos_conexoes",
+  "roles", "role_permissions", "access_audit",
 ];
 
 async function validateSchema(): Promise<void> {
@@ -625,6 +710,11 @@ export async function runSchemaBootstrap(): Promise<void> {
 
     // ── Commissions ───────────────────────────────────────────────────────
     await bootstrapCommissions();
+
+    // ── Roles & Permissions ────────────────────────────────────────────────
+    await bootstrapRoles();
+    await bootstrapRolePermissions();
+    await bootstrapAccessAudit();
 
     // ── Sync control ──────────────────────────────────────────────────────
     await bootstrapSyncControl();

@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp,
-  Store, PaintBucket, Calendar, Megaphone, LineChart, DollarSign,
+  Store, PaintBucket, Calendar, Megaphone, LineChart, DollarSign, ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -168,6 +168,18 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={location === "/usuarios"}
+                className="h-9 rounded-lg text-sm font-medium"
+              >
+                <Link href="/usuarios" data-testid="nav-link-usuarios">
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  <span>Usuários</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
