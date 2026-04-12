@@ -561,41 +561,45 @@ export class PostgresStorage implements IStorage {
       ? salespersons
       : salespersons.filter(sp => teamMembers.some(tm => sp.name.toUpperCase().includes(tm.toUpperCase())));
 
-    return Promise.all(filtered.map(async (sp) => {
-      const goals = this.goals.filter(g =>
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    let whereCompany = "";
+    if (companyId !== "all") {
+      whereCompany = `AND "IDEMPRESA" = ${parseInt(companyId)}`;
+    }
+
+    const results: GoalWithProgress[] = [];
+    await Promise.all(filtered.map(async (sp) => {
+      const spGoals = this.goals.filter(g =>
         g.salespersonId === sp.id &&
         g.month === month &&
         g.year === year &&
         (companyId === "all" || g.companyId === companyId)
       );
 
-      const totalTarget = goals.reduce((sum, g) => sum + g.targetValue, 0);
+      if (spGoals.length === 0) return;
 
-      const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-
-      let whereCompany = "";
-      if (companyId !== "all") {
-        whereCompany = `AND "IDEMPRESA" = ${parseInt(companyId)}`;
-      }
-
-      const progress = await pgGet<{ total: number }>(`
+      const salesRow = await pgGet<{ total: number }>(`
         SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas
         WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany}
       `, [sp.id, startDate, endDate]);
 
-      const currentValue = progress?.total ?? 0;
-      const progressPercent = totalTarget > 0 ? Math.min(100, Math.round((currentValue / totalTarget) * 100)) : 0;
+      const currentValue = Number(salesRow?.total ?? 0);
 
-      return {
-        salesperson: sp,
-        goals,
-        totalTarget,
-        currentValue,
-        progressPercent,
-      };
+      for (const g of spGoals) {
+        const progress = g.targetValue > 0
+          ? Math.min(100, Math.round((currentValue / g.targetValue) * 100))
+          : 0;
+        results.push({
+          ...g,
+          currentValue,
+          progress,
+          salespersonName: sp.name,
+        });
+      }
     }));
+    return results;
   }
 
   async createGoal(goal: Omit<Goal, "id">): Promise<Goal> {
@@ -647,11 +651,11 @@ export class PostgresStorage implements IStorage {
       WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
     `, [salespersonId, startDate, endDate]);
 
-    const totalTarget = goals.reduce((sum, g) => sum + g.targetValue, 0);
-    const currentValue = progress?.total ?? 0;
-    const progressPercent = totalTarget > 0 ? Math.min(100, Math.round((currentValue / totalTarget) * 100)) : 0;
-
-    return [{ salesperson: sp, goals, totalTarget, currentValue, progressPercent }];
+    const currentValue = Number(progress?.total ?? 0);
+    return goals.map(g => {
+      const prog = g.targetValue > 0 ? Math.min(100, Math.round((currentValue / g.targetValue) * 100)) : 0;
+      return { ...g, currentValue, progress: prog, salespersonName: sp.name };
+    });
   }
 
   async getAlertNotifications(companyId: string): Promise<AlertNotification[]> {
