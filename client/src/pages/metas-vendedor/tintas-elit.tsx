@@ -1,124 +1,233 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, CheckCircle2, XCircle, PaintBucket } from "lucide-react";
+import { AlertCircle, PaintBucket, CheckCircle2, Gift, ShieldCheck, Zap, Calendar } from "lucide-react";
 import { formatCurrency, formatDateBR } from "@/lib/calendar-utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { CampaignHero } from "@/components/campanhas/campaign-hero";
+import { CampaignStatusBanner, type Requirement } from "@/components/campanhas/campaign-status-banner";
+import { MetricCard } from "@/components/campanhas/metric-card";
+import { CalculationMemory } from "@/components/campanhas/calculation-memory";
+import { CampaignRules } from "@/components/campanhas/campaign-rules";
 
-function StatusIcon({ ok }: { ok: boolean }) {
-    if (ok) return <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />;
-    return <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />;
+function Skeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div className="skeleton rounded-2xl h-[160px]" />
+      <div className="skeleton rounded-2xl h-[160px]" />
+      <div className="skeleton rounded-2xl h-[220px]" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="skeleton rounded-2xl h-[260px]" />
+        <div className="skeleton rounded-2xl h-[260px]" />
+      </div>
+    </div>
+  );
 }
 
 export default function TintasElitTab() {
-    const { data, isLoading, isError } = useQuery({
-        queryKey: ["/api/metas/elit"],
-        refetchInterval: 300000,
-    });
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["/api/metas/elit"],
+    refetchInterval: 300000,
+  });
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center p-12">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+  if (isLoading) return <Skeleton />;
 
-    if (isError || !data) {
-        return (
-            <Alert variant="destructive" className="mt-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Erro</AlertTitle>
-                <AlertDescription>Não foi possível carregar os dados da Campanha Tintas Elit.</AlertDescription>
-            </Alert>
-        );
-    }
-
-    const {
-        last_update,
-        periodo,
-        gatilho_minimo,
-        valor_vendido,
-        faltante,
-        participando,
-    } = data as any;
-
-    const progressPercent = Math.min((valor_vendido / gatilho_minimo) * 100, 100);
-
+  if (isError || !data) {
     return (
-        <div className="space-y-4">
-            {/* Cabeçalho da campanha */}
-            <div className="pt-2">
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
-                    Campanha Tintas Elit
-                </h1>
-                <p className="text-muted-foreground text-sm mt-1">
-                    Ciclo: Sábado {formatDateBR(periodo.inicio)} até Sexta-feira {formatDateBR(periodo.fim)}
-                </p>
-            </div>
-
-            {/* Elegibilidade Banner */}
-            <div className={`p-4 sm:p-6 rounded-xl border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all duration-500 ${participando ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'}`}>
-                <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-full flex-shrink-0 ${participando ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
-                        {participando ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
-                    </div>
-                    <div>
-                        <h2 className={`text-xl font-bold ${participando ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                            {participando ? "Gatilho Atingido!" : "Quase lá!"}
-                        </h2>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                            Pagamento previsto para Sábado, {formatDateBR(periodo.pagamento_em)}
-                        </p>
-                    </div>
-                </div>
-
-                <Badge variant="outline" className={`text-sm font-medium self-start sm:self-center ${participando ? 'border-emerald-300 text-emerald-700 dark:text-emerald-400' : 'border-amber-300 text-amber-700 dark:text-amber-400'}`}>
-                    {progressPercent.toFixed(0)}% do gatilho
-                </Badge>
-            </div>
-
-            {/* Card de Vendas no Ciclo */}
-            <Card className="shadow-sm">
-                <CardHeader className="pb-3 border-b bg-gray-50/50 dark:bg-white/5 space-y-1">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle className="text-base flex items-center gap-2">
-                                <PaintBucket className="w-4 h-4 text-orange-500 flex-shrink-0" /> Vendas no Ciclo
-                            </CardTitle>
-                            <CardDescription className="text-xs">Gatilho Mínimo: {formatCurrency(gatilho_minimo)}</CardDescription>
-                        </div>
-                        <StatusIcon ok={participando} />
-                    </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                    <div className="flex flex-col gap-1 mb-3">
-                        <span className="text-sm font-medium text-muted-foreground">Faturamento Elit</span>
-                        <span className="text-4xl font-black tracking-tight text-foreground">{formatCurrency(valor_vendido)}</span>
-                    </div>
-
-                    <Progress value={progressPercent} className="h-4 my-3" />
-
-                    <div className="flex justify-end text-sm">
-                        {!participando && faltante > 0 && (
-                            <span className="text-amber-600 font-medium">Falta: {formatCurrency(faltante)}</span>
-                        )}
-                    </div>
-
-                    {participando && (
-                        <div className="mt-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30 text-center">
-                            <span className="text-emerald-700 dark:text-emerald-300 font-semibold text-sm">
-                                ✓ Gatilho atingido! Você está qualificado para receber o prêmio do ciclo.
-                            </span>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            <p className="text-center text-xs text-muted-foreground pt-2">
-                Atualizado em {formatDateBR(last_update)}
-            </p>
-        </div>
+      <Alert variant="destructive" className="mt-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Erro ao carregar dados</AlertTitle>
+        <AlertDescription>Não foi possível carregar os dados da Campanha Tintas Elit.</AlertDescription>
+      </Alert>
     );
+  }
+
+  const { last_update, periodo, gatilho_minimo, valor_vendido, faltante, participando } = data as any;
+
+  const progressPct = Math.min((valor_vendido / gatilho_minimo) * 100, 200);
+
+  const requirements: Requirement[] = [
+    {
+      id: "gatilho",
+      label: "Gatilho Mínimo de Vendas",
+      sublabel: `Ciclo: ${formatDateBR(periodo.inicio)} até ${formatDateBR(periodo.fim)}`,
+      value: formatCurrency(valor_vendido),
+      target: formatCurrency(gatilho_minimo),
+      pct: progressPct,
+      ok: participando,
+      critical: true,
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Hero */}
+      <CampaignHero
+        supplierName="Tintas Elit"
+        supplierInitials="TE"
+        brandColor="#EA580C"
+        brandColorDark="#9A3412"
+        campaignName="Campanha Tintas Elit"
+        subtitle="Incentivo de ciclo semanal com premiação imediata"
+        periodStart={periodo.inicio}
+        periodEnd={periodo.fim}
+        status="ativa"
+        type="gatilho"
+        typeLabel="Gatilho Semanal"
+        eligible={participando}
+        metrics={[
+          {
+            label: "Gatilho Mínimo",
+            value: `${Math.min(progressPct, 100).toFixed(0)}%`,
+            pct: progressPct,
+            ok: participando,
+          },
+        ]}
+      />
+
+      {/* Payment info strip */}
+      {periodo.pagamento_em && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-50/60 border border-amber-100 dark:bg-amber-900/10 dark:border-amber-800/30">
+          <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+            <Calendar className="h-4 w-4 text-amber-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
+              {participando ? "Prêmio confirmado!" : "Pagamento previsto se você atingir o gatilho"}
+            </p>
+            <p className="text-xs text-amber-700/70 dark:text-amber-400/70">
+              Sábado, {formatDateBR(periodo.pagamento_em)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Status banner */}
+      <CampaignStatusBanner
+        eligible={participando}
+        requirements={requirements}
+        callToAction={
+          participando
+            ? `Gatilho atingido! Prêmio confirmado para sábado ${formatDateBR(periodo.pagamento_em)}.`
+            : faltante > 0
+            ? `Faltam ${formatCurrency(faltante)} para atingir o gatilho e receber o prêmio do ciclo.`
+            : "Acompanhe seu progresso abaixo."
+        }
+        rewardLabel={participando ? "Prêmio garantido" : `Faltam ${formatCurrency(faltante)}`}
+      />
+
+      {/* Main metric card - large */}
+      <div>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground mb-3">
+          Desempenho no Ciclo Atual
+        </h2>
+        <MetricCard
+          title="Vendas Tintas Elit no Ciclo"
+          subtitle={`Ciclo semanal: ${formatDateBR(periodo.inicio)} – ${formatDateBR(periodo.fim)}`}
+          value={formatCurrency(valor_vendido)}
+          targetLabel={`Gatilho: ${formatCurrency(gatilho_minimo)}`}
+          remainingLabel={
+            participando
+              ? `Gatilho atingido! Você qualificou para o prêmio deste ciclo.`
+              : `Faltam ${formatCurrency(faltante)} para destravar o prêmio`
+          }
+          pct={progressPct}
+          status={
+            participando ? "atingido"
+            : progressPct >= 75 ? "quase"
+            : "pendente"
+          }
+          icon={PaintBucket}
+          iconColor="text-orange-600"
+          iconBg="bg-orange-50 dark:bg-orange-900/20"
+          className="max-w-lg"
+        />
+      </div>
+
+      {/* Calculation memory + Rules */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <CalculationMemory
+          steps={[
+            {
+              label: "Faturamento Elit no ciclo",
+              value: formatCurrency(valor_vendido),
+              status: participando ? "ok" : "fail",
+              note: `Produtos Tintas Elit apenas`,
+            },
+            {
+              label: "Gatilho mínimo do ciclo",
+              value: formatCurrency(gatilho_minimo),
+              status: "neutral",
+              note: "Valor fixo definido pela campanha",
+            },
+            {
+              label: "Percentual atingido",
+              value: `${Math.min(progressPct, 100).toFixed(1)}%`,
+              status: participando ? "ok" : progressPct >= 75 ? "warn" : "fail",
+              note: participando ? "Gatilho superado" : `Faltam ${formatCurrency(faltante)}`,
+            },
+            {
+              label: "Pagamento previsto",
+              value: periodo.pagamento_em ? formatDateBR(periodo.pagamento_em) : "—",
+              status: participando ? "ok" : "neutral",
+              note: participando ? "Prêmio confirmado" : "Condicionado ao atingimento do gatilho",
+            },
+          ]}
+          conclusion={
+            participando
+              ? `Gatilho atingido! Prêmio confirmado para ${formatDateBR(periodo.pagamento_em)}.`
+              : `Ainda não elegível. Faltam ${formatCurrency(faltante)} para destravar o prêmio deste ciclo.`
+          }
+          conclusionStatus={participando ? "ok" : progressPct >= 75 ? "warn" : "fail"}
+        />
+
+        <CampaignRules
+          groups={[
+            {
+              title: "Como funciona",
+              icon: Zap,
+              iconColor: "text-orange-500",
+              items: [
+                "Campanha com ciclo semanal (sábado a sexta)",
+                "Prêmio pago no sábado seguinte se o gatilho for atingido",
+                "Cada ciclo é independente — você pode ganhar toda semana",
+              ],
+            },
+            {
+              title: "O que conta",
+              icon: CheckCircle2,
+              iconColor: "text-emerald-500",
+              items: [
+                "Apenas produtos Tintas Elit são considerados",
+                "Faturamento apurado no período de sábado a sexta",
+                "Notas fiscais emitidas dentro do ciclo",
+              ],
+            },
+            {
+              title: "Premiação",
+              icon: Gift,
+              iconColor: "text-amber-500",
+              items: [
+                "Prêmio fixo por ciclo ao atingir o gatilho mínimo",
+                "Pagamento realizado no sábado seguinte ao ciclo",
+                "Não há acúmulo entre ciclos",
+              ],
+            },
+            {
+              title: "Regras importantes",
+              icon: ShieldCheck,
+              iconColor: "text-slate-500",
+              items: [
+                "O gatilho mínimo é definido pela Tintas Elit por ciclo",
+                "Dados atualizados automaticamente a cada 5 minutos",
+                "Em caso de dúvida, consulte o regulamento oficial",
+              ],
+            },
+          ]}
+        />
+      </div>
+
+      <p className="text-center text-xs text-muted-foreground pt-1">
+        Dados atualizados em {formatDateBR(last_update)} · Ciclo: {formatDateBR(periodo.inicio)} – {formatDateBR(periodo.fim)}
+      </p>
+    </div>
+  );
 }

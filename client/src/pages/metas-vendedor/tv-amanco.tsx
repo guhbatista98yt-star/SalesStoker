@@ -1,205 +1,328 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, CheckCircle2, TrendingUp, XCircle, Store, Target, Percent } from "lucide-react";
+import { Loader2, AlertCircle, Target, Percent, TrendingUp, Store, CheckCircle2, Gift, ShieldCheck, Zap, Tv2 } from "lucide-react";
 import { formatCurrency, formatDateBR } from "@/lib/calendar-utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { CampaignHero } from "@/components/campanhas/campaign-hero";
+import { CampaignStatusBanner, type Requirement } from "@/components/campanhas/campaign-status-banner";
+import { MetricCard } from "@/components/campanhas/metric-card";
+import { CalculationMemory } from "@/components/campanhas/calculation-memory";
+import { CampaignRules } from "@/components/campanhas/campaign-rules";
 
-function StatusIcon({ ok }: { ok: boolean }) {
-    if (ok) return <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />;
-    return <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />;
+function Skeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div className="skeleton rounded-2xl h-[160px]" />
+      <div className="skeleton rounded-2xl h-[200px]" />
+      <div className="grid grid-cols-2 gap-4">
+        {[...Array(4)].map((_, i) => <div key={i} className="skeleton rounded-2xl h-[220px]" />)}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="skeleton rounded-2xl h-[280px]" />
+        <div className="skeleton rounded-2xl h-[280px]" />
+      </div>
+    </div>
+  );
 }
 
 export default function TvAmancoTab() {
-    const { data, isLoading, isError } = useQuery({
-        queryKey: ["/api/metas/amanco/tv"],
-        refetchInterval: 300000,
-    });
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["/api/metas/amanco/tv"],
+    refetchInterval: 300000,
+  });
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center p-12">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
-    }
+  if (isLoading) return <Skeleton />;
 
-    if (isError || !data) {
-        return (
-            <Alert variant="destructive" className="mt-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Erro</AlertTitle>
-                <AlertDescription>Não foi possível carregar os dados da Campanha TV Amanco.</AlertDescription>
-            </Alert>
-        );
-    }
-
-    const {
-        last_update,
-        periodo,
-        faturamento_amanco: fat,
-        crescimento_vendedor: cv,
-        mix_amanco: mx,
-        crescimento_loja: cl,
-        elegibilidade: el
-    } = data as any;
-
+  if (isError || !data) {
     return (
-        <div className="space-y-4">
-            {/* Cabeçalho da campanha */}
-            <div className="pt-2">
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-                    Campanha TV Amanco
-                </h1>
-                <p className="text-muted-foreground text-sm mt-1">
-                    {formatDateBR(periodo.inicio)} – {formatDateBR(periodo.fim)}
-                    {periodo.encerrado && (
-                        <Badge variant="secondary" className="ml-2 text-xs bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                            Encerrado
-                        </Badge>
-                    )}
-                </p>
-            </div>
-
-            {/* Elegibilidade Banner */}
-            <div className={`p-4 sm:p-6 rounded-xl border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all duration-500 ${el.participando ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
-                <div className="flex items-start gap-3 w-full">
-                    <div className={`p-2.5 rounded-full flex-shrink-0 mt-0.5 ${el.participando ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'}`}>
-                        {el.participando ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
-                    </div>
-                    <div className="flex-1">
-                        <h2 className={`text-xl font-bold ${el.participando ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
-                            {el.participando ? "Elegível para o Sorteio!" : "Ainda não elegível"}
-                        </h2>
-                        {!el.participando && el.motivos && el.motivos.length > 0 && (
-                            <ul className="mt-1.5 space-y-1">
-                                {el.motivos.map((m: string, i: number) => (
-                                    <li key={i} className="flex items-center gap-2 text-sm font-medium text-red-700 dark:text-red-300">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
-                                        {m}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Gatilho Mínimo */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-3">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <Target className="w-4 h-4 text-blue-500 flex-shrink-0" /> Gatilho Mínimo
-                                </CardTitle>
-                                <CardDescription className="text-xs">Faturamento no período promocional</CardDescription>
-                            </div>
-                            <StatusIcon ok={fat.gatilho_atingido} />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex justify-between items-end mb-2">
-                            <span className="text-2xl font-bold">{formatCurrency(fat.valor_atual)}</span>
-                            <span className="text-xs text-muted-foreground">Meta: {formatCurrency(fat.meta_gatilho)}</span>
-                        </div>
-                        <Progress value={Math.min(fat.percentual, 100)} className="h-3 mb-2" />
-                        <div className="flex justify-end text-xs">
-                            {fat.faltante > 0 && <span className="text-amber-600">Falta: {formatCurrency(fat.faltante)}</span>}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Conexões sobre Tubos — SEM valores monetários */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-3">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <Percent className="w-4 h-4 text-purple-500 flex-shrink-0" /> Conexões sobre Tubos
-                                </CardTitle>
-                                <CardDescription className="text-xs">Participação de Conexões</CardDescription>
-                            </div>
-                            <StatusIcon ok={mx.status_ok} />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex justify-between items-end mb-2">
-                            <span className="text-2xl font-bold">{mx.percentual_conexoes.toFixed(1)}%</span>
-                            <span className="text-xs text-muted-foreground">Meta Mínima: {mx.meta_percentual}%</span>
-                        </div>
-                        <Progress value={Math.min((mx.percentual_conexoes / mx.meta_percentual) * 100, 100)} className="h-3 mb-3 bg-purple-100 [&>div]:bg-purple-500" />
-                        <div className="text-sm">
-                            {mx.status_ok
-                                ? <span className="text-emerald-600 font-medium">✓ Meta de {mx.meta_percentual}% atingida.</span>
-                                : <span className="text-amber-600 font-medium">Você precisa vender mais conexões Amanco.</span>}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Crescimento vs. Ano Anterior */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-3">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <TrendingUp className="w-4 h-4 text-amber-500 flex-shrink-0" /> Seu Crescimento
-                                </CardTitle>
-                                <CardDescription className="text-xs">Crescimento vs. Ano Anterior</CardDescription>
-                            </div>
-                            <StatusIcon ok={cv.status_ok} />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center gap-3 mb-2">
-                            <Badge className={`text-base px-3 py-1 ${cv.crescimento_percentual >= cv.meta_percentual ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"}`}>
-                                {cv.crescimento_percentual >= 0 ? "+" : ""}{cv.crescimento_percentual.toFixed(1)}%
-                            </Badge>
-                            <span className="text-sm text-muted-foreground">Meta: {cv.meta_percentual}%</span>
-                        </div>
-                        <Progress value={Math.min((Math.max(cv.crescimento_percentual, 0) / cv.meta_percentual) * 100, 100)} className="h-3 bg-amber-100 [&>div]:bg-amber-500" />
-                    </CardContent>
-                </Card>
-
-                {/* Trava Global da Loja */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-3 border-b bg-muted/30">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <Store className="w-4 h-4 text-indigo-500 flex-shrink-0" /> Crescimento Loja
-                                </CardTitle>
-                                <CardDescription className="text-xs">Crescimento de todos os vendedores vs. Ano Anterior</CardDescription>
-                            </div>
-                            <StatusIcon ok={cl.status_ok} />
-                        </div>
-                    </CardHeader>
-                    <CardContent className="py-4">
-                        <div className="flex justify-between items-end mb-3">
-                            <span className="text-2xl font-bold">
-                                {cl.crescimento_percentual > 0 ? "+" : ""}{cl.crescimento_percentual.toFixed(2)}%
-                            </span>
-                            <span className="text-xs text-muted-foreground">Meta: {cl.meta_percentual}%</span>
-                        </div>
-                        <Progress
-                            value={cl.meta_percentual > 0 ? Math.max(0, Math.min((cl.crescimento_percentual / cl.meta_percentual) * 100, 100)) : 100}
-                            className={`h-3 mb-3 ${cl.status_ok ? '[&>div]:bg-emerald-500 bg-emerald-100' : '[&>div]:bg-amber-500 bg-amber-100'}`}
-                        />
-                        <div className="text-sm text-center mt-1">
-                            {cl.status_ok
-                                ? <span className="text-emerald-600 font-medium">Loja atingiu o crescimento necessário.</span>
-                                : <span className="text-amber-600 font-medium">A loja precisa atingir a meta global para destravar os prêmios.</span>}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <p className="text-center text-xs text-muted-foreground pt-2">
-                Atualizado em {formatDateBR(last_update)}
-            </p>
-        </div>
+      <Alert variant="destructive" className="mt-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Erro ao carregar dados</AlertTitle>
+        <AlertDescription>Não foi possível carregar os dados da Campanha TV Amanco.</AlertDescription>
+      </Alert>
     );
+  }
+
+  const {
+    last_update,
+    periodo,
+    faturamento_amanco: fat,
+    crescimento_vendedor: cv,
+    mix_amanco: mx,
+    crescimento_loja: cl,
+    elegibilidade: el,
+  } = data as any;
+
+  const fatPct  = Math.min((fat.valor_atual / fat.meta_gatilho) * 100, 200);
+  const mixPct  = Math.min((mx.percentual_conexoes / mx.meta_percentual) * 100, 200);
+  const cvPct   = Math.min(Math.max((cv.crescimento_percentual / (cv.meta_percentual || 1)) * 100, 0), 200);
+  const lojaPct = cl.meta_percentual > 0
+    ? Math.max(0, Math.min((cl.crescimento_percentual / cl.meta_percentual) * 100, 200))
+    : 100;
+
+  function metricStatus(pct: number, ok: boolean) {
+    if (ok || pct >= 100) return "atingido" as const;
+    if (pct >= 75) return "quase" as const;
+    return "pendente" as const;
+  }
+
+  const requirements: Requirement[] = [
+    {
+      id: "gatilho",
+      label: "Gatilho Mínimo de Faturamento",
+      sublabel: "Faturamento Amanco no período promocional",
+      value: formatCurrency(fat.valor_atual),
+      target: formatCurrency(fat.meta_gatilho),
+      pct: fatPct,
+      ok: fat.gatilho_atingido,
+      critical: true,
+    },
+    {
+      id: "mix",
+      label: "Mix de Conexões Amanco",
+      sublabel: "Participação de conexões sobre o total",
+      value: `${mx.percentual_conexoes.toFixed(1)}%`,
+      target: `${mx.meta_percentual}%`,
+      pct: mixPct,
+      ok: mx.status_ok,
+      critical: true,
+    },
+    {
+      id: "cv",
+      label: "Crescimento Pessoal",
+      sublabel: "Seu crescimento vs. ano anterior",
+      value: `${cv.crescimento_percentual >= 0 ? "+" : ""}${cv.crescimento_percentual.toFixed(1)}%`,
+      target: `+${cv.meta_percentual}%`,
+      pct: cvPct,
+      ok: cv.status_ok,
+      critical: true,
+    },
+    {
+      id: "loja",
+      label: "Trava Crescimento Loja",
+      sublabel: "Crescimento global de todos os vendedores",
+      value: `${cl.crescimento_percentual >= 0 ? "+" : ""}${cl.crescimento_percentual.toFixed(1)}%`,
+      target: `+${cl.meta_percentual}%`,
+      pct: lojaPct,
+      ok: cl.status_ok,
+      critical: false,
+    },
+  ];
+
+  const pendingIds = requirements.filter(r => !r.ok).map(r => r.label);
+  const callToAction = el.participando
+    ? "Todos os critérios atingidos! Você está elegível para o sorteio da campanha TV Amanco."
+    : pendingIds.length === 1
+    ? `Falta apenas: ${pendingIds[0]}.`
+    : `Pendentes: ${pendingIds.join("; ")}.`;
+
+  const campaignStatus = periodo.encerrado ? "encerrada" as const : "ativa" as const;
+
+  return (
+    <div className="space-y-5">
+      {/* Hero */}
+      <CampaignHero
+        supplierName="Amanco Wavin"
+        supplierInitials="AW"
+        brandColor="#0057A8"
+        brandColorDark="#003D80"
+        campaignName="Campanha TV Amanco"
+        subtitle="Promoção de incentivo com sorteio de televisores"
+        periodStart={periodo.inicio}
+        periodEnd={periodo.fim}
+        status={campaignStatus}
+        type="sorteio"
+        typeLabel="Sorteio"
+        eligible={el.participando}
+        metrics={[
+          { label: "Gatilho", value: `${Math.min(fatPct, 100).toFixed(0)}%`, pct: fatPct, ok: fat.gatilho_atingido },
+          { label: "Conexões", value: `${Math.min(mixPct, 100).toFixed(0)}%`, pct: mixPct, ok: mx.status_ok },
+          { label: "Crescimento", value: `${Math.min(cvPct, 100).toFixed(0)}%`, pct: cvPct, ok: cv.status_ok },
+          { label: "Loja", value: `${Math.min(lojaPct, 100).toFixed(0)}%`, pct: lojaPct, ok: cl.status_ok },
+        ]}
+      />
+
+      {/* Encerrado banner */}
+      {periodo.encerrado && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-900/20 dark:border-slate-700">
+          <Badge variant="secondary" className="bg-slate-200 text-slate-700">Encerrada</Badge>
+          <p className="text-sm text-muted-foreground">
+            Esta campanha foi encerrada. Os dados exibidos refletem o resultado final apurado.
+          </p>
+        </div>
+      )}
+
+      {/* Status banner */}
+      <CampaignStatusBanner
+        eligible={el.participando}
+        requirements={requirements}
+        callToAction={callToAction}
+        rewardLabel={el.participando ? "Elegível ao sorteio" : "Verifique critérios"}
+      />
+
+      {/* Metric cards */}
+      <div>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground mb-3">
+          Métricas de Desempenho
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <MetricCard
+            title="Gatilho Mínimo"
+            subtitle="Faturamento Amanco no período"
+            value={formatCurrency(fat.valor_atual)}
+            targetLabel={`Meta: ${formatCurrency(fat.meta_gatilho)}`}
+            remainingLabel={
+              fat.gatilho_atingido
+                ? "Gatilho de faturamento atingido!"
+                : `Faltam ${formatCurrency(fat.faltante)} para o gatilho`
+            }
+            pct={fatPct}
+            status={metricStatus(fatPct, fat.gatilho_atingido)}
+            icon={Target}
+            iconColor="text-blue-600"
+            iconBg="bg-blue-50 dark:bg-blue-900/20"
+          />
+
+          <MetricCard
+            title="Mix de Conexões"
+            subtitle="% conexões Amanco sobre o total"
+            value={`${mx.percentual_conexoes.toFixed(1)}%`}
+            targetLabel={`Meta: ${mx.meta_percentual}%`}
+            remainingLabel={
+              mx.status_ok
+                ? `${mx.percentual_conexoes.toFixed(1)}% — acima da meta`
+                : `Faltam ${Math.max(0, mx.meta_percentual - mx.percentual_conexoes).toFixed(1)}pp`
+            }
+            pct={mixPct}
+            status={metricStatus(mixPct, mx.status_ok)}
+            icon={Percent}
+            iconColor="text-purple-600"
+            iconBg="bg-purple-50 dark:bg-purple-900/20"
+          />
+
+          <MetricCard
+            title="Crescimento Pessoal"
+            subtitle={`Meta: +${cv.meta_percentual}% vs. ano anterior`}
+            value={`${cv.crescimento_percentual >= 0 ? "+" : ""}${cv.crescimento_percentual.toFixed(1)}%`}
+            targetLabel={`Meta: +${cv.meta_percentual}%`}
+            remainingLabel={
+              cv.status_ok
+                ? "Crescimento pessoal atingido!"
+                : `Faltam ${Math.max(0, cv.meta_percentual - cv.crescimento_percentual).toFixed(1)}pp`
+            }
+            pct={cvPct}
+            status={metricStatus(cvPct, cv.status_ok)}
+            icon={TrendingUp}
+            iconColor="text-amber-600"
+            iconBg="bg-amber-50 dark:bg-amber-900/20"
+          />
+
+          <MetricCard
+            title="Trava da Loja"
+            subtitle="Crescimento global dos vendedores"
+            value={`${cl.crescimento_percentual >= 0 ? "+" : ""}${cl.crescimento_percentual.toFixed(1)}%`}
+            targetLabel={`Meta: +${cl.meta_percentual}%`}
+            remainingLabel={
+              cl.status_ok
+                ? "Loja atingiu o crescimento necessário"
+                : `Loja precisa de +${Math.max(0, cl.meta_percentual - cl.crescimento_percentual).toFixed(1)}pp`
+            }
+            pct={lojaPct}
+            status={metricStatus(lojaPct, cl.status_ok)}
+            icon={Store}
+            iconColor="text-indigo-600"
+            iconBg="bg-indigo-50 dark:bg-indigo-900/20"
+          />
+        </div>
+      </div>
+
+      {/* Calculation memory + Rules */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <CalculationMemory
+          steps={[
+            {
+              label: "Faturamento Amanco apurado",
+              value: formatCurrency(fat.valor_atual),
+              status: fat.gatilho_atingido ? "ok" : "fail",
+              note: `Meta de gatilho: ${formatCurrency(fat.meta_gatilho)}`,
+            },
+            {
+              label: "% Conexões sobre Tubos",
+              value: `${mx.percentual_conexoes.toFixed(1)}%`,
+              status: mx.status_ok ? "ok" : "fail",
+              note: `Meta mínima: ${mx.meta_percentual}%`,
+            },
+            {
+              label: "Crescimento pessoal vs. ano anterior",
+              value: `${cv.crescimento_percentual >= 0 ? "+" : ""}${cv.crescimento_percentual.toFixed(1)}%`,
+              status: cv.status_ok ? "ok" : "fail",
+              note: `Meta: +${cv.meta_percentual}%`,
+            },
+            {
+              label: "Crescimento global da loja",
+              value: `${cl.crescimento_percentual >= 0 ? "+" : ""}${cl.crescimento_percentual.toFixed(2)}%`,
+              status: cl.status_ok ? "ok" : "warn",
+              note: `Meta da trava: +${cl.meta_percentual}%`,
+            },
+          ]}
+          conclusion={
+            el.participando
+              ? "Todos os critérios atingidos. Você está elegível para participar do sorteio."
+              : callToAction
+          }
+          conclusionStatus={el.participando ? "ok" : "fail"}
+        />
+
+        <CampaignRules
+          groups={[
+            {
+              title: "Prêmio — O sorteio",
+              icon: Tv2,
+              iconColor: "text-blue-500",
+              items: [
+                "Sorteio de televisores entre os vendedores elegíveis",
+                "Para participar, você precisa atingir todos os critérios",
+                "Quanto mais critérios atingir, maior a chance (se aplicável)",
+              ],
+            },
+            {
+              title: "Critérios de elegibilidade",
+              icon: CheckCircle2,
+              iconColor: "text-emerald-500",
+              items: [
+                "Atingir o faturamento mínimo de produtos Amanco",
+                `Manter ${mx.meta_percentual}% de conexões sobre o total`,
+                `Crescer ${cv.meta_percentual}% vs. ano anterior`,
+                "Loja deve crescer globalmente vs. ano anterior",
+              ],
+            },
+            {
+              title: "Regras importantes",
+              icon: ShieldCheck,
+              iconColor: "text-slate-500",
+              items: [
+                "A trava da loja é coletiva e impacta todos os vendedores",
+                "Faturamento apurado apenas com produtos Amanco DTR",
+                "Sorteio realizado após encerramento da campanha",
+              ],
+            },
+            {
+              title: "Como funciona",
+              icon: Zap,
+              iconColor: "text-amber-500",
+              items: [
+                "Dados atualizados automaticamente a cada 5 minutos",
+                "Critérios verificados em tempo real",
+                "Resultado final apurado após encerramento do período",
+              ],
+            },
+          ]}
+        />
+      </div>
+
+      <p className="text-center text-xs text-muted-foreground pt-1">
+        Dados atualizados em {formatDateBR(last_update)} · Apuração automática a cada 5 minutos
+      </p>
+    </div>
+  );
 }

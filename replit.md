@@ -42,6 +42,18 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
   - Status machine: rascunho → ativa → pausada/encerrada → cancelada
   - Natural language summary auto-generated on save
   - Sidebar: new "Campanhas" link; Configurações: "Criar Campanhas" shortcut
+- **Campaign Pages Premium Redesign (April 2026)**: Complete overhaul of salesperson campaign pages (metas-vendedor):
+  - **Shared component library** in `client/src/components/campanhas/`:
+    - `campaign-hero.tsx` — Supplier-branded hero card with gradient band, logo initials, period, status badge, type badge, mini metric strip with thin progress bars
+    - `campaign-status-banner.tsx` — Smart eligibility/requirements block with individual requirement rows (value, progress bar, target, % chip, ok/warn/fail states)
+    - `metric-card.tsx` — Premium executive metric card: top accent line, icon pill, large value, target label, progress bar, remaining/note colored pill
+    - `calculation-memory.tsx` — "How was this calculated" block with step-by-step audit trail and colored conclusion
+    - `campaign-rules.tsx` — Campaign rules in clear language, grouped by category with icons
+  - **dtr-amanco.tsx** — Full premium redesign: CampaignHero (Amanco brand blue), 3-requirement StatusBanner (gatilho + mix + trava loja), 4 MetricCards grid, CalculationMemory + CampaignRules side by side
+  - **tv-amanco.tsx** — Same premium system: CampaignHero (sorteio type), 4-requirement StatusBanner (crescimento pessoal added), "Encerrada" badge support, full CalculationMemory
+  - **tintas-elit.tsx** — Simplified premium layout: CampaignHero (orange Elit brand), payment date strip, single MetricCard, CalculationMemory + CampaignRules
+  - **acompanhamento.tsx** — Clean overview: header strip with real-time badge, GoalCard components (varejo/atacado) with full progress anatomy, MixCard with SVG donut chart
+
 - **Settings Hub Reformulation**: Replaced separate admin pages with a unified Configurações module featuring 4 sections via left-sidebar navigation:
   - **Equipes**: Full inline team management (create/edit/delete groups, search members, member checkboxes)
   - **Metas de Venda**: Weekly/monthly goals config per salesperson (unchanged functionality, integrated)

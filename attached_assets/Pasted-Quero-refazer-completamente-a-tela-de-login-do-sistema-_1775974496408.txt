@@ -1,0 +1,410 @@
+Quero refazer completamente a tela de login do sistema para deixá-la mais simplificada, profissional, premium e totalmente alinhada ao novo redesign solicitado anteriormente para o CRM.
+
+IMPORTANTE:
+Não quero uma tela de login genérica, nem uma landing page com formulário.
+Quero uma tela de acesso elegante, corporativa, clara, moderna e com cara de produto SaaS enterprise.
+
+A tela atual está limpa, mas ainda está simples demais visualmente e não acompanha o nível premium do novo CRM.
+Preciso de uma tela de login mais madura, mais refinada e mais coerente com a nova linguagem visual do sistema.
+
+============================================================
+1. OBJETIVO DA NOVA TELA DE LOGIN
+============================================================
+
+Quero uma tela de login que transmita:
+- profissionalismo
+- credibilidade
+- sofisticação
+- clareza
+- segurança
+- leveza
+- produto enterprise
+- consistência com o restante do sistema
+
+Essa tela precisa ser:
+- simples
+- elegante
+- direta
+- sem poluição
+- sem excesso de blocos desnecessários
+- visualmente forte mesmo com poucos elementos
+
+============================================================
+2. DIREÇÃO VISUAL
+============================================================
+
+A tela deve seguir a mesma linguagem visual do redesign principal do CRM:
+
+- base clara
+- fundo em tom gelo / off-white / cinza muito claro
+- cards brancos
+- bordas sutis
+- sombras leves
+- cantos arredondados
+- tipografia moderna
+- hierarquia visual limpa
+- cor primária azul elegante
+- interface premium e minimalista
+
+Quero uma estética:
+- moderna
+- corporativa
+- refinada
+- tecnológica
+- limpa
+- madura
+
+Não quero:
+- cara de template simples
+- cara de formulário cru
+- visual infantil
+- excesso de ícones
+- excesso de texto
+- muitos cards informativos disputando atenção
+- aparência de página institucional genérica
+
+============================================================
+3. ESTRATÉGIA DE SIMPLIFICAÇÃO
+============================================================
+
+Quero simplificar bastante a tela.
+
+A prioridade deve ser:
+1. marca
+2. mensagem curta e forte
+3. formulário de login
+4. pequena contextualização institucional, se necessário
+
+Quero remover distrações visuais e reduzir o excesso de informação concorrente.
+
+Se existirem muitos blocos secundários, reduzir drasticamente.
+Não quero vários cards abaixo roubando atenção do login.
+
+O foco principal da página deve ser:
+- identidade da marca
+- acesso ao sistema
+
+============================================================
+4. ESTRUTURA IDEAL DA TELA
+============================================================
+
+Quero uma estrutura mais premium, com algo próximo de:
+
+A. área superior com marca
+B. título principal forte
+C. subtítulo curto e elegante
+D. card de login muito bem resolvido
+E. opcionalmente um bloco visual institucional muito discreto
+F. rodapé minimalista, se necessário
+
+A organização deve ser muito bem centralizada e equilibrada.
+
+============================================================
+5. CABEÇALHO / MARCA
+============================================================
+
+Quero um topo mais refinado para a marca.
+
+Exibir:
+- logotipo
+- nome do sistema
+- pequena assinatura ou descrição curta
+
+Mas tudo com mais sofisticação visual.
+
+Exemplo de direção:
+- ícone ou símbolo da marca mais elegante
+- nome do sistema com mais presença
+- subtítulo curto, sem muito texto
+- nada exagerado
+
+A marca precisa parecer mais forte e premium.
+
+============================================================
+6. TEXTO PRINCIPAL
+============================================================
+
+Quero menos texto e melhor texto.
+
+Hoje a tela tem uma descrição longa demais para um login.
+Quero algo mais objetivo e premium.
+
+Exemplo de direção:
+- título forte
+- subtítulo curto
+- mensagem de apoio discreta
+
+Algo como:
+- “Acesse sua plataforma”
+- “Entre com suas credenciais para continuar”
+- “Painel de gestão comercial e performance”
+
+Quero mensagem curta, elegante e corporativa.
+
+============================================================
+7. CARD DE LOGIN
+============================================================
+
+O card de login precisa ser o centro da experiência.
+
+Quero um card premium com:
+- bom espaçamento interno
+- excelente hierarquia
+- título claro
+- subtítulo discreto
+- labels organizadas
+- inputs mais elegantes
+- botão principal forte
+- estados de foco bem definidos
+- estados de erro bonitos
+- opção de mostrar/ocultar senha
+- feedback claro de autenticação
+- loader elegante no botão ao entrar
+
+Visualmente:
+- card branco
+- borda sutil
+- sombra leve
+- raio de borda moderno
+- largura equilibrada
+- nada apertado
+- nada grande demais
+
+============================================================
+8. INPUTS
+============================================================
+
+Quero inputs mais refinados e consistentes com o CRM.
+
+Aplicar:
+- altura confortável
+- borda suave
+- fundo limpo
+- foco com destaque azul elegante
+- placeholder discreto
+- labels bem posicionadas
+- ícones apenas se fizer sentido
+- estados de erro premium
+- boa legibilidade
+
+Não quero inputs com cara genérica.
+
+============================================================
+9. BOTÃO DE ENTRADA
+============================================================
+
+Quero botão principal bem desenhado.
+
+Características:
+- azul principal do sistema
+- altura confortável
+- cantos arredondados
+- tipografia firme
+- ícone discreto se fizer sentido
+- hover suave
+- pressed state elegante
+- loading state profissional
+- largura total no card
+
+Texto do botão:
+- Entrar
+ou
+- Acessar sistema
+
+Quero algo simples, forte e elegante.
+
+============================================================
+10. RECURSOS OPCIONAIS DE UX
+============================================================
+
+Se fizer sentido, adicionar:
+- mostrar/ocultar senha
+- lembrar acesso
+- esqueci minha senha
+- mensagem de erro amigável
+- feedback visual de autenticação
+- Caps Lock detectado, se aplicável
+- estado de carregamento ao submeter
+
+Mas tudo de forma discreta, sem poluir a interface.
+
+============================================================
+11. COMPOSIÇÃO VISUAL DA TELA
+============================================================
+
+Quero que a página tenha mais presença visual, sem ficar pesada.
+
+Sugestões:
+- composição centralizada premium
+- fundo claro com textura ou gradiente extremamente sutil
+- elementos decorativos muito discretos
+- grid limpo
+- muito bom respiro
+- excelente balanceamento entre vazio e conteúdo
+
+Se quiser adicionar um elemento visual complementar, pode usar:
+- shape abstrato sutil
+- bloco gráfico discreto
+- padrão suave de fundo
+- linha visual leve
+- branding minimalista
+
+Mas sem exagero.
+
+============================================================
+12. O QUE FAZER COM OS CARDS INFERIORES
+============================================================
+
+Os cards inferiores atuais deixam a tela com cara de página de apresentação.
+Quero simplificar isso.
+
+Opções melhores:
+- remover completamente
+ou
+- substituir por uma única faixa institucional discreta
+ou
+- transformar em um bloco secundário muito mais limpo, menor e menos chamativo
+ou
+- mover esse conteúdo para outra área do sistema
+
+A tela de login precisa ser focada em acesso, não em vender a plataforma.
+
+============================================================
+13. HIERARQUIA VISUAL
+============================================================
+
+Quero hierarquia muito clara:
+
+1. marca
+2. título
+3. formulário
+4. ação principal
+5. links auxiliares
+6. informações secundárias
+
+Hoje a tela tem elementos competindo demais.
+Quero eliminar isso.
+
+============================================================
+14. EXPERIÊNCIA PREMIUM
+============================================================
+
+Quero que a tela passe sensação de:
+- produto caro
+- software profissional
+- sistema nacional bem construído
+- tecnologia séria
+- ambiente confiável
+
+Mesmo sendo simples, ela precisa parecer muito bem desenhada.
+
+Menos elementos, mais qualidade.
+
+============================================================
+15. RESPONSIVIDADE
+============================================================
+
+A tela precisa ficar excelente em:
+- desktop
+- notebook
+- tablet
+- celular
+
+No desktop:
+- card bem centralizado
+- boa distribuição do espaço
+- sem parecer vazio demais
+- sem parecer gigantesco
+
+No mobile:
+- card adaptado
+- espaçamento adequado
+- inputs confortáveis
+- botão fácil de tocar
+- cabeçalho mais compacto
+- ótima legibilidade
+
+Quero responsividade real, sem quebra de layout.
+
+============================================================
+16. MICROINTERAÇÕES
+============================================================
+
+Quero microinterações suaves e profissionais:
+
+- foco elegante nos inputs
+- hover suave no botão
+- feedback no submit
+- loading state bonito
+- transições curtas
+- animação leve de entrada do card
+- erro de validação bem tratado
+- nada exagerado
+
+============================================================
+17. COMPONENTES A REVISAR / PADRONIZAR
+============================================================
+
+Revisar ou criar:
+- LoginPageLayout
+- BrandHeader
+- LoginCard
+- LoginForm
+- InputField
+- PasswordField
+- PrimaryButton
+- SecondaryLink
+- ErrorMessage
+- LoadingState
+- AuthFooter
+
+Tudo alinhado ao design system principal do CRM.
+
+============================================================
+18. O QUE NÃO QUERO
+============================================================
+
+Não quero:
+- tela de login poluída
+- excesso de cards informativos
+- cara de landing page
+- texto demais
+- visual genérico
+- design fraco
+- inputs simples demais
+- excesso de elementos decorativos
+- dark mode como padrão
+- aparência amadora
+- solução superficial
+
+============================================================
+19. ENTREGA ESPERADA
+============================================================
+
+Quero que você refaça a tela de login inteira com foco em:
+- simplificação
+- profissionalismo
+- consistência com o redesign principal
+- visual premium
+- melhor hierarquia
+- melhor formulário
+- melhor responsividade
+- melhor percepção de produto
+
+Quero uma tela muito mais madura, limpa e sofisticada do que a atual.
+
+============================================================
+20. CHECKLIST FINAL
+============================================================
+
+Antes de considerar concluído, valide se a tela final:
+- está mais simples
+- está mais profissional
+- está mais premium
+- combina com o novo CRM
+- remove distrações
+- foca no login
+- tem melhor hierarquia
+- tem formulário mais elegante
+- funciona muito bem no desktop e mobile
+- parece adequada para apresentação a grandes empresas

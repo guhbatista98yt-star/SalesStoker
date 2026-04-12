@@ -1,246 +1,304 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Loader2, Target, TrendingUp, AlertCircle, PieChart, Clock } from "lucide-react";
+import { AlertCircle, Target, PieChart, Clock, CheckCircle2, TrendingUp, RefreshCw } from "lucide-react";
 import { formatCurrency, formatDateBR } from "@/lib/calendar-utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
-function getProgressColor(progress: number): string {
-    if (progress >= 100) return "bg-emerald-500";
-    if (progress >= 75) return "bg-blue-500";
-    if (progress >= 50) return "bg-amber-500";
-    return "bg-red-500";
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
+function getStatusFromPct(pct: number) {
+  if (pct >= 100) return "atingido" as const;
+  if (pct >= 75)  return "quase" as const;
+  if (pct >= 50)  return "em_curso" as const;
+  return "pendente" as const;
 }
 
-export default function AcompanhamentoTab() {
-    const { data, isLoading, isError } = useQuery({
-        queryKey: ["/api/metas/acompanhamento"],
-        refetchInterval: 300000, // 5 min
-    });
+const statusBar: Record<string, string> = {
+  atingido: "bg-emerald-500",
+  quase:    "bg-amber-500",
+  em_curso: "bg-primary",
+  pendente: "bg-red-400",
+};
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center p-12">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+const statusBadge: Record<string, string> = {
+  atingido: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  quase:    "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  em_curso: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  pendente: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+};
+
+const statusLabel: Record<string, string> = {
+  atingido: "Concluída",
+  quase:    "Quase lá",
+  em_curso: "Em progresso",
+  pendente: "Pendente",
+};
+
+/* ── Meta goal card ───────────────────────────────────────────────────────── */
+interface GoalCardProps {
+  title: string;
+  subtitle: string;
+  valorAtual: number;
+  meta: number;
+  percentual: number;
+  faltante: number;
+  diasRestantes: number;
+  accentColor: string;
+  accentBg: string;
+  icon: React.ReactNode;
+}
+
+function GoalCard({
+  title, subtitle, valorAtual, meta, percentual, faltante,
+  diasRestantes, accentColor, accentBg, icon,
+}: GoalCardProps) {
+  const pct = Math.min(percentual, 100);
+  const status = getStatusFromPct(percentual);
+
+  return (
+    <div className="bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden flex flex-col">
+      {/* Top accent */}
+      <div className={cn("h-0.5 w-full", statusBar[status])} />
+
+      <div className="p-5 flex flex-col gap-5 flex-1">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", accentBg)}>
+              <span className={accentColor}>{icon}</span>
             </div>
-        );
-    }
-
-    if (isError || !data) {
-        return (
-            <Alert variant="destructive" className="mt-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Erro</AlertTitle>
-                <AlertDescription>Não foi possível carregar os dados de acompanhamento.</AlertDescription>
-            </Alert>
-        );
-    }
-
-    const { last_update, loja1, loja3, mix_geral, periodo: periodoData } = data as any;
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-zinc-900 p-4 rounded-xl border shadow-sm">
-                <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="px-3 py-1 text-sm bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                        <Clock className="w-3.5 h-3.5 mr-1.5 inline-block" />
-                        Atualizado em tempo real
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                        {formatDateBR(last_update)}
-                    </span>
-                </div>
+            <div>
+              <p className="text-base font-bold text-foreground leading-tight">{title}</p>
+              <p className="text-xs text-muted-foreground leading-tight mt-0.5">{subtitle}</p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-2 duration-700">
-
-                {/* Faturamento Loja Azul */}
-                <Card className="col-span-1 shadow-md hover:shadow-lg transition-all border-blue-100 dark:border-blue-900/50">
-                    <CardHeader className="pb-3 border-b bg-blue-50/50 dark:bg-blue-900/10 space-y-1">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-xl flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                                <Target className="w-5 h-5 text-blue-600 dark:text-blue-500" />
-                                Varejo
-                            </CardTitle>
-                            {loja1.percentual >= 100 && (
-                                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-none">
-                                    Concluída
-                                </Badge>
-                            )}
-                        </div>
-                        <CardDescription>
-                            Meta Semanal ({formatDateBR(periodoData.inicio)} - {formatDateBR(periodoData.fim)})
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="flex flex-col justify-between gap-4 mb-3">
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-1">Vendidos</p>
-                                <div className="text-3xl font-black tracking-tight text-foreground truncate">
-                                    {formatCurrency(loja1.valor_atual)}
-                                </div>
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-1">Meta</p>
-                                <div className="text-lg font-bold text-muted-foreground">
-                                    {loja1.meta > 0 ? formatCurrency(loja1.meta) : "Não definida"}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 mt-6">
-                            <div className="flex justify-between text-sm font-medium">
-                                <span>Progresso</span>
-                                <span className={loja1.percentual >= 100 ? "text-emerald-600" : ""}>
-                                    {loja1.percentual}%
-                                </span>
-                            </div>
-                            <Progress
-                                value={Math.min(loja1.percentual, 100)}
-                                className={`h-4 ${getProgressColor(loja1.percentual)}`}
-                            />
-
-                            <div className="flex justify-between items-center pt-2">
-                                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5" />
-                                    {periodoData.dias_restantes} dias restantes
-                                </p>
-
-                                {loja1.faltante > 0 && loja1.meta > 0 && (
-                                    <p className="text-sm font-medium text-amber-600 dark:text-amber-500">
-                                        Faltam {formatCurrency(loja1.faltante)}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Faturamento Loja Vermelha */}
-                <Card className="col-span-1 shadow-md hover:shadow-lg transition-all border-red-100 dark:border-red-900/50">
-                    <CardHeader className="pb-3 border-b bg-red-50/50 dark:bg-red-900/10 space-y-1">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-xl flex items-center gap-2 text-red-700 dark:text-red-400">
-                                <Target className="w-5 h-5 text-red-600 dark:text-red-500" />
-                                Atacado
-                            </CardTitle>
-                            {loja3.percentual >= 100 && (
-                                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-none">
-                                    Concluída
-                                </Badge>
-                            )}
-                        </div>
-                        <CardDescription>
-                            Meta Semanal ({formatDateBR(periodoData.inicio)} - {formatDateBR(periodoData.fim)})
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="flex flex-col justify-between gap-4 mb-3">
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-1">Vendidos</p>
-                                <div className="text-3xl font-black tracking-tight text-foreground truncate">
-                                    {formatCurrency(loja3.valor_atual)}
-                                </div>
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-1">Meta</p>
-                                <div className="text-lg font-bold text-muted-foreground">
-                                    {loja3.meta > 0 ? formatCurrency(loja3.meta) : "Não definida"}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 mt-6">
-                            <div className="flex justify-between text-sm font-medium">
-                                <span>Progresso</span>
-                                <span className={loja3.percentual >= 100 ? "text-emerald-600" : ""}>
-                                    {loja3.percentual}%
-                                </span>
-                            </div>
-                            <Progress
-                                value={Math.min(loja3.percentual, 100)}
-                                className={`h-4 ${getProgressColor(loja3.percentual)}`}
-                            />
-
-                            <div className="flex justify-between items-center pt-2">
-                                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5" />
-                                    {periodoData.dias_restantes} dias restantes
-                                </p>
-
-                                {loja3.faltante > 0 && loja3.meta > 0 && (
-                                    <p className="text-sm font-medium text-amber-600 dark:text-amber-500">
-                                        Faltam {formatCurrency(loja3.faltante)}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Mix Geral */}
-                <Card className="col-span-1 shadow-md hover:shadow-lg transition-all flex flex-col">
-                    <CardHeader className="pb-3 border-b bg-gray-50/50 dark:bg-white/5 space-y-1">
-                        <CardTitle className="text-xl flex items-center gap-2">
-                            <PieChart className="w-5 h-5 text-purple-500" />
-                            Mix Geral
-                        </CardTitle>
-                        <CardDescription>
-                            Conexões x Tubos (Todas as Marcas)
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-6 flex-1 flex flex-col justify-center">
-
-                        <div className="flex justify-center mb-6">
-                            <div className="relative w-32 h-32 flex items-center justify-center rounded-full border-8 border-muted">
-                                <svg className="absolute inset-0 w-full h-full -rotate-90">
-                                    <circle
-                                        cx="50%"
-                                        cy="50%"
-                                        r="46%"
-                                        fill="none"
-                                        strokeWidth="8"
-                                        className="stroke-purple-600"
-                                        strokeDasharray={`${Math.min(mix_geral.percentual_conexoes, 100) * 2.89} 300`}
-                                        strokeLinecap="round"
-                                    />
-                                </svg>
-                                <div className="text-center">
-                                    <span className="text-2xl font-bold">{mix_geral.percentual_conexoes}%</span>
-                                    <span className="block text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Conexões</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/30">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-purple-600"></div>
-                                    <span className="font-medium text-sm">Conexões</span>
-                                </div>
-                                <span className="font-bold text-purple-900 dark:text-purple-300">
-                                    {formatCurrency(mix_geral.valor_conexoes)}
-                                </span>
-                            </div>
-
-                            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-muted-foreground/30"></div>
-                                    <span className="font-medium text-sm">Tubos</span>
-                                </div>
-                                <span className="font-bold">
-                                    {formatCurrency(mix_geral.valor_tubos)}
-                                </span>
-                            </div>
-                        </div>
-
-                    </CardContent>
-                </Card>
-
-            </div>
+          </div>
+          <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 mt-0.5", statusBadge[status])}>
+            {statusLabel[status]}
+          </span>
         </div>
+
+        {/* Values */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground font-medium mb-1">Vendido</p>
+            <p className="text-2xl font-black tabular-nums text-foreground leading-none truncate">
+              {formatCurrency(valorAtual)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground font-medium mb-1">Meta</p>
+            <p className="text-lg font-bold text-muted-foreground leading-none truncate">
+              {meta > 0 ? formatCurrency(meta) : "Não definida"}
+            </p>
+          </div>
+        </div>
+
+        {/* Progress */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-medium">Progresso</span>
+            <span className={cn(
+              "text-sm font-black tabular-nums",
+              status === "atingido" ? "text-emerald-600" : status === "quase" ? "text-amber-600" : "text-foreground"
+            )}>
+              {percentual}%
+            </span>
+          </div>
+          <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-700", statusBar[status])}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-0.5 border-t border-border">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            {diasRestantes > 0 ? `${diasRestantes} dias restantes` : "Período encerrado"}
+          </div>
+          {faltante > 0 && meta > 0 ? (
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-500">
+              Faltam {formatCurrency(faltante)}
+            </span>
+          ) : status === "atingido" ? (
+            <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Meta atingida!
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Mix donut card ───────────────────────────────────────────────────────── */
+function MixCard({ mix_geral }: { mix_geral: any }) {
+  const pctConexoes = Math.min(mix_geral.percentual_conexoes, 100);
+  const circumference = 2 * Math.PI * 36; // r=36
+  const dash = (pctConexoes / 100) * circumference;
+  const gap  = circumference - dash;
+
+  return (
+    <div className="bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden flex flex-col">
+      <div className="h-0.5 w-full bg-purple-400" />
+      <div className="p-5 flex flex-col gap-5 flex-1">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
+            <PieChart className="h-5 w-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-foreground leading-tight">Mix Geral</p>
+            <p className="text-xs text-muted-foreground leading-tight mt-0.5">
+              Conexões × Tubos — todas as marcas
+            </p>
+          </div>
+        </div>
+
+        {/* Donut */}
+        <div className="flex justify-center py-2">
+          <div className="relative w-28 h-28">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
+              {/* Track */}
+              <circle
+                cx="40" cy="40" r="36"
+                fill="none"
+                strokeWidth="8"
+                className="stroke-muted"
+              />
+              {/* Progress */}
+              <circle
+                cx="40" cy="40" r="36"
+                fill="none"
+                strokeWidth="8"
+                stroke="#9333ea"
+                strokeLinecap="round"
+                strokeDasharray={`${dash} ${gap}`}
+                style={{ transition: "stroke-dasharray 0.7s ease" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-black text-foreground leading-none">
+                {mix_geral.percentual_conexoes}%
+              </span>
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mt-0.5">
+                Conexões
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Legend rows */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-purple-50 dark:bg-purple-900/15 border border-purple-100 dark:border-purple-800/30">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
+              <span className="text-sm font-semibold text-purple-900 dark:text-purple-300">Conexões</span>
+            </div>
+            <span className="text-sm font-bold tabular-nums text-purple-800 dark:text-purple-300">
+              {formatCurrency(mix_geral.valor_conexoes)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 shrink-0" />
+              <span className="text-sm font-semibold text-muted-foreground">Tubos</span>
+            </div>
+            <span className="text-sm font-bold tabular-nums text-foreground">
+              {formatCurrency(mix_geral.valor_tubos)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Skeleton ─────────────────────────────────────────────────────────────── */
+function Skeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div className="skeleton rounded-2xl h-[56px]" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => <div key={i} className="skeleton rounded-2xl h-[340px]" />)}
+      </div>
+    </div>
+  );
+}
+
+/* ── Page ─────────────────────────────────────────────────────────────────── */
+export default function AcompanhamentoTab() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["/api/metas/acompanhamento"],
+    refetchInterval: 300000,
+  });
+
+  if (isLoading) return <Skeleton />;
+
+  if (isError || !data) {
+    return (
+      <Alert variant="destructive" className="mt-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Erro ao carregar dados</AlertTitle>
+        <AlertDescription>Não foi possível carregar os dados de acompanhamento.</AlertDescription>
+      </Alert>
     );
+  }
+
+  const { last_update, loja1, loja3, mix_geral, periodo: periodoData } = data as any;
+
+  return (
+    <div className="space-y-5">
+      {/* Header strip */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-card rounded-2xl border border-border shadow-sm">
+        <div>
+          <h1 className="text-xl font-bold text-foreground leading-tight">Acompanhamento de Metas</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Meta semanal · {formatDateBR(periodoData.inicio)} – {formatDateBR(periodoData.fim)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="gap-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
+            <RefreshCw className="h-3 w-3" />
+            Tempo real
+          </Badge>
+          <span className="text-xs text-muted-foreground">{formatDateBR(last_update)}</span>
+        </div>
+      </div>
+
+      {/* Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <GoalCard
+          title="Varejo"
+          subtitle={`Meta semanal · ${formatDateBR(periodoData.inicio)} – ${formatDateBR(periodoData.fim)}`}
+          valorAtual={loja1.valor_atual}
+          meta={loja1.meta}
+          percentual={loja1.percentual}
+          faltante={loja1.faltante}
+          diasRestantes={periodoData.dias_restantes}
+          accentColor="text-blue-600"
+          accentBg="bg-blue-50 dark:bg-blue-900/20"
+          icon={<Target className="h-5 w-5" />}
+        />
+
+        <GoalCard
+          title="Atacado"
+          subtitle={`Meta semanal · ${formatDateBR(periodoData.inicio)} – ${formatDateBR(periodoData.fim)}`}
+          valorAtual={loja3.valor_atual}
+          meta={loja3.meta}
+          percentual={loja3.percentual}
+          faltante={loja3.faltante}
+          diasRestantes={periodoData.dias_restantes}
+          accentColor="text-red-600"
+          accentBg="bg-red-50 dark:bg-red-900/20"
+          icon={<TrendingUp className="h-5 w-5" />}
+        />
+
+        <MixCard mix_geral={mix_geral} />
+      </div>
+    </div>
+  );
 }
