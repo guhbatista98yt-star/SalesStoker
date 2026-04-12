@@ -10,10 +10,10 @@ import TvAmancoTab from "./tv-amanco";
 import TintasElitTab from "./tintas-elit";
 
 const ALL_TABS = [
-  { value: "acompanhamento", label: "Acompanhamento", short: "Geral",  icon: LayoutDashboard, requiresFlag: "showAcompanhamentoTab" },
-  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",   icon: TrendingUp,       requiresFlag: null },
-  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",    icon: Calendar,         requiresFlag: null },
-  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",  icon: PaintBucket,      requiresFlag: null },
+  { value: "acompanhamento", label: "Acompanhamento", short: "Geral",  icon: LayoutDashboard, flagKey: "showAcompanhamentoTab", defaultVisible: false },
+  { value: "dtr-amanco",     label: "DTR Amanco",      short: "DTR",   icon: TrendingUp,       flagKey: "showDtrAmancoTab",      defaultVisible: true  },
+  { value: "tv-amanco",      label: "TV Amanco",        short: "TV",    icon: Calendar,         flagKey: "showTvAmancoTab",       defaultVisible: true  },
+  { value: "tintas-elit",    label: "Tintas Elit",      short: "Elit",  icon: PaintBucket,      flagKey: "showTintasElitTab",     defaultVisible: true  },
 ] as const;
 
 type TabValue = typeof ALL_TABS[number]["value"];
@@ -27,10 +27,10 @@ export default function MetasVendedor() {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
 
-  const { data: acompSetting } = useQuery<{ key: string; value: string | null }>({
-    queryKey: ["/api/app-settings/showAcompanhamentoTab"],
-    staleTime: 30_000,
-  });
+  const { data: settingAcomp } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showAcompanhamentoTab"], staleTime: 30_000 });
+  const { data: settingDtr }   = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showDtrAmancoTab"],      staleTime: 30_000 });
+  const { data: settingTv }    = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTvAmancoTab"],        staleTime: 30_000 });
+  const { data: settingElit }  = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTintasElitTab"],      staleTime: 30_000 });
 
   if (!user || user.role !== "vendedor") {
     return (
@@ -48,18 +48,41 @@ export default function MetasVendedor() {
     );
   }
 
-  const showAcompanhamento = acompSetting?.value === "true";
+  const settingMap: Record<string, string | null | undefined> = {
+    showAcompanhamentoTab: settingAcomp?.value,
+    showDtrAmancoTab:      settingDtr?.value,
+    showTvAmancoTab:       settingTv?.value,
+    showTintasElitTab:     settingElit?.value,
+  };
 
-  const visibleTabs = ALL_TABS.filter(tab => {
-    if (tab.requiresFlag === "showAcompanhamentoTab") return showAcompanhamento;
-    return true;
-  });
+  function isVisible(tab: typeof ALL_TABS[number]): boolean {
+    const val = settingMap[tab.flagKey];
+    if (val === null || val === undefined) return tab.defaultVisible;
+    return val === "true";
+  }
 
+  const visibleTabs = ALL_TABS.filter(isVisible);
   const validTabValues = visibleTabs.map(t => t.value) as string[];
-  const activeTab = getTabFromPath(location, validTabValues);
+  const activeTab = getTabFromPath(location, validTabValues.length > 0 ? validTabValues : ["dtr-amanco"]);
 
   function handleTabChange(tab: string) {
     setLocation(`/metas-vendedor/${tab}`);
+  }
+
+  if (visibleTabs.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center flex flex-col items-center gap-4">
+          <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
+            <LayoutDashboard className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-foreground">Nenhuma campanha ativa</p>
+            <p className="text-sm text-muted-foreground mt-1">Aguarde a ativação de campanhas pelo administrador.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -101,20 +124,26 @@ export default function MetasVendedor() {
           </div>
 
           <div className="mt-4">
-            {showAcompanhamento && (
+            {isVisible(ALL_TABS[0]) && (
               <TabsContent value="acompanhamento" className="m-0 focus-visible:outline-none focus-visible:ring-0">
                 <AcompanhamentoTab />
               </TabsContent>
             )}
-            <TabsContent value="dtr-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-              <DtrAmancoTab />
-            </TabsContent>
-            <TabsContent value="tv-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-              <TvAmancoTab />
-            </TabsContent>
-            <TabsContent value="tintas-elit" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-              <TintasElitTab />
-            </TabsContent>
+            {isVisible(ALL_TABS[1]) && (
+              <TabsContent value="dtr-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+                <DtrAmancoTab />
+              </TabsContent>
+            )}
+            {isVisible(ALL_TABS[2]) && (
+              <TabsContent value="tv-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+                <TvAmancoTab />
+              </TabsContent>
+            )}
+            {isVisible(ALL_TABS[3]) && (
+              <TabsContent value="tintas-elit" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+                <TintasElitTab />
+              </TabsContent>
+            )}
           </div>
         </Tabs>
       </div>

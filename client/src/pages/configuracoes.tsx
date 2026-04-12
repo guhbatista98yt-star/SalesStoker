@@ -720,23 +720,32 @@ function PermissoesSection() {
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
   const [localPerms, setLocalPerms] = useState<Record<number, Record<string, boolean>>>({});
 
-  const { data: acompSetting } = useQuery<{ key: string; value: string | null }>({
-    queryKey: ["/api/app-settings/showAcompanhamentoTab"],
-    staleTime: 0,
-  });
-  const showAcompanhamento = acompSetting?.value === "true";
+  const { data: settingAcomp } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showAcompanhamentoTab"], staleTime: 0 });
+  const { data: settingDtr }   = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showDtrAmancoTab"],      staleTime: 0 });
+  const { data: settingTv }    = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTvAmancoTab"],       staleTime: 0 });
+  const { data: settingElit }  = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTintasElitTab"],     staleTime: 0 });
 
-  const toggleAcompMutation = useMutation({
-    mutationFn: async (value: boolean) => {
-      const res = await apiRequest("POST", "/api/admin/app-settings", {
-        key: "showAcompanhamentoTab",
-        value: String(value),
-      });
+  const TAB_FLAGS = [
+    { key: "showAcompanhamentoTab", label: 'Aba "Acompanhamento"', description: "Visão geral de metas semanais e mensais.",                        defaultVisible: false, setting: settingAcomp },
+    { key: "showDtrAmancoTab",      label: 'Aba "DTR Amanco"',     description: "Campanha trimestral de faturamento e mix Amanco.",                defaultVisible: true,  setting: settingDtr  },
+    { key: "showTvAmancoTab",       label: 'Aba "TV Amanco"',      description: "Campanha Amanco 15/02 a 15/04 — sorteio e crescimento.",           defaultVisible: true,  setting: settingTv   },
+    { key: "showTintasElitTab",     label: 'Aba "Tintas Elit"',    description: "Campanha semanal de bonificação para produtos Tintas Elit.",       defaultVisible: true,  setting: settingElit },
+  ] as const;
+
+  function isTabVisible(flag: typeof TAB_FLAGS[number]): boolean {
+    const val = flag.setting?.value;
+    if (val === null || val === undefined) return flag.defaultVisible;
+    return val === "true";
+  }
+
+  const toggleTabMutation = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: boolean }) => {
+      const res = await apiRequest("POST", "/api/admin/app-settings", { key, value: String(value) });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/app-settings/showAcompanhamentoTab"] });
-      toast({ title: "Configuração salva com sucesso." });
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/app-settings/${vars.key}`] });
+      toast({ title: "Configuração salva." });
     },
     onError: () => {
       toast({ title: "Erro ao salvar configuração", variant: "destructive" });
@@ -798,19 +807,19 @@ function PermissoesSection() {
           Controle quais recursos ficam visíveis para vendedores no portal deles.
         </p>
         <div className="border rounded-lg divide-y divide-border">
-          <div className="flex items-center justify-between px-4 py-3">
-            <div>
-              <p className="text-sm font-medium">Aba "Acompanhamento" no portal do vendedor</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Quando desligado, a aba fica oculta. Vendedores não veem esta seção.
-              </p>
+          {TAB_FLAGS.map(flag => (
+            <div key={flag.key} className="flex items-center justify-between px-4 py-3 gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{flag.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{flag.description}</p>
+              </div>
+              <Switch
+                checked={isTabVisible(flag)}
+                onCheckedChange={val => toggleTabMutation.mutate({ key: flag.key, value: val })}
+                disabled={toggleTabMutation.isPending}
+              />
             </div>
-            <Switch
-              checked={showAcompanhamento}
-              onCheckedChange={val => toggleAcompMutation.mutate(val)}
-              disabled={toggleAcompMutation.isPending}
-            />
-          </div>
+          ))}
         </div>
       </div>
 
