@@ -925,17 +925,6 @@ export default function Configuracoes() {
             );
           })}
 
-          {/* Campanhas — link externo */}
-          <div className="mt-auto pt-3 border-t border-border/60">
-            <Link
-              href="/campanhas"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Megaphone className="h-4 w-4 shrink-0" />
-              Criar Campanhas
-              <ArrowRight className="h-3.5 w-3.5 ml-auto" />
-            </Link>
-          </div>
         </nav>
 
         {/* Content */}
