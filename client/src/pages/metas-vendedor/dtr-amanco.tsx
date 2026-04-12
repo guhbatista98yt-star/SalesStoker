@@ -229,6 +229,7 @@ export default function DtrAmancoTab() {
             icon={Percent}
             iconColor="text-purple-600"
             iconBg="bg-purple-50 dark:bg-purple-900/20"
+            gauge
           />
 
           {/* Crescimento Vendedor */}

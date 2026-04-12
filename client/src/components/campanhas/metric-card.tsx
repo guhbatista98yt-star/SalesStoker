@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { GaugeMeter } from "./gauge-meter";
 
 export type MetricStatus = "atingido" | "quase" | "pendente" | "info";
 
@@ -18,6 +19,7 @@ interface MetricCardProps {
   progressColor?: string;
   note?: string;
   className?: string;
+  gauge?: boolean;
 }
 
 const statusChip: Record<MetricStatus, { label: string; cls: string }> = {
@@ -48,10 +50,52 @@ export function MetricCard({
   progressColor,
   note,
   className,
+  gauge = false,
 }: MetricCardProps) {
   const chip = statusChip[status];
   const barColor = progressColor ?? progressColors[status];
   const clampedPct = Math.min(pct, 100);
+
+  if (gauge) {
+    return (
+      <div className={cn(
+        "bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden flex flex-col",
+        className
+      )}>
+        <div className={cn(
+          "h-0.5 w-full",
+          status === "atingido" ? "bg-emerald-400" : status === "quase" ? "bg-amber-400" : status === "pendente" ? "bg-red-400" : "bg-primary"
+        )} />
+        <div className="p-5 flex flex-col flex-1 gap-3">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className={cn("h-9 w-9 rounded-xl flex items-center justify-center shrink-0", iconBg)}>
+                <Icon className={cn("h-[18px] w-[18px]", iconColor)} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground leading-tight truncate">{title}</p>
+                {subtitle && (
+                  <p className="text-xs text-muted-foreground leading-tight mt-0.5 truncate">{subtitle}</p>
+                )}
+              </div>
+            </div>
+            <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 mt-0.5", chip.cls)}>
+              {chip.label}
+            </span>
+          </div>
+          {/* Gauge */}
+          <GaugeMeter
+            pct={clampedPct}
+            value={value}
+            targetLabel={targetLabel}
+            remainingLabel={remainingLabel ?? note}
+            status={status}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn(
