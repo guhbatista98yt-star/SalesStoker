@@ -116,6 +116,7 @@ export class SqliteStorage implements IStorage {
     this.initGoalSettingsTable();
     this.initVendorSettingsTable();
     this.initCampaignGoalsTable();
+    this.initVendorGroupsTable();
     this.loadGoalsFromDb();
     this.loadGoalSettingsFromDb();
   }
@@ -134,6 +135,27 @@ export class SqliteStorage implements IStorage {
       `);
     } catch (err) {
       console.error("Error creating campaign_goals table:", err);
+    }
+  }
+
+  private initVendorGroupsTable() {
+    try {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS vendor_groups (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL
+        )
+      `);
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS vendor_group_members (
+          group_id TEXT NOT NULL,
+          salesperson_id TEXT NOT NULL,
+          PRIMARY KEY (group_id, salesperson_id),
+          FOREIGN KEY (group_id) REFERENCES vendor_groups(id) ON DELETE CASCADE
+        )
+      `);
+    } catch (err) {
+      console.error("Error creating vendor_groups table:", err);
     }
   }
 
@@ -1402,12 +1424,12 @@ export class SqliteStorage implements IStorage {
     };
   }
 
-  async getMetasAmancoDTR(vendedorId: string): Promise<any> {
+  async getMetasAmancoDTR(vendedorId: string, targetYear?: number, targetQuarter?: number): Promise<any> {
     const now = new Date();
-    const year = now.getFullYear();
+    const year = targetYear ?? now.getFullYear();
 
-    // Calculate current quarter boundaries
-    const quarter = Math.floor(now.getMonth() / 3);
+    // Calculate quarter boundaries
+    const quarter = targetQuarter ?? Math.floor(now.getMonth() / 3);
     const quarterStartMonth = quarter * 3;
     const quarterEndMonth = quarterStartMonth + 2;
 
@@ -1919,7 +1941,7 @@ export class SqliteStorage implements IStorage {
   }
 
   // --- Campaign Reports ---
-  async getCampaignReport(campaignName: string): Promise<any[]> {
+  async getCampaignReport(campaignName: string, periodYear?: number, periodQuarter?: number): Promise<any[]> {
     const salespeople = await this.getSalespersons('1');
     const reportList = [];
 
@@ -1933,7 +1955,7 @@ export class SqliteStorage implements IStorage {
 
       try {
         if (campaignName === 'dtr_amanco') {
-          data = await this.getMetasAmancoDTR(sp.id);
+          data = await this.getMetasAmancoDTR(sp.id, periodYear, periodQuarter);
           targetTrigger = data.faturamento_amanco?.meta_gatilho || 0;
           currentSales = data.faturamento_amanco?.valor_atual || 0;
           percentAchieved = data.faturamento_amanco?.percentual || 0;

@@ -11,7 +11,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp, Store, Sliders, FileText, PaintBucket, Calendar } from "lucide-react";
+import { LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp, Store, PaintBucket, Calendar } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 const menuItems = [
@@ -175,39 +175,17 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      {(role === "admin" || role === "supervisor") && !isLoja && (
+      {role === "admin" && !isLoja && (
         <SidebarFooter className="p-4 border-t border-sidebar-border">
           <SidebarMenu>
-            {role === "admin" && (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/admin/gatilhos"}>
-                  <Link href="/admin/gatilhos" data-testid="nav-link-admin-gatilhos">
-                    <Sliders className="h-4 w-4" />
-                    <span>Gatilhos da Campanha</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-            {role === "admin" && (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/admin/relatorios"}>
-                  <Link href="/admin/relatorios" data-testid="nav-link-admin-reports">
-                    <FileText className="h-4 w-4" />
-                    <span>Relatórios de Campanha</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-            {role === "admin" && (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/configuracoes"}>
-                  <Link href="/configuracoes" data-testid="nav-link-configuracoes">
-                    <Settings className="h-4 w-4" />
-                    <span>Configurações</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={location === "/configuracoes"}>
+                <Link href="/configuracoes" data-testid="nav-link-configuracoes">
+                  <Settings className="h-4 w-4" />
+                  <span>Configurações</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
       )}

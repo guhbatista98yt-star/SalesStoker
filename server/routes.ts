@@ -405,7 +405,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid payload format" });
       }
       await storage.saveVendorGroup(id, name, members);
-      res.json({ success: true });
+      res.json({ id, name, members });
     } catch (error) {
       console.error("Erro saveVendorGroup:", error);
       res.status(500).json({ error: "Erro ao salvar grupo de vendedores" });
@@ -430,7 +430,9 @@ export async function registerRoutes(
       if (!campaignName) {
         return res.status(400).json({ error: "Missing campaign query param" });
       }
-      const data = await storage.getCampaignReport(campaignName);
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const quarter = req.query.quarter !== undefined ? parseInt(req.query.quarter as string) : undefined;
+      const data = await storage.getCampaignReport(campaignName, year, quarter);
       res.json(data);
     } catch (error) {
       console.error("Erro getCampaignReport:", error);

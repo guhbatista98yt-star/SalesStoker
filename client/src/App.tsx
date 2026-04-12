@@ -97,11 +97,11 @@ function Router() {
       <Route path="/analises/visao-em-loja" component={VisaoEmLoja} />
       <Route path="/tv" component={TVDashboard} />
 
-      {/* Rotas exclusivas de admin */}
+      {/* Rotas exclusivas de admin — redirecionam para Configurações */}
       {(role === "admin" || role === "supervisor") && (
         <>
-          <Route path="/admin/gatilhos" component={AdminGatilhos} />
-          <Route path="/admin/relatorios" component={AdminReports} />
+          <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
+          <Route path="/admin/relatorios" component={() => <Redirect to="/configuracoes" />} />
         </>
       )}
 

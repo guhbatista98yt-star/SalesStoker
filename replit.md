@@ -22,6 +22,14 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 
 ## Recent Changes
 
+- **Settings Hub Reformulation**: Replaced separate admin pages with a unified Configurações module featuring 4 sections via left-sidebar navigation:
+  - **Equipes**: Full inline team management (create/edit/delete groups, search members, member checkboxes)
+  - **Metas de Venda**: Weekly/monthly goals config per salesperson (unchanged functionality, integrated)
+  - **Gatilhos**: Campaign trigger configuration (DTR Amanco, TV Amanco, Elit) with campaign/year/group filters
+  - **Relatórios**: Campaign reports with period selection — DTR Amanco supports quarter (Q1-Q4) + year picker
+- **Period-based Campaign Reports**: `/api/metas/admin/campaign-report` now accepts `year` and `quarter` params; `getMetasAmancoDTR` accepts optional `targetYear`/`targetQuarter`
+- **vendor_groups table**: Created on server startup (was missing from schema)
+- **Sidebar simplified**: Removed separate "Gatilhos da Campanha" and "Relatórios de Campanha" links; consolidated to single "Configurações"
 - **Team-Based Filtering**: Supervisors now see only their team's data (KPIs, rankings, weekly/monthly views)
   - User `supervisor@conectubos.com` configured with team: ERICK, FABIO, MARCIO, THIAGO MOURA, BRUNO, FABRICIO, CLEDSON, ELISMARIO
   - Admin users (role='admin') see all data
