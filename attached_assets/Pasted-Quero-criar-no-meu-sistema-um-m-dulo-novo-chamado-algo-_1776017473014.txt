@@ -1,0 +1,505 @@
+Quero criar no meu sistema um módulo novo chamado algo como **Copiloto de Compras**, **Comprador Digital** ou **Inteligência de Compras**, com foco em monitoramento de estoque por fornecedor em tempo real, alertas preditivos, sugestão de compra, simulação e acompanhamento operacional ao vivo.
+
+IMPORTANTE:
+Não quero uma tela simples de estoque.
+Quero um módulo realmente funcional, rápido, visual, analítico, intuitivo e confiável, que ajude o comprador a tomar decisão quase como um copiloto digital.
+
+A ideia é:
+- monitorar estoque por fornecedor em tempo real
+- prever faltas
+- sugerir compras
+- alertar riscos
+- permitir simulação de compra
+- enviar notificações
+- emitir avisos sonoros em tempo real para usuários com perfil de compras
+- ser visualmente muito claro
+- funcionar bem em desktop e mobile
+- integrar-se com a API já existente
+
+============================================================
+1. OBJETIVO DO MÓDULO
+============================================================
+
+Quero um módulo que funcione como apoio operacional e analítico do comprador.
+
+Esse módulo deve permitir:
+- saber o que vai faltar
+- saber quando vai faltar
+- saber o que comprar
+- saber quanto comprar
+- saber qual fornecedor está mais crítico
+- saber se existe excesso
+- saber o impacto de uma compra simulada
+- saber a urgência da decisão
+- receber avisos em tempo real
+
+A proposta é que o comprador humano precise apenas validar e tomar a decisão final.
+
+============================================================
+2. EXPERIÊNCIA ESPERADA
+============================================================
+
+Quero um painel que, ao abrir, já mostre com clareza coisas como:
+
+- “Fornecedor X precisa de reposição em 3 dias”
+- “Produto Y vai zerar estoque em 7 dias”
+- “Fornecedor Z possui 18 itens críticos”
+- “Produto A está abaixo do estoque de segurança”
+- “Se comprar 100 unidades, cobre 45 dias”
+- “Há pedido em aberto, então não precisa recomprar ainda”
+- “Produto B está com excesso de estoque para 90 dias”
+- “Lead time do fornecedor é maior que a cobertura atual”
+- “Há risco de ruptura antes da próxima entrega”
+- “Compra sugerida consolidada do fornecedor C: 420 unidades”
+
+Quero isso de forma visual, rápida, confiável e intuitiva.
+
+============================================================
+3. DASHBOARD PRINCIPAL — ESTRUTURA EXATA
+============================================================
+
+Quero o dashboard do comprador com uma estrutura clara e profissional.
+
+TOPO — CARDS PRINCIPAIS
+Criar cards como:
+- fornecedores críticos
+- produtos críticos
+- produtos que zeram em até 3 dias
+- produtos que zeram em até 7 dias
+- produtos abaixo do estoque de segurança
+- produtos com excesso de estoque
+- valor estimado de compra sugerida
+- pedidos sugeridos pendentes
+- pedidos em aberto considerados
+- fornecedores com maior risco
+
+BLOCO 1 — PAINEL DE ALERTAS EM TEMPO REAL
+Quero uma área prioritária com alertas vivos, em lista clara e destacada:
+- tipo do alerta
+- produto/fornecedor
+- criticidade
+- tempo estimado para ruptura
+- ação sugerida
+- botão para abrir detalhe
+- botão para silenciar, adiar ou marcar como visto, se fizer sentido
+
+BLOCO 2 — RANKING DE FORNECEDORES
+Quero ranking visual mostrando:
+- fornecedor
+- quantidade de itens críticos
+- cobertura média
+- lead time
+- valor estimado de compra
+- criticidade geral
+- status visual
+
+BLOCO 3 — RANKING DE PRODUTOS MAIS CRÍTICOS
+Quero lista/tabela dos produtos com:
+- código
+- descrição
+- fornecedor
+- estoque atual
+- cobertura em dias
+- data estimada de ruptura
+- sugestão de compra
+- status
+- criticidade
+
+BLOCO 4 — GRÁFICOS ANALÍTICOS
+Quero gráficos como:
+- cobertura de estoque por fornecedor
+- itens por criticidade
+- excesso x ruptura
+- consumo médio por período
+- distribuição de alertas por fornecedor/categoria
+- previsão de ruptura por faixa de dias
+
+BLOCO 5 — SUGESTÃO CONSOLIDADA DE COMPRA
+Quero um painel com sugestão pronta por fornecedor:
+- fornecedor
+- total de itens sugeridos
+- quantidade total sugerida
+- valor estimado
+- urgência
+- lead time
+- impacto esperado
+
+BLOCO 6 — SIMULAÇÃO RÁPIDA
+Quero um painel ou drawer para simulação rápida:
+- escolher fornecedor ou produto
+- informar quantidade
+- ver nova cobertura em dias
+- ver novo status
+- ver se sai da criticidade
+- ver impacto da compra
+
+============================================================
+4. VISÃO POR FORNECEDOR
+============================================================
+
+Ao clicar em um fornecedor, quero uma tela detalhada mostrando:
+
+- nome do fornecedor
+- lead time
+- quantidade de produtos monitorados
+- quantidade de produtos críticos
+- cobertura média
+- quantidade em ruptura prevista
+- itens abaixo do estoque de segurança
+- itens em excesso
+- pedidos de compra em aberto
+- valor estimado de compra sugerida
+- sugestão consolidada
+- alertas relacionados
+
+E uma tabela com:
+- produto
+- estoque atual
+- estoque disponível
+- consumo médio
+- cobertura em dias
+- estoque de segurança
+- ponto de reposição
+- pedido em aberto
+- sugestão de compra
+- status
+- data estimada de ruptura
+- criticidade
+
+============================================================
+5. VISÃO POR PRODUTO
+============================================================
+
+Ao abrir o detalhe de um produto, quero ver:
+
+- código
+- descrição
+- fornecedor principal
+- categoria / grupo / segmento
+- estoque atual
+- estoque disponível
+- estoque reservado, se existir
+- pedidos em aberto, se existirem
+- consumo médio diário
+- consumo médio semanal
+- consumo médio mensal
+- cobertura em dias
+- estoque de segurança
+- lead time
+- ponto de reposição
+- sugestão de compra
+- data estimada de ruptura
+- data da última entrada
+- data da última saída
+- giro
+- situação atual
+- histórico resumido
+- simulação de compra
+
+============================================================
+6. MOTOR DE SUGESTÃO DE COMPRA
+============================================================
+
+Quero um motor de sugestão inteligente que considere, no mínimo:
+
+- estoque atual
+- estoque disponível
+- consumo histórico
+- consumo médio diário
+- lead time do fornecedor
+- estoque de segurança
+- pedidos de compra em aberto
+- pedidos de venda ou reservas em aberto, se existirem
+- quantidade mínima de compra, se existir
+- múltiplo de embalagem, se existir
+- lote mínimo, se existir
+- giro do item
+- criticidade
+- período alvo de cobertura
+- status do item
+- parâmetros de compra por fornecedor/produto
+
+O sistema deve responder:
+- comprar ou não comprar
+- quanto comprar
+- por que comprar
+- qual urgência
+- quanto tempo cobre
+- se já existe compra em aberto que evita uma nova compra
+- qual a criticidade se não comprar
+
+============================================================
+7. SIMULAÇÃO DE COMPRA
+============================================================
+
+Quero simulações claras e rápidas como:
+
+- “Se eu comprar 100 unidades, cubro quantos dias?”
+- “Se eu comprar 300 unidades, saio do risco crítico?”
+- “Se eu não comprar agora, em quantos dias o item zera?”
+- “Se eu consolidar a compra do fornecedor, quantos itens críticos resolvo?”
+- “Se eu aumentar o estoque de segurança, quanto muda a sugestão?”
+
+A simulação deve mostrar:
+- antes x depois
+- cobertura em dias
+- nova criticidade
+- nova data estimada de ruptura
+- quantidade recomendada
+- impacto financeiro, se houver custo
+- impacto por fornecedor
+
+============================================================
+8. NOTIFICAÇÕES EM TEMPO REAL
+============================================================
+
+Quero um sistema real de notificações dentro da aplicação para usuários com perfil de compras.
+
+Essas notificações devem aparecer em tempo real para eventos como:
+- produto entrou em nível crítico
+- produto vai zerar em X dias
+- fornecedor ultrapassou limite de criticidade
+- pedido em aberto já não cobre o risco
+- produto saiu do crítico após atualização
+- excesso de estoque detectado
+- novo conjunto de sugestões de compra gerado
+- item ficou abaixo do estoque de segurança
+- lead time maior que cobertura
+- ruptura iminente
+
+Quero:
+- central de notificações
+- badge de contagem
+- filtro por criticidade
+- filtro por tipo
+- marcação como lido
+- histórico recente
+- abertura direta do detalhe do item/fornecedor
+
+============================================================
+9. AVISOS SONOROS EM TEMPO REAL
+============================================================
+
+Quero avisos sonoros em tempo real para usuários logados com perfil de compras.
+
+IMPORTANTE:
+O som deve ser configurável, profissional e útil, sem ficar irritante.
+
+Requisitos:
+- tocar som quando surgir alerta crítico novo
+- tocar som diferente ou no mínimo configurável por criticidade, se fizer sentido
+- permitir ativar/desativar som
+- permitir volume/configuração básica, se fizer sentido
+- permitir silenciar temporariamente
+- permitir evitar repetição excessiva do mesmo alerta
+- permitir limitar som apenas para alertas críticos
+
+Quero que essa lógica seja implementada de forma inteligente:
+- não tocar sem necessidade
+- não tocar toda hora para o mesmo item
+- não gerar poluição sonora
+- respeitar o perfil e a sessão do usuário
+
+============================================================
+10. PERFIL DE USUÁRIO DE COMPRAS
+============================================================
+
+Quero que esse módulo se integre ao controle de usuários e permissões.
+
+Usuários com perfil de compras devem poder:
+- acessar o módulo
+- receber notificações
+- receber avisos sonoros
+- visualizar detalhes
+- simular compra
+- visualizar relatórios
+- filtrar por fornecedor/produto/categoria
+- acompanhar dados em tempo real
+
+Quero também considerar perfis como:
+- Comprador
+- Supervisor de Compras
+- Gerente
+- Administrador
+
+Cada um com escopo adequado.
+
+============================================================
+11. DADOS NECESSÁRIOS — VERIFICAR SE JÁ EXISTEM OU SE PRECISAM VIR DO ERP
+============================================================
+
+Quero que você revise o SQL/API atual e identifique se já existem, ou se precisam ser buscados do ERP, dados como:
+
+ESSENCIAIS:
+- código do produto
+- descrição
+- fornecedor principal
+- estoque atual
+- estoque disponível
+- histórico de saída/consumo
+- data da última entrada
+- data da última saída
+- pedidos de compra em aberto
+- reservas ou pedidos de venda em aberto
+- lead time
+- estoque de segurança
+- custo/preço de compra
+
+MUITO IMPORTANTES:
+- múltiplo de embalagem
+- lote mínimo
+- quantidade mínima de compra
+- curva ABC
+- dias sem venda
+- giro
+- categoria / grupo / segmento
+- status do item
+- produto substituto ou similar
+
+AVANÇADOS / DESEJÁVEIS:
+- sazonalidade
+- atraso médio real do fornecedor
+- taxa de entrega parcial
+- taxa de ruptura histórica
+- margem
+- devoluções
+- histórico de compras anteriores
+
+Se algum dado ainda não existir nas consultas/SQL, quero que você:
+1. identifique claramente
+2. diga onde ele ajudaria
+3. adapte a arquitetura para receber esse dado depois sem retrabalho
+
+============================================================
+12. INTEGRAÇÃO COM A API EXISTENTE
+============================================================
+
+Quero usar a API já existente da aplicação.
+
+Se endpoints não existirem, quero criar os necessários, com padrão consistente.
+
+Sugestão de endpoints:
+- GET /api/compras/dashboard
+- GET /api/compras/alertas
+- GET /api/compras/fornecedores
+- GET /api/compras/fornecedores/:id
+- GET /api/compras/produtos
+- GET /api/compras/produtos/:id
+- GET /api/compras/sugestoes
+- GET /api/compras/sugestoes/fornecedor/:id
+- POST /api/compras/simulacao
+- GET /api/compras/notificacoes
+- POST /api/compras/notificacoes/:id/read
+- POST /api/compras/notificacoes/silenciar
+- GET /api/compras/configuracoes
+- PUT /api/compras/configuracoes
+
+Se a arquitetura da aplicação já tiver outro padrão, adaptar mantendo consistência.
+
+============================================================
+13. ESTRUTURA DE DADOS LOCAL E PERFORMANCE
+============================================================
+
+Quero uma arquitetura rápida e confiável.
+
+Se necessário, criar tabelas/cache locais para:
+- indicadores consolidados
+- alertas gerados
+- sugestões de compra
+- histórico de consumo resumido
+- estado das notificações
+- configuração dos sons/alertas por usuário
+- parâmetros de fornecedor
+- parâmetros de produto
+
+Quero evitar:
+- consultas pesadas a cada renderização
+- cálculos críticos feitos só no frontend
+- demora para abrir o painel
+- lentidão ao filtrar
+
+Quero backend como fonte de verdade.
+
+============================================================
+14. UI/UX — MUITO IMPORTANTE
+============================================================
+
+Quero uma interface muito clara e madura.
+
+O comprador precisa bater o olho e entender:
+- o que está crítico
+- o que precisa comprar
+- quando precisa comprar
+- o que pode esperar
+- o que já está coberto
+- o que está em excesso
+
+Quero:
+- cards premium
+- alertas muito visíveis
+- ranking claro
+- filtros rápidos
+- tabela analítica forte
+- drawer de simulação
+- hierarquia excelente
+- cores de criticidade muito bem aplicadas
+- experiência rápida
+- compatibilidade com o restante do sistema
+
+============================================================
+15. RESPONSIVIDADE
+============================================================
+
+Esse módulo deve funcionar muito bem em:
+- desktop
+- notebook
+- tablet
+- celular
+
+No mobile:
+- cards empilhados corretamente
+- alertas legíveis
+- filtros recolhíveis
+- simulação adaptada
+- tabelas convertidas em listas/cards quando necessário
+- notificações fáceis de acessar
+- sem conteúdo saindo da tela
+
+============================================================
+16. O QUE NÃO QUERO
+============================================================
+
+Não quero:
+- só uma tela de estoque
+- alerta genérico e burro
+- frontend calculando tudo sozinho
+- painel lento
+- visual fraco
+- ausência de simulação
+- ausência de notificações
+- ausência de som em tempo real para compras
+- excesso de poluição visual
+- sistema sem visão por fornecedor
+- sistema sem sugestão consolidada
+- sistema que não permita crescer futuramente
+
+============================================================
+17. ENTREGA ESPERADA
+============================================================
+
+Quero que você:
+1. crie o módulo completo de Copiloto de Compras
+2. integre à API existente
+3. identifique dados já existentes e dados que ainda seriam ideais buscar no ERP
+4. implemente dashboard principal
+5. implemente visão por fornecedor
+6. implemente visão por produto
+7. implemente motor de sugestão
+8. implemente simulação
+9. implemente notificações em tempo real
+10. implemente avisos sonoros configuráveis em tempo real para perfil de compras
+11. garanta boa performance
+12. garanta boa responsividade
+13. entregue um módulo realmente funcional, profissional e pronto para uso real
+
+Antes de concluir, valide se o módulo realmente funciona como um copiloto do comprador e não apenas como uma consulta de estoque.

@@ -154,24 +154,49 @@ export class PostgresStorage implements IStorage {
     }
   }
 
+  // Company name/CNPJ lookup — update via Configurações or this mapping:
+  private static COMPANY_MAP: Record<string, { name: string; cnpj: string }> = {
+    "1": { name: "Conectubos",        cnpj: "" },
+    "2": { name: "Conectubos",        cnpj: "" },
+    "3": { name: "Conectubos Filial", cnpj: "" },
+  };
+
   private async getCompaniesFromCache(): Promise<Company[]> {
     try {
-      const rows = await pgAll<{ id: string; name: string; cnpj: string }>(`
-        SELECT DISTINCT
-          CAST("IDEMPRESA" AS TEXT) as id,
-          "RAZAO_SOCIAL_EMPRESA" as name,
-          "CNPJ_EMPRESA" as cnpj
-        FROM cache_vendas
-        WHERE "CNPJ_EMPRESA" IS NOT NULL AND "CNPJ_EMPRESA" != ''
-        ORDER BY id
-      `);
+      // Try to load overrides from app_settings
+      const settingRow = await pgGet<{ value: string }>(
+        `SELECT value FROM app_settings WHERE key = 'companies_config' LIMIT 1`
+      );
+      if (settingRow?.value) {
+        try {
+          const cfg = JSON.parse(settingRow.value);
+          if (Array.isArray(cfg) && cfg.length > 0) {
+            PostgresStorage.COMPANY_MAP = {};
+            for (const c of cfg) {
+              PostgresStorage.COMPANY_MAP[String(c.id)] = { name: c.name, cnpj: c.cnpj ?? "" };
+            }
+          }
+        } catch { /* ignore parse errors */ }
+      }
+
+      const rows = await pgAll<{ id: string }>(
+        `SELECT DISTINCT CAST("IDEMPRESA" AS TEXT) as id FROM cache_vendas ORDER BY id`
+      );
 
       if (rows.length === 0) {
-        return [{ id: "1", name: "Conectubos", cnpj: "00.000.000/0001-00" }];
+        return [{ id: "1", name: "Conectubos", cnpj: "" }];
       }
-      return rows;
+
+      return rows.map(row => {
+        const info = PostgresStorage.COMPANY_MAP[row.id];
+        return {
+          id: row.id,
+          name: info?.name ?? `Empresa ${row.id}`,
+          cnpj: info?.cnpj ?? "",
+        };
+      });
     } catch (err) {
-      return [{ id: "1", name: "Conectubos", cnpj: "00.000.000/0001-00" }];
+      return [{ id: "1", name: "Conectubos", cnpj: "" }];
     }
   }
 
@@ -456,12 +481,24 @@ export class PostgresStorage implements IStorage {
 
       const totalValue = rows.reduce((sum, row) => sum + (row.totalValue || 0), 0);
 
-      return rows.map(row => ({
-        category: row.category || "Outros",
-        value: row.totalValue || 0,
-        percentage: totalValue > 0 ? ((row.totalValue || 0) / totalValue) * 100 : 0,
-        quantity: row.quantity || 0,
-      }));
+      return rows.map((row, idx) => {
+        const tv = Number(row.totalValue) || 0;
+        const pct = totalValue > 0 ? (tv / totalValue) * 100 : 0;
+        const abcCurve: "A" | "B" | "C" = pct >= 10 ? "A" : pct >= 3 ? "B" : "C";
+        return {
+          product: {
+            id: row.category || `cat-${idx}`,
+            sku: "",
+            name: row.category || "Sem Fabricante",
+            category: row.category || "Sem Fabricante",
+            abcCurve,
+            companyId: companyId,
+          },
+          totalValue: tv,
+          percentage: pct,
+          quantity: Number(row.quantity) || 0,
+        };
+      });
     } catch (err) {
       console.error("Error getting product mix:", err);
       return [];

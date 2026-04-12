@@ -1,0 +1,445 @@
+Quero complementar o módulo de Copiloto de Compras com um sistema profissional de notificações em tempo real e avisos sonoros inteligentes, focado principalmente em usuários com perfil de compras.
+
+IMPORTANTE:
+Não quero notificações genéricas.
+Não quero sons irritantes.
+Não quero alerta repetindo sem controle.
+Quero um sistema realmente funcional, profissional, configurável e útil no dia a dia operacional.
+
+O objetivo é:
+- avisar rapidamente quando um item ou fornecedor entrar em situação crítica
+- chamar atenção do comprador sem poluir a experiência
+- permitir acompanhamento em tempo real
+- permitir configurar comportamento por usuário
+- evitar spam de alertas
+- evitar repetição excessiva
+- manter histórico e rastreabilidade
+
+============================================================
+1. OBJETIVO DO SISTEMA DE ALERTAS
+============================================================
+
+Quero que o sistema notifique em tempo real eventos importantes do módulo de compras, como:
+
+- produto entrou em nível crítico
+- produto vai zerar em X dias
+- produto ficou abaixo do estoque de segurança
+- fornecedor entrou em criticidade alta
+- fornecedor passou a ter vários itens críticos
+- sugestão de compra foi gerada
+- pedido em aberto não cobre mais o risco
+- produto saiu do estado crítico
+- item entrou em excesso relevante
+- lead time do fornecedor ficou maior que a cobertura do item
+- novo risco detectado após atualização dos dados
+
+Quero alertas úteis para tomada de decisão, não apenas mensagens informativas aleatórias.
+
+============================================================
+2. PERFIL DE USUÁRIO QUE RECEBE ALERTAS
+============================================================
+
+Quero que esse sistema respeite o controle de usuários e permissões.
+
+Usuários com perfil de compras devem poder:
+- receber notificações em tempo real
+- receber sons
+- configurar preferências
+- visualizar central de alertas
+- abrir o detalhe do fornecedor/produto a partir do alerta
+
+Perfis possíveis:
+- Comprador
+- Supervisor de Compras
+- Gerente
+- Administrador
+
+Quero respeitar escopo de acesso.
+Exemplo:
+- comprador vê alertas da sua loja ou do seu escopo
+- supervisor vê alertas da equipe/unidade
+- admin pode ver tudo
+
+============================================================
+3. NOTIFICAÇÕES EM TEMPO REAL
+============================================================
+
+Quero implementação real de atualização em tempo real para alertas.
+
+Preferência técnica:
+- WebSocket, se a arquitetura suportar bem
+ou
+- SSE (Server-Sent Events), se fizer mais sentido
+
+Quero uma solução leve, estável e compatível com a aplicação atual.
+
+As notificações devem:
+- aparecer sem precisar atualizar a página
+- alimentar badge de contagem
+- alimentar central de notificações
+- atualizar o painel de alertas do módulo
+- abrir detalhe do item/fornecedor ao clicar
+- marcar como lida
+- permitir arquivar, silenciar ou adiar, se fizer sentido
+
+============================================================
+4. AVISOS SONOROS EM TEMPO REAL
+============================================================
+
+Quero avisos sonoros profissionais e configuráveis.
+
+Regras:
+- tocar som apenas para eventos relevantes
+- priorizar alertas críticos
+- permitir sons diferentes por criticidade, se fizer sentido
+- ou no mínimo 1 som padrão para alerta crítico e 1 mais suave para alerta importante
+- não tocar repetidamente para o mesmo evento sem necessidade
+- permitir ativar/desativar som por usuário
+- permitir limitar som apenas para alertas críticos
+- permitir silenciar temporariamente
+- permitir modo “som desligado”
+- permitir modo “som apenas crítico”
+
+IMPORTANTE:
+Quero evitar poluição sonora.
+O som precisa ajudar, não irritar.
+
+============================================================
+5. ANTI-SPAM E CONTROLE DE REPETIÇÃO
+============================================================
+
+Isso é obrigatório.
+
+Não quero o sistema repetindo o mesmo alerta toda hora.
+Implementar controle de repetição inteligente.
+
+Quero regras como:
+- não tocar som novamente para o mesmo alerta em curto intervalo
+- não recriar notificação igual sem mudança real de estado
+- só gerar novo alerta se:
+  - criticidade piorou
+  - produto mudou de faixa
+  - fornecedor mudou de faixa
+  - o alerta foi resolvido e depois voltou
+  - houve alteração material relevante
+- aplicar cooldown por alerta/produto/fornecedor
+- deduplicar alertas equivalentes
+- agrupar alertas semelhantes quando fizer sentido
+
+Exemplos:
+- se o item já está crítico e continua crítico, não repetir som a cada atualização
+- se o item passou de “atenção” para “crítico”, aí sim gerar novo alerta forte
+- se fornecedor tinha 2 itens críticos e passou para 10, pode gerar novo alerta consolidado
+- se um alerta já foi lido, não recriar outro igual sem mudança real
+
+============================================================
+6. ESTADOS DO ALERTA
+============================================================
+
+Cada alerta deve ter estados claros, como:
+- novo
+- não lido
+- lido
+- reconhecido
+- adiado
+- silenciado
+- resolvido
+- reaberto, se voltar a acontecer
+
+Quero que o sistema use esses estados para melhorar o comportamento do alerta e do som.
+
+============================================================
+7. CENTRAL DE NOTIFICAÇÕES
+============================================================
+
+Quero uma central de notificações profissional dentro do sistema.
+
+Ela deve ter:
+- badge com quantidade de alertas não lidos
+- lista de alertas recentes
+- filtro por criticidade
+- filtro por tipo
+- filtro por status
+- data/hora do alerta
+- origem do alerta
+- título objetivo
+- descrição curta
+- ação ao clicar
+- opção de marcar como lido
+- opção de marcar todos como lidos
+- opção de silenciar
+- opção de abrir detalhe
+
+Quero uma central clara, rápida e útil.
+
+============================================================
+8. TIPOS DE ALERTA
+============================================================
+
+Quero estruturar alertas por tipo, por exemplo:
+
+- ruptura_iminente
+- abaixo_estoque_seguranca
+- fornecedor_critico
+- excesso_estoque
+- sugestao_compra_gerada
+- lead_time_maior_que_cobertura
+- pedido_aberto_insuficiente
+- item_saiu_do_critico
+- item_entrou_no_critico
+- fornecedor_subiu_de_criticidade
+
+Isso ajuda na organização, deduplicação e configuração.
+
+============================================================
+9. NÍVEIS DE CRITICIDADE
+============================================================
+
+Quero níveis de criticidade padronizados, como:
+- crítico
+- alto
+- moderado
+- atenção
+- informativo
+
+Esses níveis devem impactar:
+- cor do alerta
+- posição na fila
+- destaque visual
+- disparo sonoro
+- prioridade no painel
+- regra de repetição
+
+============================================================
+10. PAINEL DE ALERTAS NO MÓDULO DE COMPRAS
+============================================================
+
+Além da central geral, quero um painel específico dentro do Copiloto de Compras.
+
+Esse painel deve mostrar:
+- alertas ativos
+- alertas críticos no topo
+- agrupamento por fornecedor
+- agrupamento por produto
+- possibilidade de abrir detalhe
+- status visual muito claro
+- atualização em tempo real
+
+Quero que esse painel seja realmente útil no dia a dia.
+
+============================================================
+11. CONFIGURAÇÃO POR USUÁRIO
+============================================================
+
+Quero uma área de configuração individual por usuário para o sistema de alertas de compras.
+
+Cada usuário com acesso ao módulo deve poder configurar:
+
+- receber notificações ou não
+- receber som ou não
+- receber som só para crítico
+- silenciar por período
+- escolher volume, se fizer sentido
+- escolher tipo de som, se fizer sentido
+- receber alerta por fornecedor específico, se existir escopo
+- receber alerta por categoria/grupo, se fizer sentido
+- escolher frequência visual
+- habilitar ou desabilitar notificações de certos tipos
+
+Quero isso salvo por usuário.
+
+============================================================
+12. CONFIGURAÇÃO GLOBAL
+============================================================
+
+Também quero uma configuração global administrativa para:
+- habilitar sistema de alertas
+- habilitar som
+- definir cooldown padrão
+- definir criticidade mínima para tocar som
+- definir janela de repetição
+- definir se alertas devem ser agrupados
+- definir tempo padrão de expiração visual
+- definir política de retenção no histórico
+
+============================================================
+13. REGRAS DE NEGÓCIO DO ALERTA
+============================================================
+
+Quero que o sistema gere alertas com base em regras reais do módulo de compras, como:
+
+- cobertura em dias menor que limite crítico
+- estoque abaixo do estoque de segurança
+- data estimada de ruptura dentro da janela crítica
+- pedido aberto insuficiente
+- fornecedor com número alto de itens críticos
+- aumento repentino de criticidade
+- cobertura menor que lead time
+- sugestão de compra relevante gerada
+- item com risco crescente
+
+Quero tudo isso com backend como fonte de verdade.
+
+============================================================
+14. MODELAGEM DE BANCO
+============================================================
+
+Quero que você estruture o banco para suportar isso de forma profissional.
+
+Sugestão de entidades:
+- purchase_alerts
+- purchase_alert_events
+- user_alert_preferences
+- alert_sound_preferences
+- alert_delivery_state
+- alert_acknowledgements
+- alert_snoozes
+- alert_rules_config
+
+Cada alerta deve ter dados como:
+- id
+- tipo
+- criticidade
+- título
+- descrição
+- referência do produto/fornecedor
+- status
+- hash/chave de deduplicação
+- data de criação
+- última atualização
+- resolvido_em
+- payload/contexto
+- escopo
+- usuário(s) afetado(s), quando aplicável
+
+============================================================
+15. DEDUPLICAÇÃO TÉCNICA
+============================================================
+
+Quero uma estratégia técnica forte para evitar alertas duplicados.
+
+Implementar algo como:
+- chave de deduplicação por tipo + produto/fornecedor + estado relevante
+- só criar novo alerta se a chave mudar ou o estado piorar
+- manter histórico de eventos do alerta
+- atualizar alerta existente em vez de recriar sem necessidade
+- controlar som por evento novo relevante, não por refresh de tela
+
+============================================================
+16. COMPORTAMENTO DE SOM NO NAVEGADOR
+============================================================
+
+Quero que você implemente o som de forma robusta para web.
+
+Considerar:
+- necessidade de liberar áudio após interação do usuário, quando aplicável
+- fila ou debounce de reprodução
+- evitar tocar múltiplos sons ao mesmo tempo
+- som curto e profissional
+- fallback silencioso se o navegador bloquear reprodução
+- não quebrar a experiência em mobile
+
+============================================================
+17. MOBILE E RESPONSIVIDADE
+============================================================
+
+Quero que notificações e alertas funcionem bem em mobile também.
+
+No celular:
+- badge visível
+- central de notificações acessível
+- painel de alertas legível
+- sem poluição
+- interação simples
+- som respeitando preferências
+- sem quebrar layout
+
+============================================================
+18. UX/UI
+============================================================
+
+Quero interface premium e clara.
+
+Requisitos:
+- badge bem desenhado
+- lista de alertas com boa hierarquia
+- ícones de criticidade
+- cores bem definidas
+- hover e estados suaves
+- drawer/modal profissional para detalhes
+- filtros claros
+- layout leve
+- nada infantil
+- nada poluído
+
+============================================================
+19. LOGS E AUDITORIA
+============================================================
+
+Quero rastrear:
+- alerta criado
+- alerta atualizado
+- alerta resolvido
+- alerta lido
+- alerta silenciado
+- alerta adiado
+- som disparado, se fizer sentido logar
+- regra que originou o alerta
+- usuário impactado
+
+Quero boa rastreabilidade.
+
+============================================================
+20. PERFORMANCE
+============================================================
+
+Quero que isso seja rápido e leve.
+
+Evitar:
+- polling pesado desnecessário
+- recalcular tudo a cada segundo
+- gerar eventos duplicados
+- abrir conexões excessivas
+- interface lenta por excesso de alerta
+- som disparando de forma caótica
+
+============================================================
+21. O QUE NÃO QUERO
+============================================================
+
+Não quero:
+- notificação boba
+- som toda hora
+- alerta repetido
+- spam visual
+- spam sonoro
+- sistema sem filtro
+- sistema sem configuração por usuário
+- frontend decidindo regra crítica sozinho
+- central de notificações superficial
+- alerta sem contexto
+- UX fraca
+
+============================================================
+22. ENTREGA ESPERADA
+============================================================
+
+Quero que você:
+
+1. implemente notificações em tempo real para o módulo de compras
+2. implemente avisos sonoros configuráveis
+3. implemente anti-spam e anti-repetição
+4. implemente central de notificações
+5. implemente preferências por usuário
+6. implemente configuração global
+7. integre com permissões e perfil de compras
+8. mantenha backend como fonte de verdade
+9. entregue algo rápido, profissional e realmente funcional
+
+Antes de concluir, valide se:
+- alertas aparecem em tempo real
+- sons funcionam
+- repetição indevida foi evitada
+- usuário consegue configurar preferências
+- alertas têm contexto útil
+- a experiência ficou profissional e prática

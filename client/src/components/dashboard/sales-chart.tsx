@@ -57,7 +57,7 @@ function ChartSkeleton() {
 
 /* ── Chart content ───────────────────────────────────────────────────────────── */
 function SalesBarChart({ data }: { data: SalesChartData[] }) {
-  const total = data.reduce((s, d) => s + d.atual, 0);
+  const total = data.reduce((s, d) => s + (Number(d.atual) || 0), 0);
 
   return (
     <div className="space-y-3">
