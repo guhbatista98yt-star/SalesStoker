@@ -194,17 +194,35 @@ export async function calcularSugestoesPorFornecedor(
   const estoqueMap = new Map(estoqueRows.map(e => [e.IDPRODUTO, e]));
   const ultimaMap  = new Map(ultimasCompras.map(u => [u.IDPRODUTO, u]));
 
-  const rows = await pgAll<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
-    `SELECT "IDPRODUTO", "FABRICANTE",
-            COALESCE(SUM("QTD"), 0) as total_vendido
-     FROM cache_campanhas
-     WHERE "FABRICANTE" = ?
-       AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
-       AND "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''
-     GROUP BY "IDPRODUTO", "FABRICANTE"
-     ORDER BY total_vendido DESC`,
-    [fabricante, dataInicio, dataFim],
-  );
+  const [rowsVendas, rowsEstoqueOnly] = await Promise.all([
+    pgAll<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
+      `SELECT "IDPRODUTO", "FABRICANTE",
+              COALESCE(SUM("QTD"), 0) as total_vendido
+       FROM cache_campanhas
+       WHERE "FABRICANTE" = ?
+         AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
+         AND "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''
+       GROUP BY "IDPRODUTO", "FABRICANTE"
+       ORDER BY total_vendido DESC`,
+      [fabricante, dataInicio, dataFim],
+    ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
+    // Produtos com estoque mas sem vendas para este fornecedor no período
+    pgAll<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
+      `SELECT e."IDPRODUTO", e."FABRICANTE", 0 as total_vendido
+       FROM cache_estoque_sugestao e
+       WHERE e."FABRICANTE" = ?
+         AND e."IDPRODUTO" IS NOT NULL AND e."IDPRODUTO" != ''
+         AND NOT EXISTS (
+           SELECT 1 FROM cache_campanhas c
+           WHERE c."IDPRODUTO" = e."IDPRODUTO"
+             AND c."FABRICANTE" = e."FABRICANTE"
+             AND c."DTMOVIMENTO" >= ? AND c."DTMOVIMENTO" <= ?
+         )`,
+      [fabricante, dataInicio, dataFim],
+    ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
+  ]);
+
+  const rows = [...rowsVendas, ...rowsEstoqueOnly];
 
   return rows.map((row) => {
     const prodConf = prodMap.get(row.IDPRODUTO);
@@ -269,7 +287,7 @@ export async function calcularTodasSugestoes(
   const maxAnalise = Math.max(cfg.periodoAnalise, ...produtosConf.map(p => p.giro_periodo_dias ?? 90));
   const dataInicioMax = new Date(now.getTime() - maxAnalise * 86400000).toISOString().split("T")[0];
 
-  const [rows, ultimasCompras] = await Promise.all([
+  const [rowsVendas, rowsEstoqueOnly, ultimasCompras] = await Promise.all([
     pgAll<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
       `SELECT "IDPRODUTO", "FABRICANTE",
               COALESCE(SUM("QTD"), 0) as total_vendido
@@ -280,7 +298,22 @@ export async function calcularTodasSugestoes(
        ORDER BY total_vendido DESC
        LIMIT 500`,
       [dataInicioMax, dataFim],
-    ),
+    ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
+    // Produtos com estoque mas sem vendas no período — aparecem com consumo 0
+    pgAll<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
+      `SELECT e."IDPRODUTO", e."FABRICANTE", 0 as total_vendido
+       FROM cache_estoque_sugestao e
+       WHERE e."IDPRODUTO" IS NOT NULL AND e."IDPRODUTO" != ''
+         AND e."FABRICANTE" IS NOT NULL AND e."FABRICANTE" != ''
+         AND NOT EXISTS (
+           SELECT 1 FROM cache_campanhas c
+           WHERE c."IDPRODUTO" = e."IDPRODUTO"
+             AND c."FABRICANTE" = e."FABRICANTE"
+             AND c."DTMOVIMENTO" >= ? AND c."DTMOVIMENTO" <= ?
+         )
+       LIMIT 500`,
+      [dataInicioMax, dataFim],
+    ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
     pgAll<{ IDPRODUTO: string; FABRICANTE: string; ultima_compra: string; ultima_qtd: number }>(
       `SELECT c."IDPRODUTO", c."FABRICANTE",
               c."DTMOVIMENTO" as ultima_compra,
@@ -296,6 +329,7 @@ export async function calcularTodasSugestoes(
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; ultima_compra: string; ultima_qtd: number }[]),
   ]);
 
+  const rows = [...rowsVendas, ...rowsEstoqueOnly];
   const ultimaMap = new Map(ultimasCompras.map(u => [`${u.IDPRODUTO}::${u.FABRICANTE}`, u]));
 
   return rows
