@@ -3,11 +3,15 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import type { RankingCriteria } from "@shared/schema";
 import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth";
+import campaignRoutes from "./campaigns/routes";
+import { initCampaignTables } from "./campaigns/init";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  initCampaignTables();
 
   app.use("/api/auth", createAuthRouter());
 
@@ -506,6 +510,8 @@ export async function registerRoutes(
       res.status(500).json({ error: "Erro ao buscar metas elit" });
     }
   });
+
+  app.use("/api/campaigns", campaignRoutes);
 
   return httpServer;
 }

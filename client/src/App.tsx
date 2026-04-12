@@ -28,6 +28,8 @@ import TvAmancoTab from "@/pages/metas-vendedor/tv-amanco";
 import TintasElitTab from "@/pages/metas-vendedor/tintas-elit";
 import AdminGatilhos from "@/pages/metas/admin-gatilhos";
 import AdminReports from "@/pages/metas/admin-reports";
+import CampanhasList from "@/pages/campanhas/index";
+import CampaignForm from "@/pages/campanhas/form";
 
 // Wrapper para páginas de campanha com layout e acesso de vendedor
 import { AlertCircle } from "lucide-react";
@@ -96,6 +98,12 @@ function Router() {
       {/* Visão em Loja — acessada por loja e admin */}
       <Route path="/analises/visao-em-loja" component={VisaoEmLoja} />
       <Route path="/tv" component={TVDashboard} />
+
+      {/* Módulo de Campanhas Comerciais */}
+      <Route path="/campanhas" component={CampanhasList} />
+      <Route path="/campanhas/nova" component={() => <CampaignForm />} />
+      <Route path="/campanhas/:id/editar" component={(params: { id: string }) => <CampaignForm campaignId={params.id} />} />
+      <Route path="/campanhas/:id" component={(params: { id: string }) => <CampaignForm campaignId={params.id} />} />
 
       {/* Rotas exclusivas de admin — redirecionam para Configurações */}
       {(role === "admin" || role === "supervisor") && (

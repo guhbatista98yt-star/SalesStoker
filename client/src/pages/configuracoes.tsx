@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +62,8 @@ import {
   TrendingUp,
   ShieldAlert,
   Pencil,
+  Megaphone,
+  ArrowRight,
 } from "lucide-react";
 import { GoalSwitch } from "@/components/goal-switch";
 
@@ -1241,6 +1244,18 @@ export default function Configuracoes() {
               </button>
             );
           })}
+
+          {/* Campanhas — link externo */}
+          <div className="mt-auto pt-3 border-t border-border/60">
+            <Link
+              href="/campanhas"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full text-left text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Megaphone className="h-4 w-4 shrink-0" />
+              Criar Campanhas
+              <ArrowRight className="h-3.5 w-3.5 ml-auto" />
+            </Link>
+          </div>
         </nav>
 
         {/* Content */}

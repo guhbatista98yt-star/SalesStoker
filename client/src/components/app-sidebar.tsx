@@ -11,7 +11,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp, Store, PaintBucket, Calendar } from "lucide-react";
+import { LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp, Store, PaintBucket, Calendar, Megaphone } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 const menuItems = [
@@ -176,8 +176,16 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       {role === "admin" && !isLoja && (
-        <SidebarFooter className="p-4 border-t border-sidebar-border">
+        <SidebarFooter className="p-4 border-t border-sidebar-border space-y-1">
           <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={location.startsWith("/campanhas")}>
+                <Link href="/campanhas" data-testid="nav-link-campanhas">
+                  <Megaphone className="h-4 w-4" />
+                  <span>Campanhas</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={location === "/configuracoes"}>
                 <Link href="/configuracoes" data-testid="nav-link-configuracoes">

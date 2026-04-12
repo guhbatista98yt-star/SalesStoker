@@ -22,6 +22,16 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 
 ## Recent Changes
 
+- **Campaigns Module**: Full commercial campaign management system at `/campanhas`:
+  - Database: `campaigns`, `campaign_versions`, `campaign_audit_logs`, `campaign_simulations` tables (SQLite, JSON columns for flexible rule storage)
+  - Backend engine: `server/campaigns/engine.ts` evaluates condition trees server-side (never client-side); supports nested AND/OR groups, all condition types, reward tiers
+  - Service: `server/campaigns/service.ts` handles CRUD, status machine, versioning (snapshot on edits to active campaigns), conflict detection, audit trail, simulation, clone, restore
+  - API routes: `GET/POST /api/campaigns`, `GET/PUT /api/campaigns/:id`, `POST /:id/status`, `POST /:id/clone`, `GET /:id/validate`, `GET /:id/conflicts`, `POST /:id/simulate`, `GET /:id/audit`, `GET /:id/versions`, `POST /:id/restore/:version`
+  - Frontend: `/campanhas` list with stats/filter/cards, `/campanhas/nova` create, `/campanhas/:id` view/edit, multi-tab form (8 tabs: Dados Gerais, Público-Alvo, Condições, Premiação, Limites, Gatilhos, Simulação, Auditoria)
+  - Visual rule builder with nested AND/OR groups, reward form with tiers, simulator, audit log timeline
+  - Status machine: rascunho → ativa → pausada/encerrada → cancelada
+  - Natural language summary auto-generated on save
+  - Sidebar: new "Campanhas" link; Configurações: "Criar Campanhas" shortcut
 - **Settings Hub Reformulation**: Replaced separate admin pages with a unified Configurações module featuring 4 sections via left-sidebar navigation:
   - **Equipes**: Full inline team management (create/edit/delete groups, search members, member checkboxes)
   - **Metas de Venda**: Weekly/monthly goals config per salesperson (unchanged functionality, integrated)
