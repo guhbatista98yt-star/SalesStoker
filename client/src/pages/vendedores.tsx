@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard } from "@/components/dashboard/salesperson-card";
@@ -11,17 +9,6 @@ import { Search, Grid3X3, List } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
-
-const MOVIMT_STORAGE_KEY = "vendedores:showMovimentacoes";
-
-function readMovimtSetting(): boolean {
-  try {
-    const v = localStorage.getItem(MOVIMT_STORAGE_KEY);
-    return v === null ? true : v === "true";
-  } catch {
-    return true;
-  }
-}
 
 export default function Vendedores() {
   const { user } = useAuth();
@@ -37,7 +24,6 @@ export default function Vendedores() {
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [showMovimentacoes, setShowMovimentacoes] = useState<boolean>(readMovimtSetting);
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -47,14 +33,23 @@ export default function Vendedores() {
     queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate],
   });
 
+  const { data: settingMovimt } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/showMovimentacoesButton"],
+    enabled: isSupervisor,
+  });
+
   const filteredSalespersons = salespersons.filter(({ salesperson }) =>
     salesperson.name.toLowerCase().includes(search.toLowerCase()) ||
     (salesperson.email ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  function handleMovimtToggle(checked: boolean) {
-    setShowMovimentacoes(checked);
-    try { localStorage.setItem(MOVIMT_STORAGE_KEY, String(checked)); } catch {}
+  function showMovimentacoesButton(): boolean {
+    if (isAdmin) return true;
+    if (isSupervisor) {
+      const val = settingMovimt?.value;
+      return val === null || val === undefined ? true : val === "true";
+    }
+    return false;
   }
 
   return (
@@ -90,24 +85,6 @@ export default function Vendedores() {
             />
           </div>
           <div className="flex items-center gap-3">
-            {/* Movimentações visibility toggle — admin + supervisor only */}
-            {(isAdmin || isSupervisor) && (
-              <div className="flex items-center gap-2 border border-border rounded-lg px-3 py-1.5 bg-card">
-                <Switch
-                  id="toggle-movimt"
-                  checked={showMovimentacoes}
-                  onCheckedChange={handleMovimtToggle}
-                  data-testid="toggle-movimentacoes"
-                />
-                <Label
-                  htmlFor="toggle-movimt"
-                  className="text-xs font-medium text-muted-foreground cursor-pointer select-none whitespace-nowrap"
-                >
-                  Movimentações
-                </Label>
-              </div>
-            )}
-
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
               size="icon"
@@ -146,7 +123,7 @@ export default function Vendedores() {
                 salesperson={salesperson}
                 stats={stats}
                 period={{ startDate: period.startDate, endDate: period.endDate }}
-                showMovimentacoesButton={showMovimentacoes}
+                showMovimentacoesButton={showMovimentacoesButton()}
               />
             ))}
           </div>
