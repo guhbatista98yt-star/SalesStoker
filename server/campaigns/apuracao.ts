@@ -4,7 +4,7 @@
  * Produces per-vendedor results with complete memory of calculation.
  */
 
-import { pgGet, pgAll, pgRun } from "../pg-client";
+import { pgGet, pgAll, pgRun, pgTransaction } from "../pg-client";
 import { randomUUID } from "crypto";
 import { getCampaignById } from "./service";
 
@@ -489,54 +489,56 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   const valorTotalPagamento = detalhes.reduce((s, d) => s + d.valorPagamento, 0);
   const valorTotalPremio = detalhes.filter(d => d.premiado).reduce((s, d) => s + d.premioFinal, 0);
 
-  // ── Persist results ───────────────────────────────────────────────────────
+  // ── Persist results (atomic — rollback everything if any insert fails) ────
   const resultId = randomUUID();
   const agora = new Date().toISOString();
 
-  await pgRun(`
-    INSERT INTO campaign_results (
-      id, campaign_id, apurado_em, apurado_por,
-      periodo_inicio, periodo_fim, campaign_mode,
-      total_elegiveis, total_participantes, total_atingidos, total_premiados,
-      valor_total_apuracao, valor_total_pagamento, valor_total_premio, summary
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    resultId, campaignId, agora, actor,
-    periodoInicio, periodoFim, mode,
-    totalElegiveis, totalParticipantes, totalAtingidos, totalPremiados,
-    valorTotalApuracao, valorTotalPagamento, valorTotalPremio,
-    JSON.stringify({ rankingTipo, bases: { apuracao: describeBase(baseApuracao), pagamento: describeBase(basePagamento) } }),
-  ]);
+  await pgTransaction(async (client) => {
+    const toN = (q: string) => { let n = 0; return q.replace(/\?/g, () => `$${++n}`); };
 
-  // Insert details sequentially (no transaction needed for correctness here)
-  for (const d of detalhes) {
-    await pgRun(`
-      INSERT INTO campaign_result_details (
-        id, result_id, campaign_id, vendedor_id, vendedor_nome,
-        elegivel, participou, gatilho_atingido, atingiu, premiado, posicao,
-        valor_apuracao, valor_pagamento, qtd_total, mix_count, gatilho_valor,
-        premio_calculado, premio_final, motivos_nao_participacao, memoria_calculo
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      randomUUID(), resultId, campaignId, d.vendedorId, d.vendedorNome,
-      d.elegivel ? 1 : 0, d.participou ? 1 : 0,
-      d.gatilhoAtingido ? 1 : 0, d.atingiu ? 1 : 0, d.premiado ? 1 : 0,
-      d.posicao ?? null,
-      d.valorApuracao, d.valorPagamento, d.qtdTotal, d.mixCount, d.gatilhoValor,
-      d.premioCalculado, d.premioFinal,
-      JSON.stringify(d.motivosNaoParticipacao),
-      JSON.stringify(d.memoriaCalculo),
+    await client.query(toN(`
+      INSERT INTO campaign_results (
+        id, campaign_id, apurado_em, apurado_por,
+        periodo_inicio, periodo_fim, campaign_mode,
+        total_elegiveis, total_participantes, total_atingidos, total_premiados,
+        valor_total_apuracao, valor_total_pagamento, valor_total_premio, summary
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `), [
+      resultId, campaignId, agora, actor,
+      periodoInicio, periodoFim, mode,
+      totalElegiveis, totalParticipantes, totalAtingidos, totalPremiados,
+      valorTotalApuracao, valorTotalPagamento, valorTotalPremio,
+      JSON.stringify({ rankingTipo, bases: { apuracao: describeBase(baseApuracao), pagamento: describeBase(basePagamento) } }),
     ]);
-  }
 
-  // Audit log
-  await pgRun(`
-    INSERT INTO campaign_audit_logs (id, campaign_id, action, actor, new_values)
-    VALUES (?, ?, ?, ?, ?)
-  `, [
-    randomUUID(), campaignId, "apurado", actor,
-    JSON.stringify({ resultId, totalPremiados, valorTotalPremio, periodoInicio, periodoFim }),
-  ]);
+    for (const d of detalhes) {
+      await client.query(toN(`
+        INSERT INTO campaign_result_details (
+          id, result_id, campaign_id, vendedor_id, vendedor_nome,
+          elegivel, participou, gatilho_atingido, atingiu, premiado, posicao,
+          valor_apuracao, valor_pagamento, qtd_total, mix_count, gatilho_valor,
+          premio_calculado, premio_final, motivos_nao_participacao, memoria_calculo
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `), [
+        randomUUID(), resultId, campaignId, d.vendedorId, d.vendedorNome,
+        d.elegivel ? 1 : 0, d.participou ? 1 : 0,
+        d.gatilhoAtingido ? 1 : 0, d.atingiu ? 1 : 0, d.premiado ? 1 : 0,
+        d.posicao ?? null,
+        d.valorApuracao, d.valorPagamento, d.qtdTotal, d.mixCount, d.gatilhoValor,
+        d.premioCalculado, d.premioFinal,
+        JSON.stringify(d.motivosNaoParticipacao),
+        JSON.stringify(d.memoriaCalculo),
+      ]);
+    }
+
+    await client.query(toN(`
+      INSERT INTO campaign_audit_logs (id, campaign_id, action, actor, new_values)
+      VALUES (?, ?, ?, ?, ?)
+    `), [
+      randomUUID(), campaignId, "apurado", actor,
+      JSON.stringify({ resultId, totalPremiados, valorTotalPremio, periodoInicio, periodoFim }),
+    ]);
+  });
 
   return {
     id: resultId,

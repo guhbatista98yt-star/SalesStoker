@@ -745,6 +745,33 @@ export async function registerRoutes(
     }
   });
 
+  // ── Sync & Bootstrap Status ────────────────────────────────────────────────
+  app.get("/api/sync/status", isAuthenticated, async (_req, res) => {
+    try {
+      const [syncState, bootstrapStatus, bootstrapMeses] = await Promise.all([
+        pgAll(
+          "SELECT routine_name, status, last_success_at, last_dt_movimento, " +
+          "records_read, records_written, last_error, updated_at " +
+          "FROM sync_state ORDER BY routine_name"
+        ),
+        pgAll(
+          "SELECT routine_name, status, data_inicio, data_fim, total_meses, " +
+          "meses_ok, total_records, started_at, finished_at, error_msg, updated_at " +
+          "FROM bootstrap_status ORDER BY routine_name"
+        ),
+        pgAll(
+          "SELECT routine_name, periodo_inicio, periodo_fim, status, " +
+          "records_written, started_at, finished_at, error_msg " +
+          "FROM bootstrap_historico ORDER BY routine_name, periodo_inicio"
+        ),
+      ]);
+      res.json({ syncState, bootstrapStatus, bootstrapMeses });
+    } catch (error) {
+      console.error("Erro ao buscar status de sync:", error);
+      res.status(500).json({ error: "Erro ao buscar status de sync" });
+    }
+  });
+
   app.use("/api/campaigns", campaignRoutes);
 
   // Movimentações por vendedor

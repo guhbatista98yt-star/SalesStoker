@@ -436,6 +436,44 @@ async function bootstrapSyncControl(): Promise<void> {
     )
   `);
 
+  // Controls the 2-year historical bootstrap — one row per (routine, month)
+  await exec(`
+    CREATE TABLE IF NOT EXISTS bootstrap_historico (
+      id                SERIAL PRIMARY KEY,
+      routine_name      TEXT NOT NULL,
+      periodo_inicio    DATE NOT NULL,
+      periodo_fim       DATE NOT NULL,
+      status            TEXT NOT NULL DEFAULT 'pendente',
+      records_read      INTEGER NOT NULL DEFAULT 0,
+      records_written   INTEGER NOT NULL DEFAULT 0,
+      started_at        TIMESTAMPTZ,
+      finished_at       TIMESTAMPTZ,
+      error_msg         TEXT,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (routine_name, periodo_inicio)
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_bh_routine_status ON bootstrap_historico (routine_name, status)`);
+
+  // Top-level flag: 'pendente' | 'em_andamento' | 'concluido' | 'erro'
+  await exec(`
+    CREATE TABLE IF NOT EXISTS bootstrap_status (
+      id            SERIAL PRIMARY KEY,
+      routine_name  TEXT NOT NULL UNIQUE,
+      status        TEXT NOT NULL DEFAULT 'pendente',
+      data_inicio   DATE,
+      data_fim      DATE,
+      total_meses   INTEGER NOT NULL DEFAULT 0,
+      meses_ok      INTEGER NOT NULL DEFAULT 0,
+      total_records INTEGER NOT NULL DEFAULT 0,
+      started_at    TIMESTAMPTZ,
+      finished_at   TIMESTAMPTZ,
+      error_msg     TEXT,
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_bs_status ON bootstrap_status (status)`);
+
   // Append-only log of every sync run
   await exec(`
     CREATE TABLE IF NOT EXISTS sync_logs (
@@ -663,6 +701,7 @@ const REQUIRED_TABLES = [
   "campaign_results", "campaign_result_details", "campaign_goals",
   "commission_rules", "commission_records",
   "sync_state", "sync_logs", "job_locks",
+  "bootstrap_historico", "bootstrap_status",
   "cache_vendas", "cache_vendas_pendentes", "cache_campanhas", "cache_tubos_conexoes",
   "roles", "role_permissions", "access_audit",
 ];

@@ -60,7 +60,8 @@ PG_DSN        = os.environ["DATABASE_URL"]     # PostgreSQL connection string
 BATCH_SIZE = 2_000
 
 # Keep at most this many days in cache (older rows are purged on sync)
-MAX_CACHE_DAYS = 365
+# 2 years to match the historical bootstrap retention
+MAX_CACHE_DAYS = 730
 
 # Lock expiry: if a lock is older than this, treat it as stale
 LOCK_TTL_SECONDS = 3600
