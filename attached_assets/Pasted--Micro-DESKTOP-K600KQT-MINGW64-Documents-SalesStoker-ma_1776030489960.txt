@@ -1,0 +1,50 @@
+
+Micro@DESKTOP-K600KQT MINGW64 ~/Documents/SalesStoker (main)
+$ npm install
+pip install pyodbc psycopg2-binary python-dotenv
+
+added 516 packages, and audited 517 packages in 17s
+
+78 packages are looking for funding
+  run `npm fund` for details
+
+10 vulnerabilities (1 low, 2 moderate, 7 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+bash: pip: command not found
+
+2026-04-12 18:47:53 [INFO] erp_sync — [cache_vendas] Sync incremental desde: 2026-04-09
+2026-04-12 18:47:54 [INFO] erp_sync — [cache_vendas] Consulta DB2 executada. Lendo em lotes de 2000…
+2026-04-12 18:47:54 [INFO] erp_sync — [cache_vendas] 3546 linhas lidas do DB2. Gravando no PostgreSQL…
+2026-04-12 18:47:54 [INFO] erp_sync — [cache_vendas] Concluído — lidas: 3546, gravadas: 3546
+2026-04-12 18:47:54 [INFO] erp_sync — === Routine vendas concluída em 0s ===
+2026-04-12 18:47:54 [INFO] erp_sync — === Iniciando routine: campanhas ===
+2026-04-12 18:47:55 [INFO] erp_sync — [cache_campanhas] lidas: 3546, gravadas: 3546
+2026-04-12 18:47:55 [INFO] erp_sync — === Routine campanhas concluída em 0s ===
+2026-04-12 18:47:55 [INFO] erp_sync — === Iniciando routine: tubos ===
+2026-04-12 18:47:55 [INFO] erp_sync — [cache_tubos_conexoes] lidas: 635, gravadas: 635
+2026-04-12 18:47:55 [INFO] erp_sync — === Routine tubos concluída em 0s ===
+2026-04-12 18:47:55 [INFO] erp_sync — === Iniciando routine: pendentes ===
+2026-04-12 18:47:55 [INFO] erp_sync — [cache_vendas_pendentes] lidas: 0, gravadas: 0
+2026-04-12 18:47:56 [INFO] erp_sync — === Routine pendentes concluída em 0s ===
+2026-04-12 18:47:56 [INFO] erp_sync — === Iniciando routine: estoque_sugestao ===
+2026-04-12 18:48:01 [ERROR] erp_sync — [estoque_sugestao] Falha durante a sincronização
+Traceback (most recent call last):
+  File "C:\Users\Micro\Documents\SalesStoker\sync\erp_sync.py", line 689, in run_routine
+    records_read, records_written = fn(pg)
+                                    ~~^^^^
+  File "C:\Users\Micro\Documents\SalesStoker\sync\erp_sync.py", line 627, in sync_estoque_sugestao
+    pgcur.execute("TRUNCATE TABLE cache_estoque_sugestao")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.UndefinedTable: ERRO:  relação "cache_estoque_sugestao" não existe
+
+
+Micro@DESKTOP-K600KQT MINGW64 ~/Documents/SalesStoker/sync (main)
+$
+
