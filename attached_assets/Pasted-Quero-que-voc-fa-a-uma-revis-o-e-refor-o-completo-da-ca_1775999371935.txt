@@ -1,0 +1,557 @@
+Quero que você faça uma revisão e reforço completo da camada de dados da aplicação, com foco em arquitetura profissional, segurança operacional, integridade dos dados, proteção do ERP DB2 e criação automática de toda a estrutura necessária no PostgreSQL.
+
+CONTEXTO TÉCNICO:
+- A aplicação lê dados do ERP em DB2 via ODBC.
+- O banco local da aplicação é PostgreSQL.
+- O acesso ao DB2 deve respeitar o schema DBA.
+- As consultas no DB2 precisam ser cuidadosas para não gerar locks, lentidões, table scan, alto uso de disco ou impacto no ERP.
+- O PostgreSQL deve conter toda a estrutura necessária da aplicação e deve conseguir ser inicializado automaticamente se estiver incompleto.
+- Quero padrão de programador sênior e arquitetura de produção.
+
+IMPORTANTE:
+O time responsável pelo ERP alertou corretamente que:
+- aplicações conectadas ao banco podem gerar travamentos e lentidões
+- falta de commit pode gerar locks e travar outras aplicações
+- consultas sem filtros podem gerar alta carga, table scan, uso excessivo de disco e lentidões
+- cargas pesadas devem, idealmente, ocorrer em horários de menor uso
+
+Quero que isso seja tratado como prioridade máxima.
+
+================================================================
+1. OBJETIVO GERAL
+================================================================
+
+Quero que você:
+
+1. revise toda a camada de banco da aplicação
+2. garanta a criação de todas as tabelas, colunas, índices, constraints e estruturas necessárias no PostgreSQL caso ainda não existam
+3. revise todas as consultas e integrações com o DB2
+4. reduza ao máximo o risco de lock, table scan, lentidão e impacto no ERP
+5. implemente ou reforce sync incremental
+6. melhore transações, commits, rollbacks, conexões e logs
+7. garanta consistência dos dados entre DB2 e PostgreSQL
+8. deixe a camada de dados pronta para produção real
+
+================================================================
+2. ASSUMA ESTE CENÁRIO TÉCNICO COMO REFERÊNCIA
+================================================================
+
+Considere como base de implementação:
+
+- backend em Python
+- acesso ao DB2 via pyodbc / ODBC
+- acesso ao PostgreSQL via biblioteca apropriada e robusta
+- uso de migrations ou bootstrap de schema idempotente
+- leitura do ERP DB2 em modo o mais seguro e leve possível
+- gravação local no PostgreSQL com upsert confiável
+- logs detalhados de sync e estrutura
+
+Se a stack atual da aplicação não for exatamente essa, adapte a implementação para a stack atual preservando a mesma arquitetura e as mesmas boas práticas.
+
+================================================================
+3. GARANTIR CRIAÇÃO AUTOMÁTICA DA ESTRUTURA NO POSTGRESQL
+================================================================
+
+Quero que você identifique toda a estrutura necessária da aplicação e garanta que ela seja criada automaticamente se não existir.
+
+Isso inclui:
+- tabelas principais
+- tabelas auxiliares
+- tabelas de configuração
+- tabelas de campanhas
+- tabelas de comissões
+- tabelas de metas
+- tabelas de resultados
+- tabelas de auditoria
+- tabelas de logs
+- tabelas de histórico / versionamento
+- tabelas de usuários, perfis, permissões e sessões
+- tabelas de controle de sync
+- tabelas de staging, se fizer sentido
+- tabelas de cache analítico, se fizer sentido
+
+Também quero garantir:
+- colunas obrigatórias
+- colunas opcionais
+- primary keys
+- foreign keys
+- unique constraints
+- check constraints
+- índices simples
+- índices compostos
+- timestamps
+- campos de status
+- campos de rastreabilidade
+- campos de controle operacional
+
+Quero que a aplicação detecte e corrija:
+- tabela ausente
+- coluna ausente
+- índice ausente
+- constraint ausente, quando aplicável
+- divergência básica entre schema esperado e schema real
+
+================================================================
+4. MIGRATIONS / BOOTSTRAP DE SCHEMA
+================================================================
+
+Quero uma estratégia madura para schema.
+
+Se já existir sistema de migrations, revise e fortaleça.
+Se não existir, implemente.
+
+Quero:
+- migrations versionadas
+- execução segura e idempotente
+- ordem correta de criação
+- logs claros
+- falha explícita quando houver problema estrutural
+- reexecução sem quebrar ambientes já existentes
+- validação do schema esperado antes da aplicação subir
+
+Se necessário, criar uma etapa de bootstrap que:
+- verifica o schema
+- aplica o que estiver faltando
+- registra o que foi criado
+- não duplica objetos já existentes
+
+================================================================
+5. ESTRUTURA TÉCNICA MÍNIMA RECOMENDADA NO POSTGRESQL
+================================================================
+
+Quero que você avalie e crie, se necessário, estruturas como:
+
+- users
+- roles / permissions
+- sessions
+- campaigns
+- campaign_versions
+- campaign_rules
+- campaign_targets
+- campaign_results
+- commissions
+- commission_rules
+- commission_results
+- goals / metas
+- seller_metrics
+- seller_cards / indicadores
+- sync_state
+- sync_jobs
+- sync_logs
+- audit_logs
+- import_batches
+- export_logs
+- cache_vendas
+- cache_produtos
+- cache_estoque
+- cache_pedidos
+- tabelas auxiliares de fornecedor, categoria, segmento, grupo etc.
+
+Não precisa usar exatamente esses nomes se a arquitetura atual pedir outros, mas a estrutura funcional precisa existir.
+
+================================================================
+6. TABELAS DE CONTROLE DE SINCRONIZAÇÃO — OBRIGATÓRIO
+================================================================
+
+Quero uma camada séria de controle de sync com tabelas equivalentes a:
+
+A. sync_state
+Para guardar:
+- nome da rotina
+- última execução com sucesso
+- último watermark processado
+- última data/hora de movimento lida
+- status atual
+- mensagem de erro da última falha
+- quantidade de registros lidos
+- quantidade de registros gravados
+
+B. sync_logs
+Para registrar:
+- início
+- fim
+- duração
+- rotina
+- parâmetros
+- quantidade de registros
+- sucesso/falha
+- mensagem detalhada
+
+C. job_lock / execution_lock
+Para evitar duas execuções simultâneas da mesma rotina
+
+D. import_batches
+Para rastrear lotes importados, quando fizer sentido
+
+================================================================
+7. REVISÃO DAS CONSULTAS AO DB2 — PRIORIDADE MÁXIMA
+================================================================
+
+Quero revisar todas as consultas ao DB2 com foco em reduzir impacto no ERP.
+
+Procure e corrija:
+- SELECT * desnecessário
+- consultas sem WHERE útil
+- consultas sem filtro por período
+- consultas sem filtro por status
+- leituras históricas desnecessárias
+- joins desnecessariamente pesados
+- consultas repetitivas
+- consultas que trazem dados demais
+- consultas que podem causar table scan
+- consultas que podem segurar lock
+- consultas sem limitação lógica
+- consultas com carga muito maior que a necessária
+- rotinas que reprocessam tudo sem necessidade
+
+Regra obrigatória:
+quero que toda leitura do DB2 seja o mais seletiva, curta e leve possível.
+
+================================================================
+8. FILTROS OBRIGATÓRIOS NAS CONSULTAS DB2
+================================================================
+
+Sempre que possível, quero aplicar filtros como:
+- período
+- data de movimento
+- data de alteração
+- status
+- filial
+- vendedor
+- produto
+- grupo
+- categoria
+- fornecedor
+- qualquer chave de recorte lógico útil
+
+Objetivo:
+- evitar table scan
+- reduzir volume lido
+- reduzir uso de disco no ERP
+- reduzir tempo de execução
+- reduzir risco de lentidão geral
+
+Também quero evitar histórico completo sem necessidade.
+Se a rotina pode ser incremental, ela deve ser incremental.
+
+================================================================
+9. SET CURRENT SCHEMA DBA
+================================================================
+
+Como o ERP exige schema DBA, quero revisar toda a camada de acesso ao DB2 para garantir que:
+
+- o schema correto seja aplicado sempre
+- SET CURRENT SCHEMA DBA seja executado corretamente quando necessário
+- isso não esteja duplicado ou mal distribuído no código
+- exista padronização dessa etapa na conexão
+- não haja risco de consulta usar schema errado
+
+Quero centralizar isso de forma limpa na camada de conexão ou no repositório apropriado.
+
+================================================================
+10. TRANSAÇÕES, COMMIT E ROLLBACK NO DB2
+================================================================
+
+Isso é crítico.
+
+Quero revisar e corrigir:
+- falta de commit
+- falta de rollback
+- transações abertas tempo demais
+- conexão aberta além do necessário
+- leitura seguida de processamento longo sem encerrar a transação
+- cursor aberto desnecessariamente
+- conexões não fechadas em erro
+- fluxos em que a aplicação consulta o DB2, segura a transação e demora para liberar recurso
+
+Quero que o acesso ao DB2 siga esta lógica:
+- abrir conexão
+- configurar schema
+- executar consulta com os filtros corretos
+- ler os dados necessários
+- commit/rollback conforme a estratégia correta do driver/transação
+- fechar cursor
+- fechar conexão
+- só então seguir para processamento local pesado
+
+Ou seja:
+não quero a aplicação segurando recurso no ERP enquanto processa dados longamente do lado dela.
+
+================================================================
+11. ISOLAMENTO DE LEITURA NO DB2
+================================================================
+
+Quero que você avalie o melhor nível de isolamento para as leituras no DB2, sempre com foco em não atrapalhar o ERP.
+
+Quando for seguro e adequado para a regra de negócio, avalie o uso do modo de leitura menos invasivo possível para consultas analíticas/incrementais, desde que não comprometa a consistência necessária da rotina.
+
+Não aplicar isso de forma irresponsável.
+Quero decisão técnica madura, consciente e documentada por rotina.
+
+================================================================
+12. EXTRAÇÃO INCREMENTAL — OBRIGATÓRIO
+================================================================
+
+Quero revisar todas as rotinas que puxam dados do ERP e, sempre que possível, transformar em sync incremental.
+
+Aplicar estratégia baseada em:
+- data/hora da última movimentação
+- campo de atualização
+- watermark
+- janelas temporais
+- lotes
+- recorte por períodos pequenos
+
+Exemplos:
+- vendas: buscar apenas desde a última movimentação relevante
+- pedidos: buscar apenas alterações recentes
+- produtos: buscar apenas produtos alterados, se existir campo de alteração
+- estoque: avaliar frequência e granularidade correta
+- campanhas/metas: puxar apenas o necessário
+
+Não quero sync bruto quando o incremental for viável.
+
+================================================================
+13. CARGAS PESADAS EM HORÁRIOS CRÍTICOS
+================================================================
+
+Quero identificar:
+- quais rotinas são leves
+- quais rotinas são médias
+- quais rotinas são pesadas
+
+E quero separar:
+- rotinas que podem rodar em horário comercial
+- rotinas que devem rodar fora do pico
+- rotinas que devem ser particionadas
+- rotinas que devem ser executadas sob demanda
+
+Se houver carga histórica pesada, programar para horários de baixo uso do ERP.
+No horário crítico, manter apenas o mínimo necessário e preferencialmente incremental.
+
+================================================================
+14. ESTRATÉGIA DE LEITURA + STAGING + UPSERT
+================================================================
+
+Quero um fluxo robusto de integração.
+
+Avalie usar o seguinte padrão quando fizer sentido:
+1. Ler do DB2 com consulta enxuta e filtrada
+2. Trazer para memória apenas o necessário
+3. Gravar em staging local no PostgreSQL, se ajudar robustez
+4. Validar estrutura e consistência
+5. Aplicar upsert na tabela final
+6. Registrar lote e status
+7. Atualizar watermark no sync_state somente após sucesso completo
+
+Isso ajuda a evitar:
+- duplicidade
+- atualização parcial
+- perda de rastreabilidade
+- dados inconsistentes
+
+================================================================
+15. UPSERT E DUPLICIDADE NO POSTGRESQL
+================================================================
+
+Quero revisar todas as gravações no PostgreSQL e garantir:
+
+- chave natural ou chave técnica bem definida
+- upsert correto
+- ausência de duplicidade
+- atualização consistente
+- não sobrescrever incorretamente
+- não inserir o mesmo registro várias vezes
+- controle por lote quando necessário
+- consistência entre a origem DB2 e o destino PostgreSQL
+
+Quero uso correto de inserção/upsert com conflito tratado explicitamente.
+
+================================================================
+16. ÍNDICES NO POSTGRESQL
+================================================================
+
+Além de criar tabelas, quero revisão dos índices no PostgreSQL.
+
+Criar índices onde necessário para:
+- filtros por data
+- filtros por vendedor
+- filtros por campanha
+- filtros por status
+- filtros por fornecedor
+- filtros por produto
+- joins frequentes
+- dashboards
+- relatórios
+- metas
+- comissões
+- resultados
+
+Mas sem criar índice inútil.
+Quero equilíbrio.
+
+Também quero validar:
+- índices em foreign keys relevantes
+- índices compostos para consultas frequentes
+- índices em campos usados em sync e upsert
+
+================================================================
+17. REVISÃO DE SQLS INLINE E REPOSITÓRIOS
+================================================================
+
+Quero revisar:
+- SQL inline
+- funções de consulta
+- classes de repositório
+- services
+- jobs agendados
+- scripts de sync
+- camada ODBC
+- abertura e fechamento de conexão
+- tratamento de exceção
+
+Quero evitar SQL espalhado e sem padrão.
+Se necessário, reorganizar em uma camada de acesso mais limpa e centralizada.
+
+================================================================
+18. LOGS TÉCNICOS OBRIGATÓRIOS
+================================================================
+
+Quero logs claros e úteis para:
+- criação de tabelas
+- criação de colunas
+- criação de índices
+- migrations executadas
+- início e fim de sync
+- tempo de consulta no DB2
+- quantidade de registros lidos do DB2
+- quantidade de registros gravados no PostgreSQL
+- erros
+- rollback
+- rotinas pesadas
+- watermark anterior e novo watermark
+- tentativa simultânea bloqueada por job lock
+
+Quero logs de verdade, úteis para operação e diagnóstico.
+
+================================================================
+19. TRATAMENTO DE ERROS E RETENTATIVA
+================================================================
+
+Quero tratamento robusto de erro nas rotinas de sync.
+
+Aplicar:
+- try/except bem estruturado
+- rollback quando necessário
+- fechamento garantido de cursor e conexão
+- atualização do status de falha no sync_logs
+- não atualizar watermark em caso de falha parcial
+- mensagens de erro claras
+- retentativa controlada apenas quando fizer sentido
+- evitar duplicação por retry mal feito
+
+================================================================
+20. VALIDAÇÃO DE INTEGRIDADE ENTRE ORIGEM E DESTINO
+================================================================
+
+Quero validar se o dado mostrado no sistema local está refletindo corretamente a origem DB2 conforme a regra definida.
+
+Revisar:
+- chaves de correspondência
+- granularidade
+- datas
+- valores monetários
+- status
+- registros cancelados/devolvidos
+- registros atualizados
+- consistência temporal
+- sincronização parcial
+
+Quero também mecanismos para detectar:
+- divergência de volume
+- duplicidade
+- lote incompleto
+- sync incompleto
+- dados muito antigos
+
+================================================================
+21. QUALIDADE DE CÓDIGO DA CAMADA DE DADOS
+================================================================
+
+Quero revisar a camada de dados como um programador sênior avaliaria.
+
+Corrigir:
+- conexões mal controladas
+- repetição de código
+- SQL difícil de manter
+- commit/rollback mal posicionados
+- falta de context manager
+- ausência de timeout quando fizer sentido
+- falta de logs
+- nomenclatura ruim
+- ausência de tipagem
+- ausência de separação entre leitura, transformação e gravação
+- lógica misturada demais
+
+Quero código limpo, previsível e profissional.
+
+================================================================
+22. O QUE NÃO ACEITO
+================================================================
+
+Não quero:
+- tabela faltando em produção
+- coluna faltando quebrando tela
+- migration frágil
+- consulta sem filtro útil
+- SELECT * em rotina crítica
+- sync bruto sem necessidade
+- lock por falta de commit
+- conexão aberta desnecessariamente
+- rotina pesada impactando o ERP sem controle
+- duplicidade no PostgreSQL
+- watermark atualizado antes da hora
+- resultado errado por sincronização fraca
+- camada de dados improvisada
+
+================================================================
+23. ENTREGA ESPERADA
+================================================================
+
+Quero que você:
+
+1. identifique toda a estrutura necessária no PostgreSQL
+2. garanta criação automática das tabelas, colunas, índices e constraints ausentes
+3. fortaleça migrations/bootstrap
+4. revise todos os acessos ao DB2
+5. corrija consultas pesadas ou perigosas
+6. reforce transações, commit, rollback e fechamento de conexão
+7. implemente ou melhore sync incremental
+8. reduza risco de lock e impacto no ERP
+9. fortaleça upsert e integridade no PostgreSQL
+10. melhore logs e rastreabilidade
+11. deixe a camada de dados profissional e pronta para produção
+
+================================================================
+24. CHECKLIST FINAL OBRIGATÓRIO
+================================================================
+
+Antes de considerar concluído, me entregue um checklist contendo:
+
+- tabelas identificadas
+- tabelas criadas/validadas
+- colunas criadas/validadas
+- índices criados/validados
+- constraints criadas/validadas
+- migrations criadas/ajustadas
+- rotinas DB2 revisadas
+- consultas corrigidas
+- pontos de lock mitigados
+- pontos de carga excessiva mitigados
+- estratégia de sync definida por rotina
+- horário recomendado para cargas pesadas
+- riscos remanescentes, se houver
+
+Se houver qualquer ponto ainda sensível para o ERP ou para o PostgreSQL, sinalize claramente.
+Não quero falsa sensação de segurança.
+Quero revisão séria, madura e técnica.

@@ -20,6 +20,16 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (April 2026 — Data Layer Audit & Hardening)
+
+- **Schema Bootstrap (`server/schema-bootstrap.ts`)** — Single source of truth for ALL PostgreSQL structure. Runs idempotently on every startup. Creates 25 tables (application, campaigns, commissions, sync-control, ERP cache) with indexes and constraints. Validates that every required table exists before the app accepts requests.
+- **`pg-client.ts` hardened** — Pool settings for production: `max=10`, `connectionTimeoutMillis=8000`, `idleTimeoutMillis=30000`. New `pgTransaction()` helper: BEGIN → fn → COMMIT, auto-rollback on error, guaranteed client release.
+- **Sync control tables** — `sync_state` (watermark per routine), `sync_logs` (append-only audit of every sync run), `job_locks` (advisory lock to prevent concurrent executions).
+- **Cache table indexes** — `cache_vendas`: composite indexes on `(DT_MOVIMENTO, IDEMPRESA)`, `(IDVENDEDOR, DT_MOVIMENTO)`, `IDEMPRESA`. `cache_campanhas`: `(DTMOVIMENTO)`, `(IDVENDEDOR, DTMOVIMENTO)`, `(FABRICANTE, DTMOVIMENTO)`, `(IDPRODUTO, DTMOVIMENTO)`. `cache_tubos_conexoes` and `cache_vendas_pendentes` indexed too.
+- **`commissions/init.ts` simplified** — Table creation delegated to bootstrap; only seeds default rules.
+- **`campaigns/init.ts` simplified** — Column migrations delegated to bootstrap; file kept as no-op.
+- **Python ERP sync reference (`sync/erp_sync.py`)** — Complete, production-ready reference implementation of DB2→PostgreSQL sync with: incremental watermark strategy, `WITH UR` (uncommitted read) on all DB2 queries, DB2 connection closed BEFORE PostgreSQL write, named-column SELECT (no SELECT *), batch streaming with `execute_values`, job lock, sync log, watermark updated only after full success, history purge, off-hours schedule guidance.
+
 ## Recent Changes (April 2026 — Feature Session)
 
 - **Dashboard padrão: semana atual** — Período inicial do dashboard alterado de "Mês Atual" para "Semana Atual" (usa `getCurrentWeekPeriod()`); label do toggle atualizado de "Mês Atual" → "Semana Atual"
