@@ -1,0 +1,267 @@
+Quero implementar na aplicação um sistema de ajuda contextual, claro, discreto e profissional, pensado para usuários leigos, sem poluir a interface e sem chamar atenção exageradamente.
+
+IMPORTANTE:
+Minha aplicação já está bem completa, mas existem módulos, configurações e fluxos que usuários leigos podem não entender com facilidade.
+Então preciso de uma solução de ajuda embutida no sistema, para explicar de forma simples o que cada módulo faz, como configurar, como cadastrar e como usar corretamente.
+
+Não quero uma ajuda genérica ou escondida demais.
+Também não quero algo chamativo demais.
+Quero algo elegante, sutil, útil e muito claro.
+
+============================================================
+1. OBJETIVO
+============================================================
+
+Criar um sistema de ajuda contextual dentro da aplicação, com foco em:
+- explicar módulos
+- explicar configurações
+- explicar campos
+- orientar criação de registros
+- orientar preenchimentos
+- ajudar usuários leigos
+- reduzir erros operacionais
+- reduzir dúvidas
+- melhorar autonomia do usuário
+
+============================================================
+2. FORMATO DA AJUDA
+============================================================
+
+Quero implementar uma ajuda em 3 níveis:
+
+NÍVEL 1 — AJUDA DO MÓDULO
+Cada módulo/tela deve ter um botão discreto de ajuda, preferencialmente um ícone de interrogação “?” ou informação “i”.
+
+Esse botão deve ficar:
+- ao lado do título da tela
+ou
+- no canto superior direito do cabeçalho do módulo
+ou
+- em posição visível, porém discreta
+
+Ao clicar, deve abrir:
+- um painel lateral (preferência)
+ou
+- um modal leve e elegante
+
+Esse painel deve explicar:
+- o que esse módulo faz
+- para que serve
+- quando usar
+- como configurar
+- como cadastrar
+- o que é obrigatório
+- erros comuns
+- dicas importantes
+
+NÍVEL 2 — AJUDA POR CAMPO OU BLOCO
+Em campos, filtros, cards ou configurações mais complexas, quero pequenos ícones de ajuda ou tooltips explicativos.
+
+Esses textos devem ser curtos, claros e objetivos.
+
+NÍVEL 3 — GUIA PASSO A PASSO
+Dentro do painel de ajuda do módulo, quero um botão ou aba com:
+- “Como configurar”
+- “Passo a passo”
+- “Guia rápido”
+
+Esse guia deve explicar em ordem simples como usar o módulo.
+
+============================================================
+3. ESTILO VISUAL
+============================================================
+
+Quero que esse sistema de ajuda acompanhe o redesign premium da aplicação.
+
+Regras visuais:
+- botão de ajuda discreto
+- sem chamar muita atenção
+- sem cores agressivas
+- sem visual infantil
+- sem pop-up intrusivo
+- com aparência profissional
+- integrado ao design system da aplicação
+
+O ícone de ajuda deve:
+- ser pequeno
+- elegante
+- neutro
+- com hover suave
+- bem alinhado ao cabeçalho da página
+
+O painel/modal de ajuda deve:
+- ter ótimo espaçamento
+- boa tipografia
+- hierarquia clara
+- blocos bem organizados
+- ícones discretos
+- visual limpo
+- boa leitura para leigos
+
+============================================================
+4. LINGUAGEM DA AJUDA
+============================================================
+
+A ajuda precisa ser escrita para usuários leigos.
+
+Quero textos:
+- simples
+- claros
+- diretos
+- sem excesso de termos técnicos
+- com explicações humanas
+- com exemplos práticos
+- com avisos importantes
+- com erros comuns
+- com linguagem amigável e profissional
+
+Evitar:
+- jargão técnico desnecessário
+- texto robótico
+- texto grande demais
+- explicação vaga
+- explicação confusa
+
+============================================================
+5. ESTRUTURA DO CONTEÚDO DE CADA AJUDA
+============================================================
+
+Quero que o conteúdo de ajuda de cada módulo siga um padrão como:
+
+1. O que é este módulo
+2. Para que serve
+3. Quando usar
+4. Como preencher / configurar
+5. Exemplo prático
+6. Erros comuns
+7. Dicas importantes
+
+Quero isso em formato visual bem organizado.
+
+============================================================
+6. EXEMPLOS DE AJUDA
+============================================================
+
+Exemplo de explicação boa:
+- “Este módulo serve para criar campanhas de incentivo para os vendedores.”
+- “Aqui você define as regras da campanha, quem participa e como será a premiação.”
+- “Use este módulo quando quiser acompanhar metas, ranking, premiação ou campanhas por fornecedor.”
+- “Antes de ativar, confira se o período, os participantes e as regras estão corretos.”
+
+Exemplo de ajuda por campo:
+- “Meta semanal: valor ou quantidade mínima que o vendedor precisa atingir na semana.”
+- “Fornecedor: escolha o fornecedor que fará parte da regra desta campanha.”
+- “Gatilho: condição mínima para liberar participação ou prêmio.”
+- “Comissão extra: valor ou percentual adicional pago ao atingir a regra.”
+
+============================================================
+7. ONDE IMPLEMENTAR
+============================================================
+
+Quero ajuda contextual principalmente nos módulos mais importantes, como:
+- Dashboard
+- Campanhas
+- Criação de campanhas
+- Comissão
+- Metas
+- Relatórios
+- Configurações
+- Tela do vendedor
+- Dashboard do supervisor
+- Cadastros importantes
+
+E também em:
+- formulários complexos
+- filtros
+- cards analíticos
+- blocos com cálculo
+- barras de progresso
+- configurações críticas
+
+============================================================
+8. COMPORTAMENTO DE UX
+============================================================
+
+Quero um sistema de ajuda que:
+- não atrapalhe o uso
+- não abra sozinho o tempo todo
+- não polua a interface
+- seja fácil de encontrar
+- seja fácil de fechar
+- preserve o contexto da tela
+- funcione bem em desktop e mobile
+
+No mobile:
+- o botão de ajuda deve continuar discreto e acessível
+- o painel deve abrir bem adaptado à tela pequena
+- o texto precisa ser legível
+- o usuário precisa conseguir fechar facilmente
+
+============================================================
+9. RECURSOS EXTRAS RECOMENDADOS
+============================================================
+
+Se possível, implementar também:
+- busca dentro da ajuda
+- seção “dúvidas frequentes” por módulo
+- exemplos visuais quando fizer sentido
+- botão “ver passo a passo”
+- ajuda contextual para primeiro uso
+- possibilidade de expandir/recolher seções
+- atalhos para tópicos importantes
+
+============================================================
+10. DESIGN SYSTEM
+============================================================
+
+Quero que você crie ou padronize componentes como:
+- HelpIconButton
+- HelpTooltip
+- HelpDrawer / HelpPanel
+- HelpModal
+- HelpSection
+- HelpAccordion
+- HelpStepList
+- HelpExampleCard
+- HelpWarningBox
+- HelpFAQItem
+
+Tudo alinhado ao design system da aplicação.
+
+============================================================
+11. O QUE NÃO QUERO
+============================================================
+
+Não quero:
+- botão de ajuda grande demais
+- ajuda chamativa demais
+- modal feio
+- texto técnico demais
+- tutorial invasivo
+- visual infantil
+- excesso de texto sem hierarquia
+- tooltip ruim
+- ajuda genérica sem valor real
+- conteúdo confuso para leigos
+
+============================================================
+12. ENTREGA ESPERADA
+============================================================
+
+Quero que você implemente um sistema de ajuda contextual profissional e discreto, que:
+- explique claramente cada módulo
+- explique como configurar
+- explique como cadastrar
+- ajude usuários leigos
+- acompanhe o redesign premium do sistema
+- funcione bem em desktop e mobile
+- reduza erros operacionais
+- aumente a autonomia do usuário
+
+Antes de concluir, revise se a ajuda realmente ficou:
+- clara
+- simples
+- discreta
+- útil
+- profissional
+- fácil de entender para leigos

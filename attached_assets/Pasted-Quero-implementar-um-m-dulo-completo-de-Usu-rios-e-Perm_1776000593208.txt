@@ -1,0 +1,384 @@
+Quero implementar um módulo completo de Usuários e Permissões dentro de Configurações, com padrão profissional, totalmente personalizável, escalável e com governança real de acesso.
+
+IMPORTANTE:
+Hoje os vendedores acessam usando um código, mas isso está limitado demais.
+Quero evoluir a aplicação para um modelo correto de sistema profissional, onde seja possível:
+- criar usuários
+- definir perfil
+- controlar acesso por função
+- controlar acesso por módulo
+- controlar acesso por ação
+- controlar acesso por dados/resultados
+- controlar quem pode visualizar, editar, aprovar, exportar ou alterar informações
+
+Ou seja:
+quero transformar o acesso da aplicação em um sistema robusto de gestão de usuários, perfis e permissões, mantendo a simplicidade operacional quando necessário.
+
+============================================================
+1. OBJETIVO DO MÓDULO
+============================================================
+
+Criar em Configurações um módulo chamado algo como:
+- Usuários
+- Usuários e Permissões
+- Controle de Acesso
+
+Esse módulo deve permitir:
+- criar usuários
+- editar usuários
+- ativar/inativar usuários
+- bloquear usuários
+- redefinir acesso
+- criar perfis
+- editar perfis
+- criar permissões personalizadas
+- vincular usuários a perfis
+- controlar acesso por módulo, função, resultado e alteração
+- auditar alterações de acesso
+
+Quero algo com padrão enterprise, profissional e fácil de manter.
+
+============================================================
+2. MANTER COMPATIBILIDADE COM O ACESSO ATUAL
+============================================================
+
+Hoje os vendedores acessam por código.
+Quero que você avalie a melhor arquitetura para manter isso de forma profissional.
+
+Possibilidades:
+- manter o código como identificador/login simplificado para vendedor
+- permitir usuário + senha para perfis administrativos
+- permitir que o vendedor também tenha usuário vinculado ao seu código
+- tratar o código como credencial operacional vinculada a um usuário real no sistema
+
+Quero a solução mais inteligente e profissional, sem perder praticidade.
+
+============================================================
+3. CADASTRO DE USUÁRIOS
+============================================================
+
+Quero tela completa de cadastro de usuários com campos como:
+
+- id
+- nome
+- nome de exibição
+- código do usuário/vendedor, se aplicável
+- login
+- senha ou estratégia segura de acesso
+- e-mail
+- telefone, se fizer sentido
+- perfil principal
+- perfis adicionais, se aplicável
+- cargo/função
+- loja
+- equipe
+- supervisor responsável
+- status (ativo, inativo, bloqueado)
+- data de criação
+- último acesso
+- observações internas
+
+Também quero:
+- busca
+- filtros
+- paginação
+- visual profissional
+- edição segura
+- confirmação em alterações críticas
+
+============================================================
+4. PERFIS E PAPÉIS
+============================================================
+
+Quero suporte a perfis como:
+
+- Administrador
+- Supervisor
+- Gerente
+- Vendedor
+- Comprador
+- Financeiro
+- Marketing / Indústria
+- Perfil personalizado
+
+Mas não quero sistema engessado.
+Quero poder criar perfis novos e customizados quando necessário.
+
+============================================================
+5. PERMISSÕES GRANULARES
+============================================================
+
+Quero permissões em nível fino.
+
+Separar permissões por:
+
+A. Módulo
+- dashboard
+- campanhas
+- criação de campanhas
+- comissão
+- metas
+- relatórios
+- usuários
+- configurações
+- tela do vendedor
+- dashboard do supervisor
+- exportações
+- qualquer outro módulo existente
+
+B. Ação
+- visualizar
+- criar
+- editar
+- excluir
+- ativar
+- pausar
+- encerrar
+- aprovar
+- exportar
+- recalcular
+- simular
+- alterar regra
+- alterar configuração
+- ver memória de cálculo
+- ver valores financeiros
+
+C. Escopo de dados
+- ver apenas os próprios dados
+- ver a própria equipe
+- ver a própria loja
+- ver múltiplas lojas
+- ver tudo
+- ver apenas campanhas em que participa
+- ver apenas resultados consolidados
+- ver resultado detalhado
+- ver comissão própria
+- ver comissão da equipe
+- ver comissão geral
+- ver relatórios financeiros ou não
+
+Quero que a permissão seja realmente profissional, não apenas “acessa ou não acessa”.
+
+============================================================
+6. EXEMPLOS DE REGRAS DE ACESSO
+============================================================
+
+Quero conseguir configurar cenários como:
+
+- vendedor vê apenas suas campanhas, seus resultados, sua comissão e sua evolução
+- vendedor não pode editar campanhas, metas, comissões ou usuários
+- supervisor vê a equipe dele, resultados da equipe, campanhas da equipe e dashboards gerenciais
+- supervisor não pode alterar regras estruturais críticas sem permissão
+- gerente vê loja/unidade inteira
+- financeiro pode ver valores, exportações e comissões
+- marketing/fornecedor pode ver apenas campanhas específicas ou resultados autorizados
+- administrador pode tudo
+- perfil customizado pode combinar acessos específicos
+
+============================================================
+7. MATRIZ DE PERMISSÕES
+============================================================
+
+Quero uma tela profissional de matriz de permissões, onde seja possível:
+
+- selecionar um perfil
+- visualizar todos os módulos
+- marcar/desmarcar permissões por ação
+- configurar escopo de visualização
+- salvar alterações
+- duplicar perfil
+- clonar permissões
+- comparar perfis
+
+Essa matriz deve ser clara e fácil de administrar.
+
+============================================================
+8. RESTRIÇÕES POR CONTEXTO
+============================================================
+
+Quero permissões contextuais por:
+- loja
+- equipe
+- supervisor
+- vendedor
+- fornecedor
+- campanha
+- tipo de dado
+- módulo
+- perfil
+
+Exemplo:
+- um supervisor pode ver apenas sua equipe
+- um gerente pode ver apenas sua loja
+- um fornecedor pode ver apenas campanhas dele
+- um vendedor só pode ver a própria performance
+
+============================================================
+9. AUTENTICAÇÃO E SEGURANÇA
+============================================================
+
+Quero que a camada de autenticação e acesso seja profissional.
+
+Revisar/implementar:
+- login seguro
+- sessão
+- logout
+- expiração de sessão
+- bloqueio de usuário
+- redefinição de acesso
+- troca de senha, se houver senha
+- proteção de rotas
+- proteção de ações críticas
+- validação no backend e não só no frontend
+- negação correta de acesso não autorizado
+
+Não quero permissão resolvida só visualmente no frontend.
+Quero segurança real no backend.
+
+============================================================
+10. AUDITORIA
+============================================================
+
+Quero auditoria completa das alterações de acesso.
+
+Registrar:
+- quem criou usuário
+- quem alterou usuário
+- quem bloqueou/inativou
+- quem alterou perfil
+- quem alterou permissão
+- data/hora
+- valores anteriores
+- valores novos
+- tentativa de acesso indevido, se aplicável
+- último acesso
+- histórico de login relevante, se fizer sentido
+
+Isso é obrigatório.
+
+============================================================
+11. UX/UI DO MÓDULO
+============================================================
+
+Quero um módulo muito profissional visualmente, alinhado ao redesign premium do sistema.
+
+Preciso de:
+- listagem de usuários
+- filtros
+- busca
+- cards ou tabela premium
+- tela de criação/edição clara
+- matriz de permissão elegante
+- badges de status
+- visual limpo
+- sem poluição
+- hierarquia forte
+- ótima responsividade
+
+============================================================
+12. MOBILE E RESPONSIVIDADE
+============================================================
+
+O módulo também precisa funcionar bem no mobile.
+
+Quero:
+- listagem adaptada
+- filtros recolhíveis
+- formulários bem organizados
+- sem quebrar layout
+- botões acessíveis
+- tabelas convertidas quando necessário
+- sem conteúdo fora da tela
+
+============================================================
+13. MODELAGEM DE BANCO
+============================================================
+
+Quero que você estruture corretamente o banco para suportar isso.
+
+Sugestão de entidades:
+- users
+- roles
+- permissions
+- role_permissions
+- user_roles
+- user_permissions, se necessário
+- access_scopes
+- user_access_scope
+- login_audit
+- permission_audit
+- user_status_history
+- sessions
+
+A modelagem precisa suportar:
+- múltiplos perfis
+- permissões granulares
+- escopo por loja/equipe/dados
+- auditoria
+- crescimento futuro
+
+============================================================
+14. INTEGRAÇÃO COM O RESTANTE DA APLICAÇÃO
+============================================================
+
+Quero que esse módulo seja integrado ao sistema inteiro.
+
+Ou seja:
+- proteger cada módulo com base nas permissões
+- esconder menu quando não houver acesso
+- bloquear ação no backend quando não houver permissão
+- adaptar dashboards conforme o perfil
+- adaptar resultados conforme o escopo do usuário
+- adaptar campanhas, comissão, metas e relatórios conforme o acesso permitido
+
+============================================================
+15. O QUE NÃO QUERO
+============================================================
+
+Não quero:
+- sistema simples demais
+- permissão só por perfil fixo sem flexibilidade
+- acesso controlado apenas no frontend
+- usuário sem auditoria
+- perfis engessados
+- tela feia ou confusa
+- lógica improvisada
+- regras frágeis
+- risco de usuário ver o que não deveria
+- risco de usuário alterar o que não deveria
+
+============================================================
+16. ENTREGA ESPERADA
+============================================================
+
+Quero que você:
+1. crie o módulo completo de usuários e permissões
+2. mantenha compatibilidade inteligente com o acesso atual por código
+3. implemente perfis e papéis configuráveis
+4. implemente permissões granulares por módulo, ação e escopo
+5. implemente proteção real no backend
+6. implemente auditoria completa
+7. deixe tudo visualmente profissional
+8. garanta boa responsividade
+9. integre isso ao sistema inteiro
+10. entregue padrão enterprise e pronto para crescimento futuro
+
+============================================================
+17. CHECKLIST FINAL
+============================================================
+
+Antes de considerar concluído, valide se:
+- consigo criar usuários
+- consigo editar usuários
+- consigo ativar/inativar/bloquear
+- consigo criar perfis
+- consigo configurar permissões por módulo
+- consigo configurar permissões por ação
+- consigo restringir acesso por escopo
+- vendedor vê só o que deve ver
+- supervisor vê só o que deve ver
+- admin consegue administrar tudo
+- o backend bloqueia acesso indevido
+- menus e telas respeitam permissão
+- a auditoria está funcionando
+- o módulo está com aparência profissional
