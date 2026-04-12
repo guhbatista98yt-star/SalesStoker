@@ -398,6 +398,21 @@ export class PostgresStorage implements IStorage {
         WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany} ${teamFilter}
       `, [mesStart, hoje]);
 
+      // YoY para o mês atual: compara os MESMOS dias do ano anterior (justo)
+      const mesStartAnoAnterior = new Date(now.getFullYear() - 1, now.getMonth(), 1).toISOString().split('T')[0];
+      const hojeAnoAnterior = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().split('T')[0];
+      const vendasMesAnoAnteriorResult = await pgGet<{ total: number }>(`
+        SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
+        FROM cache_vendas
+        WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany} ${teamFilter}
+      `, [mesStartAnoAnterior, hojeAnoAnterior]);
+
+      const totalMesAtual = Number(vendasMesResult?.total ?? 0);
+      const totalMesAnoAnterior = Number(vendasMesAnoAnteriorResult?.total ?? 0);
+      const yoyMesAtual = totalMesAnoAnterior > 0
+        ? ((totalMesAtual - totalMesAnoAnterior) / totalMesAnoAnterior) * 100
+        : null;
+
       const teamFilterPendentes = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`);
       let whereCompanyPendentes = "";
       if (companyId !== "all") {
@@ -418,13 +433,14 @@ export class PostgresStorage implements IStorage {
 
       return {
         totalVendasSemanal: Number(vendasPeriodoResult?.total ?? 0),
-        totalVendasMensal: Number(vendasMesResult?.total ?? 0),
+        totalVendasMensal: totalMesAtual,
         valorAFaturar: Number(aFaturarResult?.total ?? 0),
         pedidosAtendidos: Number(pedidosResult?.total ?? 0),
+        yoyMesAtual,
       };
     } catch (err) {
       console.error("Error getting KPIs:", err);
-      return { totalVendasSemanal: 0, totalVendasMensal: 0, valorAFaturar: 0, pedidosAtendidos: 0 };
+      return { totalVendasSemanal: 0, totalVendasMensal: 0, valorAFaturar: 0, pedidosAtendidos: 0, yoyMesAtual: null };
     }
   }
 

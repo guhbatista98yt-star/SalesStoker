@@ -207,6 +207,7 @@ export interface KPISummary {
   totalVendasMensal: number;
   valorAFaturar: number;
   pedidosAtendidos: number;
+  yoyMesAtual: number | null;
 }
 
 export interface SalespersonRanking {

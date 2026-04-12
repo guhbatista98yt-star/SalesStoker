@@ -432,7 +432,7 @@ export default function Dashboard() {
             icon={Receipt}
             loading={isLoading}
             subtitle="acumulado do mês corrente"
-            yoyChange={monthlyVariacao}
+            yoyChange={kpis?.yoyMesAtual ?? null}
             dragHandle={dragHandle}
             sparklineData={monthlySparkline}
             sparklineId="spark-mensal"
