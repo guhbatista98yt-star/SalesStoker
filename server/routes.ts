@@ -513,5 +513,27 @@ export async function registerRoutes(
 
   app.use("/api/campaigns", campaignRoutes);
 
+  // Movimentações por vendedor
+  app.get("/api/movimentacoes/:vendedorId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
+    try {
+      const { vendedorId, startDate, endDate } = req.params;
+
+      // Vendedores only see their own data; admin/supervisor can see any
+      if (req.userRole !== "admin" && req.userRole !== "supervisor") {
+        // Resolve vendedorId from the authenticated user's email/identity
+        const ownId = await storage.getVendedorIdByEmail(req.userEmail || "");
+        if (ownId !== vendedorId) {
+          return res.status(403).json({ error: "Acesso negado: vendedor pode consultar apenas suas próprias movimentações" });
+        }
+      }
+
+      const data = await storage.getMovimentacoesPorVendedor(vendedorId, startDate, endDate);
+      res.json(data);
+    } catch (error) {
+      console.error("Erro movimentacoes:", error);
+      res.status(500).json({ error: "Erro ao buscar movimentações" });
+    }
+  });
+
   return httpServer;
 }

@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, AlertCircle, Lock, Eye, EyeOff, LogOut } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { TVDashboardData } from "@shared/schema";
 import { useAuth } from "@/lib/auth-context";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -21,11 +19,6 @@ import {
     ReferenceLine,
     LabelList,
 } from "recharts";
-
-// Credenciais específicas para o módulo Visão em Loja
-const VISAO_LOJA_USER = "loja";
-const VISAO_LOJA_PASS = "loja2024";
-const VISAO_LOJA_AUTH_KEY = "visao_loja_auth";
 
 // IDs exatos dos vendedores autorizados (evita duplicatas por nomes parciais)
 const ALLOWED_VENDOR_IDS = new Set([
@@ -166,114 +159,10 @@ function CustomBarLabel({ x, y, width, height, value, fill }: any) {
     );
 }
 
-// ─── Login Gate ──────────────────────────────────────────────────────────────
-function VisaoLojaLogin({ onSuccess }: { onSuccess: () => void }) {
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPass, setShowPass] = useState(false);
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setError("");
-        setLoading(true);
-        // Small delay to feel responsive
-        setTimeout(() => {
-            if (username.trim().toLowerCase() === VISAO_LOJA_USER && password === VISAO_LOJA_PASS) {
-                localStorage.setItem(VISAO_LOJA_AUTH_KEY, "1");
-                onSuccess();
-            } else {
-                setError("Usuário ou senha incorretos.");
-            }
-            setLoading(false);
-        }, 400);
-    };
-
-    return (
-        <div className="flex-1 flex items-center justify-center p-8">
-            <Card className="w-full max-w-sm shadow-xl border border-border">
-                <CardHeader className="space-y-1 pb-4">
-                    <div className="flex items-center justify-center mb-2">
-                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Lock className="h-6 w-6 text-primary" />
-                        </div>
-                    </div>
-                    <CardTitle className="text-xl text-center">Visão em Loja</CardTitle>
-                    <p className="text-sm text-muted-foreground text-center">
-                        Insira as credenciais para acessar este módulo.
-                    </p>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="vl-user">Usuário</Label>
-                            <Input
-                                id="vl-user"
-                                type="text"
-                                placeholder="Usuário"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                autoComplete="username"
-                                disabled={loading}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="vl-pass">Senha</Label>
-                            <div className="relative">
-                                <Input
-                                    id="vl-pass"
-                                    type={showPass ? "text" : "password"}
-                                    placeholder="Senha"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    autoComplete="current-password"
-                                    disabled={loading}
-                                    className="pr-10"
-                                />
-                                <button
-                                    type="button"
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                    onClick={() => setShowPass(!showPass)}
-                                    tabIndex={-1}
-                                >
-                                    {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </button>
-                            </div>
-                        </div>
-                        {error && (
-                            <p className="text-sm text-destructive flex items-center gap-1">
-                                <AlertCircle className="h-4 w-4" /> {error}
-                            </p>
-                        )}
-                        <Button type="submit" className="w-full" disabled={loading}>
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Entrar
-                        </Button>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
-    );
-}
-
 // ─── Chart/Dashboard ─────────────────────────────────────────────────────────
 export default function VisaoEmLoja() {
     const [, setLocation] = useLocation();
     const { logout, user } = useAuth();
-    const isLojaRole = user?.role === "loja";
-    const [isVisaoAuth, setIsVisaoAuth] = useState<boolean | null>(null);
-
-    // Check localStorage for Visão em Loja auth on mount
-    // Se já tem role="loja" no sistema, não pede segundo login
-    useEffect(() => {
-        if (isLojaRole) {
-            setIsVisaoAuth(true);
-            return;
-        }
-        const stored = localStorage.getItem(VISAO_LOJA_AUTH_KEY);
-        setIsVisaoAuth(stored === "1");
-    }, [isLojaRole]);
 
     // Auto-recolhe a sidebar ao entrar na tela
     const { setOpen } = useSidebar();
@@ -314,22 +203,7 @@ export default function VisaoEmLoja() {
         },
         refetchInterval: 60 * 1000,
         retry: false,
-        enabled: isVisaoAuth === true || isLojaRole,
     });
-
-    // Still checking localStorage
-    if (isVisaoAuth === null) {
-        return (
-            <div className="flex-1 flex items-center justify-center p-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-        );
-    }
-
-    // Not authenticated for this module
-    if (!isVisaoAuth) {
-        return <VisaoLojaLogin onSuccess={() => setIsVisaoAuth(true)} />;
-    }
 
     if (isLoading) {
         return (
@@ -416,7 +290,6 @@ export default function VisaoEmLoja() {
                         <button
                             onClick={() => {
                                 logout();
-                                setIsVisaoAuth(false);
                                 window.location.href = '/';
                             }}
                             style={{

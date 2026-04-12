@@ -94,6 +94,9 @@ export interface IStorage {
 
   // Campaign Reports
   getCampaignReport(campaignName: string): Promise<any[]>;
+
+  // Movimentações por vendedor
+  getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string): Promise<any[]>;
 }
 
 const teams: Team[] = [
@@ -1992,6 +1995,43 @@ export class SqliteStorage implements IStorage {
 
     // Sort by percentAchieved descending
     return reportList.sort((a, b) => b.percentAchieved - a.percentAchieved);
+  }
+
+  async getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string): Promise<any[]> {
+    const rows = sqlite.prepare(`
+      SELECT
+        DT_MOVIMENTO as dtMovimento,
+        IDCLIENTE as idCliente,
+        NOME_CLIENTE as nomeCliente,
+        IDEMPRESA as idEmpresa,
+        IDPLANILHA as numNota,
+        TIPOMOVIMENTO as tipoMovimento,
+        SUM(TOTALVENDA_LINHA) as valContabil,
+        SUM(LUCRO_LINHA) as lucro
+      FROM cache_vendas
+      WHERE IDVENDEDOR = ?
+        AND DT_MOVIMENTO >= ?
+        AND DT_MOVIMENTO <= ?
+      GROUP BY DT_MOVIMENTO, IDCLIENTE, NOME_CLIENTE, IDEMPRESA, IDPLANILHA, TIPOMOVIMENTO
+      ORDER BY DT_MOVIMENTO DESC, IDPLANILHA
+    `).all(vendedorId, startDate, endDate) as any[];
+
+    return rows.map(row => {
+      const isDevolucao = row.tipoMovimento === "E";
+      const nomeBase = row.nomeCliente ?? "";
+      return {
+        dtMovimento: row.dtMovimento,
+        idCliente: row.idCliente,
+        nomeCliente: isDevolucao ? `${nomeBase}-DEV` : nomeBase,
+        idEmpresa: row.idEmpresa,
+        numNota: row.numNota,
+        serieNota: "",
+        tipoMovimento: row.tipoMovimento,
+        isDevolucao,
+        valContabil: row.valContabil ?? 0,
+        lucro: row.lucro ?? 0,
+      };
+    });
   }
 }
 

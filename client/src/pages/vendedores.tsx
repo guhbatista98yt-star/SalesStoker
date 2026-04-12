@@ -108,6 +108,7 @@ export default function Vendedores() {
                 key={salesperson.id}
                 salesperson={salesperson}
                 stats={stats}
+                period={{ startDate: period.startDate, endDate: period.endDate }}
               />
             ))}
           </div>
