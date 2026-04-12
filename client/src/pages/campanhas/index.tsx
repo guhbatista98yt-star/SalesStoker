@@ -127,49 +127,64 @@ function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit 
           </div>
 
           {/* Actions */}
-          {isAdmin && !isPast && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="text-xs">
-                <DropdownMenuItem className="text-xs gap-2" onClick={() => onView(c.id)}>
-                  <Eye className="h-3.5 w-3.5" /> Visualizar
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-xs gap-2" onClick={() => onEdit(c.id)}>
-                  <Edit2 className="h-3.5 w-3.5" /> Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-xs gap-2" onClick={() => onClone(c.id)}>
-                  <Copy className="h-3.5 w-3.5" /> Clonar
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {actions.map(act => (
-                  <DropdownMenuItem
-                    key={act.nextStatus}
-                    className="text-xs gap-2"
-                    onClick={() => onStatus(c.id, act.nextStatus)}
-                  >
-                    <act.Icon className="h-3.5 w-3.5" /> {act.label}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-xs gap-2 text-red-600 focus:text-red-600"
-                  onClick={() => onStatus(c.id, "cancelada")}
-                >
-                  <XCircle className="h-3.5 w-3.5" /> Cancelar
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {(!isAdmin || isPast) && (
-            <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => onView(c.id)}>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* View button — always visible */}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title="Visualizar campanha"
+              onClick={() => onView(c.id)}
+            >
               <Eye className="h-4 w-4" />
             </Button>
-          )}
+
+            {/* Edit button — admins only, non-past */}
+            {isAdmin && !isPast && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                title="Editar campanha"
+                onClick={() => onEdit(c.id)}
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+            )}
+
+            {/* More actions dropdown — admins only, non-past */}
+            {isAdmin && !isPast && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" className="h-7 w-7">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="text-xs">
+                  <DropdownMenuItem className="text-xs gap-2" onClick={() => onClone(c.id)}>
+                    <Copy className="h-3.5 w-3.5" /> Clonar
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {actions.map(act => (
+                    <DropdownMenuItem
+                      key={act.nextStatus}
+                      className="text-xs gap-2"
+                      onClick={() => onStatus(c.id, act.nextStatus)}
+                    >
+                      <act.Icon className="h-3.5 w-3.5" /> {act.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-xs gap-2 text-red-600 focus:text-red-600"
+                    onClick={() => onStatus(c.id, "cancelada")}
+                  >
+                    <XCircle className="h-3.5 w-3.5" /> Cancelar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

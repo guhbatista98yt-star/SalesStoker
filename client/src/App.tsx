@@ -40,6 +40,7 @@ import TVDashboard from "@/pages/tv-dashboard";
 import MetasVendedorIndex from "@/pages/metas-vendedor/index";
 import CampanhasList from "@/pages/campanhas/index";
 import CampaignForm from "@/pages/campanhas/form";
+import CampaignView from "@/pages/campanhas/view";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +90,7 @@ function Router() {
       <Route path="/campanhas" component={CampanhasList} />
       <Route path="/campanhas/nova" component={() => <CampaignForm />} />
       <Route path="/campanhas/:id/editar" component={(params: { id: string }) => <CampaignForm campaignId={params.id} />} />
-      <Route path="/campanhas/:id" component={(params: { id: string }) => <CampaignForm campaignId={params.id} />} />
+      <Route path="/campanhas/:id" component={(params: { id: string }) => <CampaignView campaignId={params.id} />} />
       {(role === "admin" || role === "supervisor") && (
         <>
           <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
