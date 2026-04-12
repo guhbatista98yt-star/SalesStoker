@@ -103,7 +103,8 @@ export function GoalsCard({ goals, loading, dragHandle }: GoalsCardProps) {
         ) : (
           <div className="space-y-4">
             {displayed.map((goal) => {
-              const pct = Math.min(goal.progress, 100);
+              const progress = goal.progress ?? 0;
+              const pct = Math.min(progress, 100);
               return (
                 <div key={goal.id} className="space-y-1.5" data-testid={`goal-item-${goal.id}`}>
                   <div className="flex items-center justify-between gap-2">
@@ -114,19 +115,19 @@ export function GoalsCard({ goals, loading, dragHandle }: GoalsCardProps) {
                       <TypeChip type={goal.type} />
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-bold tabular-nums">{goal.progress.toFixed(0)}%</span>
-                      <StatusBadge progress={goal.progress} />
+                      <span className="text-sm font-bold tabular-nums">{progress.toFixed(0)}%</span>
+                      <StatusBadge progress={progress} />
                     </div>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
-                      className={cn("h-full rounded-full transition-all duration-500", getProgressBarColor(goal.progress))}
+                      className={cn("h-full rounded-full transition-all duration-500", getProgressBarColor(progress))}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-[11px] text-muted-foreground">
-                    <span>Atual: <span className="font-medium text-foreground">{formatCurrency(goal.currentValue)}</span></span>
-                    <span>Meta: <span className="font-medium text-foreground">{formatCurrency(goal.targetValue)}</span></span>
+                    <span>Atual: <span className="font-medium text-foreground">{formatCurrency(goal.currentValue ?? 0)}</span></span>
+                    <span>Meta: <span className="font-medium text-foreground">{formatCurrency(goal.targetValue ?? 0)}</span></span>
                   </div>
                 </div>
               );
