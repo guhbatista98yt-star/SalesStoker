@@ -5,6 +5,7 @@ import type { RankingCriteria } from "@shared/schema";
 import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth";
 import campaignRoutes from "./campaigns/routes";
 import { initCampaignTables } from "./campaigns/init";
+import { startAlertEngine } from "./alert-engine";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -12,6 +13,7 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   initCampaignTables();
+  startAlertEngine();
 
   app.use("/api/auth", createAuthRouter());
 
@@ -261,6 +263,50 @@ export async function registerRoutes(
       res.json(alerts);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar alertas" });
+    }
+  });
+
+  app.post("/api/alerts/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      const found = await storage.markAlertRead(req.params.id as string);
+      if (!found) return res.status(404).json({ error: "Alerta não encontrado" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao marcar alerta como lido" });
+    }
+  });
+
+  app.delete("/api/alerts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const found = await storage.dismissAlert(req.params.id as string);
+      if (!found) return res.status(404).json({ error: "Alerta não encontrado" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao dispensar alerta" });
+    }
+  });
+
+  app.get("/api/alert-configs", isAuthenticated, async (req, res) => {
+    try {
+      const companyId = (req.query.companyId as string) || "all";
+      const configs = await storage.getAlertConfigs(companyId);
+      res.json(configs);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar configurações de alertas" });
+    }
+  });
+
+  app.patch("/api/alert-configs/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { enabled } = req.body;
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ error: "Campo 'enabled' é obrigatório e deve ser boolean" });
+      }
+      const found = await storage.updateAlertConfig(req.params.id as string, enabled);
+      if (!found) return res.status(404).json({ error: "Configuração de alerta não encontrada" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar configuração de alerta" });
     }
   });
 

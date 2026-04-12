@@ -56,11 +56,11 @@ export interface IStorage {
   getSalespersonGoals(salespersonId: string, month: number, year: number): Promise<GoalWithProgress[]>;
 
   getAlertNotifications(companyId: string): Promise<AlertNotification[]>;
-  markAlertRead(id: string): Promise<void>;
-  dismissAlert(id: string): Promise<void>;
+  markAlertRead(id: string): Promise<boolean>;
+  dismissAlert(id: string): Promise<boolean>;
 
   getAlertConfigs(companyId: string): Promise<Alert[]>;
-  updateAlertConfig(id: string, enabled: boolean): Promise<void>;
+  updateAlertConfig(id: string, enabled: boolean): Promise<boolean>;
 
   getSalespersonsWithStats(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<SalespersonWithStats[]>;
 
@@ -103,14 +103,7 @@ const teams: Team[] = [
   { id: "t1", name: "Equipe Vendas", companyId: "1", supervisorId: "s1" },
 ];
 
-const alertConfigs: Alert[] = [
-  { id: "ac1", companyId: "1", type: "yoy_queda", threshold: 15, enabled: true, message: "Alerta quando vendedor tem queda em relação ao ano anterior", severity: "warning" },
-  { id: "ac2", companyId: "1", type: "ticket_baixo", threshold: 500, enabled: true, message: "Alerta quando ticket médio está baixo", severity: "warning" },
-];
-
 export class SqliteStorage implements IStorage {
-  private alertNotifications: AlertNotification[] = [];
-  private alertConfigsList: Alert[] = [...alertConfigs];
   private goals: Goal[] = [];
   private goalSettings: GoalSetting[] = [];
 
@@ -120,6 +113,8 @@ export class SqliteStorage implements IStorage {
     this.initVendorSettingsTable();
     this.initCampaignGoalsTable();
     this.initVendorGroupsTable();
+    this.initAlertConfigsTable();
+    this.initAlertNotificationsTable();
     this.loadGoalsFromDb();
     this.loadGoalSettingsFromDb();
   }
@@ -222,6 +217,56 @@ export class SqliteStorage implements IStorage {
       `);
     } catch (err) {
       console.error("Error creating goals table:", err);
+    }
+  }
+
+  private initAlertConfigsTable() {
+    try {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS alert_configs (
+          id TEXT PRIMARY KEY,
+          companyId TEXT NOT NULL,
+          type TEXT NOT NULL,
+          threshold REAL NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          message TEXT NOT NULL,
+          severity TEXT NOT NULL DEFAULT 'warning'
+        )
+      `);
+      const count = (sqlite.prepare(`SELECT COUNT(*) as c FROM alert_configs`).get() as { c: number }).c;
+      if (count === 0) {
+        const seed = [
+          { id: "ac1", companyId: "1", type: "yoy_queda", threshold: 15, enabled: 1, message: "Alerta quando vendedor tem queda em relação ao ano anterior", severity: "warning" },
+          { id: "ac2", companyId: "1", type: "ticket_baixo", threshold: 500, enabled: 1, message: "Alerta quando ticket médio está baixo", severity: "warning" },
+          { id: "ac3", companyId: "3", type: "yoy_queda", threshold: 15, enabled: 1, message: "Alerta quando vendedor tem queda em relação ao ano anterior", severity: "warning" },
+          { id: "ac4", companyId: "3", type: "ticket_baixo", threshold: 500, enabled: 1, message: "Alerta quando ticket médio está baixo", severity: "warning" },
+        ];
+        const stmt = sqlite.prepare(`INSERT INTO alert_configs (id, companyId, type, threshold, enabled, message, severity) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+        for (const s of seed) {
+          stmt.run(s.id, s.companyId, s.type, s.threshold, s.enabled, s.message, s.severity);
+        }
+      }
+    } catch (err) {
+      console.error("Error creating alert_configs table:", err);
+    }
+  }
+
+  private initAlertNotificationsTable() {
+    try {
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS alert_notifications (
+          id TEXT PRIMARY KEY,
+          alertId TEXT NOT NULL,
+          companyId TEXT NOT NULL DEFAULT 'all',
+          triggeredAt TEXT NOT NULL,
+          message TEXT NOT NULL,
+          severity TEXT NOT NULL DEFAULT 'warning',
+          read INTEGER NOT NULL DEFAULT 0,
+          data TEXT NOT NULL DEFAULT '{}'
+        )
+      `);
+    } catch (err) {
+      console.error("Error creating alert_notifications table:", err);
     }
   }
 
@@ -819,30 +864,88 @@ export class SqliteStorage implements IStorage {
   }
 
   async getAlertNotifications(companyId: string): Promise<AlertNotification[]> {
-    return this.alertNotifications;
-  }
-
-  async markAlertRead(id: string): Promise<void> {
-    const alert = this.alertNotifications.find(a => a.id === id);
-    if (alert) {
-      alert.read = true;
+    try {
+      let rows: any[];
+      if (companyId === "all") {
+        rows = sqlite.prepare(`SELECT * FROM alert_notifications ORDER BY triggeredAt DESC LIMIT 100`).all();
+      } else {
+        rows = sqlite.prepare(`SELECT * FROM alert_notifications WHERE companyId = ? OR companyId = 'all' ORDER BY triggeredAt DESC LIMIT 100`).all(companyId);
+      }
+      return rows.map(r => ({
+        id: r.id,
+        alertId: r.alertId,
+        triggeredAt: r.triggeredAt,
+        message: r.message,
+        severity: r.severity as "info" | "warning" | "critical",
+        read: r.read === 1,
+        data: (() => { try { return JSON.parse(r.data); } catch { return {}; } })(),
+      }));
+    } catch (err) {
+      console.error("Error getting alert notifications:", err);
+      return [];
     }
   }
 
-  async dismissAlert(id: string): Promise<void> {
-    this.alertNotifications = this.alertNotifications.filter(a => a.id !== id);
+  async markAlertRead(id: string): Promise<boolean> {
+    try {
+      const result = sqlite.prepare(`UPDATE alert_notifications SET read = 1 WHERE id = ?`).run(id);
+      return result.changes > 0;
+    } catch (err) {
+      console.error("Error marking alert read:", err);
+      return false;
+    }
+  }
+
+  async dismissAlert(id: string): Promise<boolean> {
+    try {
+      const result = sqlite.prepare(`DELETE FROM alert_notifications WHERE id = ?`).run(id);
+      return result.changes > 0;
+    } catch (err) {
+      console.error("Error dismissing alert:", err);
+      return false;
+    }
   }
 
   async getAlertConfigs(companyId: string): Promise<Alert[]> {
-    if (companyId === "all") return this.alertConfigsList;
-    return this.alertConfigsList.filter(a => a.companyId === companyId);
+    try {
+      let rows: any[];
+      if (companyId === "all") {
+        rows = sqlite.prepare(`SELECT * FROM alert_configs ORDER BY id`).all();
+      } else {
+        rows = sqlite.prepare(`SELECT * FROM alert_configs WHERE companyId = ? ORDER BY id`).all(companyId);
+      }
+      return rows.map(r => ({
+        id: r.id,
+        companyId: r.companyId,
+        type: r.type as Alert["type"],
+        threshold: r.threshold,
+        enabled: r.enabled === 1,
+        message: r.message,
+        severity: r.severity as Alert["severity"],
+      }));
+    } catch (err) {
+      console.error("Error getting alert configs:", err);
+      return [];
+    }
   }
 
-  async updateAlertConfig(id: string, enabled: boolean): Promise<void> {
-    const config = this.alertConfigsList.find(a => a.id === id);
-    if (config) {
-      config.enabled = enabled;
+  async updateAlertConfig(id: string, enabled: boolean): Promise<boolean> {
+    try {
+      const result = sqlite.prepare(`UPDATE alert_configs SET enabled = ? WHERE id = ?`).run(enabled ? 1 : 0, id);
+      return result.changes > 0;
+    } catch (err) {
+      console.error("Error updating alert config:", err);
+      return false;
     }
+  }
+
+  async createAlertNotification(notification: Omit<AlertNotification, "id"> & { companyId: string }): Promise<AlertNotification> {
+    const id = randomUUID();
+    sqlite.prepare(`
+      INSERT INTO alert_notifications (id, alertId, companyId, triggeredAt, message, severity, read, data)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+    `).run(id, notification.alertId, notification.companyId, notification.triggeredAt, notification.message, notification.severity, JSON.stringify(notification.data || {}));
+    return { ...notification, id, read: false };
   }
 
   async getSalespersonsWithStats(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<SalespersonWithStats[]> {

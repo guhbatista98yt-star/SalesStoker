@@ -157,6 +157,7 @@ export default function Dashboard() {
 
   const { data: alerts = [], isLoading: alertsLoading } = useQuery<AlertNotification[]>({
     queryKey: ["/api/alerts", companyId],
+    refetchInterval: 60 * 1000,
   });
 
   const currentMonth = today.getMonth() + 1;

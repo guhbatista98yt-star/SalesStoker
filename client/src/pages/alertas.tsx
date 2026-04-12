@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { AlertsPanel } from "@/components/dashboard/alerts-panel";
-import { Bell, Settings, AlertTriangle, Info, AlertCircle, Plus } from "lucide-react";
+import { Bell, Settings, AlertTriangle, Info, AlertCircle, Plus, Volume2, VolumeX } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Company, Alert, AlertNotification } from "@shared/schema";
+
+const POLL_INTERVAL_MS = 60 * 1000;
+const SOUND_PREF_KEY = "alerts_sound_enabled";
 
 function getAlertTypeLabel(type: string): string {
   switch (type) {
@@ -30,9 +33,63 @@ function getSeverityIcon(severity: "info" | "warning" | "critical") {
   }
 }
 
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
+let sharedAudioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext | null {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
+      sharedAudioCtx = new AudioCtx();
+    }
+    return sharedAudioCtx;
+  } catch {
+    return null;
+  }
+}
+
+function playAlertSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => undefined);
+    }
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch {
+  }
+}
+
 export default function Alertas() {
   const [companyId, setCompanyId] = useState<string>("1");
   const [tab, setTab] = useState<"notifications" | "config">("notifications");
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(SOUND_PREF_KEY);
+      return stored === null ? true : stored === "true";
+    } catch {
+      return true;
+    }
+  });
+  const prevUnreadIdsRef = useRef<Set<string>>(new Set());
+  const isFirstLoad = useRef(true);
+  const prevCompanyId = useRef<string>(companyId);
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -40,11 +97,44 @@ export default function Alertas() {
 
   const { data: notifications = [], isLoading: notificationsLoading } = useQuery<AlertNotification[]>({
     queryKey: ["/api/alerts", companyId],
+    refetchInterval: POLL_INTERVAL_MS,
   });
 
   const { data: alertConfigs = [], isLoading: configsLoading } = useQuery<Alert[]>({
     queryKey: ["/api/alert-configs", companyId],
+    queryFn: () => apiRequest("GET", `/api/alert-configs?companyId=${companyId}`).then(r => r.json()),
+    refetchInterval: POLL_INTERVAL_MS,
   });
+
+  useEffect(() => {
+    const unread = notifications.filter(n => !n.read);
+    const currentIds = new Set(unread.map(n => n.id));
+    const companyChanged = prevCompanyId.current !== companyId;
+
+    if (isFirstLoad.current || companyChanged) {
+      prevUnreadIdsRef.current = currentIds;
+      isFirstLoad.current = false;
+      prevCompanyId.current = companyId;
+      return;
+    }
+
+    const hasNew = unread.some(n => !prevUnreadIdsRef.current.has(n.id));
+    if (hasNew && soundEnabled) {
+      playAlertSound();
+    }
+
+    prevUnreadIdsRef.current = currentIds;
+  }, [notifications, soundEnabled, companyId]);
+
+  const toggleSound = () => {
+    setSoundEnabled(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SOUND_PREF_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const markReadMutation = useMutation({
     mutationFn: (id: string) => apiRequest("POST", `/api/alerts/${id}/read`),
@@ -80,6 +170,23 @@ export default function Alertas() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSound}
+                title={soundEnabled ? "Desativar som" : "Ativar som"}
+                className="gap-2"
+                data-testid="button-toggle-sound"
+              >
+                {soundEnabled ? (
+                  <Volume2 className="h-4 w-4 text-primary" />
+                ) : (
+                  <VolumeX className="h-4 w-4 text-muted-foreground" />
+                )}
+                <span className="hidden sm:inline text-xs">
+                  {soundEnabled ? "Som ativado" : "Som desativado"}
+                </span>
+              </Button>
               <CompanySelector
                 companies={companies}
                 selectedId={companyId}
@@ -123,7 +230,7 @@ export default function Alertas() {
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
                   <CardTitle className="text-lg">Regras de Alerta</CardTitle>
-                  <Button size="sm" data-testid="button-add-alert-rule">
+                  <Button size="sm" data-testid="button-add-alert-rule" disabled>
                     <Plus className="h-4 w-4 mr-2" />
                     Nova Regra
                   </Button>
@@ -162,7 +269,7 @@ export default function Alertas() {
                         </div>
                         <div className="flex items-center gap-4">
                           <Badge variant="outline">
-                            Limite: {config.threshold}%
+                            Limite: {config.threshold}{config.type === "ticket_baixo" ? " R$" : "%"}
                           </Badge>
                           <Switch
                             checked={config.enabled}
