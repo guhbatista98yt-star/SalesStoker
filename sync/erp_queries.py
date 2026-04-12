@@ -4,7 +4,8 @@ DB2 SQL query strings shared by erp_sync.py and bootstrap_historico.py.
 All queries:
   - Use raw ERP tables (no views required in the DB2 schema)
   - Filter WITH UR (uncommitted read) — no shared locks on ERP pages
-  - Take exactly two positional parameters: (date_from, date_to) as date objects
+  - Most queries take two positional parameters: (date_from, date_to) as date objects
+  - SQL_ESTOQUE_SUGESTAO is a snapshot query — takes NO parameters
   - Assume current schema is already set to DBA on the connection
 
 DECIMAL → DOUBLE fix
@@ -110,6 +111,107 @@ WHERE EA.IDEMPRESA IN (1, 2, 3)
         AND  N.IDPLANILHA     = EA.IDPLANILHA
         AND  N.FLAGNOTACANCEL = 'F'
   )
+WITH UR
+"""
+
+# ─── Estoque Sugestão — snapshot query, NO date parameters ───────────────────
+#
+# Returns one row per (IDPRODUTO, FABRICANTE) matching cache_campanhas join keys:
+#   IDPRODUTO  = PRODUTO_GRADE.IDPRODUTO  (parent product, same as EA.IDPRODUTO)
+#   FABRICANTE = PRODUTO.FABRICANTE       (brand text, same as PRD.FABRICANTE)
+#
+# Aggregates across ALL variant grades (IDSUBPRODUTO) and ALL 3 companies.
+# Location 6 excluded (internal transit / reprocessing).
+#
+# Columns:
+#   [0] IDPRODUTO       — product parent ID (TEXT, matches cache_campanhas.IDPRODUTO)
+#   [1] FABRICANTE      — brand/manufacturer (TEXT, matches cache_campanhas.FABRICANTE)
+#   [2] SALDO_ATUAL     — total physical stock (FLOAT)
+#   [3] QTDRESERVA      — total reservations from ESTOQUE_ANALITICO_TMP (FLOAT)
+#   [4] SALDO_DISPONIVEL— SALDO_ATUAL - QTDRESERVA (effective available stock) (FLOAT)
+#   [5] QTDREPOSICAO    — sum of PRODUTO_COMPRAS.QTDESTMINIMO across variants (FLOAT)
+#   [6] DTULT_COMPRA    — most recent purchase date across all variants (DATE or None)
+#   [7] VAL_UNITARIO    — unit cost from most recent purchase (FLOAT)
+#   [8] QTDPENDENTE     — total qty on open purchase orders not yet received (FLOAT)
+SQL_ESTOQUE_SUGESTAO = """
+SELECT
+    CAST(PG.IDPRODUTO AS VARCHAR(50))                               AS IDPRODUTO,
+    CAST(COALESCE(PRD.FABRICANTE, 'SEM FABRICANTE') AS VARCHAR(120)) AS FABRICANTE,
+    COALESCE(SUM(ES.SALDO_ATUAL),    0E0)                           AS SALDO_ATUAL,
+    COALESCE(SUM(RES.QTDRESERVA),    0E0)                           AS QTDRESERVA,
+    (COALESCE(SUM(ES.SALDO_ATUAL),   0E0)
+     - COALESCE(SUM(RES.QTDRESERVA), 0E0))                          AS SALDO_DISPONIVEL,
+    COALESCE(SUM(PC.QTDREPOSICAO),   0E0)                           AS QTDREPOSICAO,
+    MAX(CMP.DTULT_COMPRA)                                           AS DTULT_COMPRA,
+    COALESCE(MAX(CMP.VAL_UNITARIO),  0E0)                           AS VAL_UNITARIO,
+    COALESCE(SUM(PEN.QTDPENDENTE),   0E0)                           AS QTDPENDENTE
+FROM DBA.PRODUTO_GRADE PG
+INNER JOIN DBA.PRODUTO PRD
+    ON PRD.IDPRODUTO = PG.IDPRODUTO
+LEFT JOIN (
+    SELECT IDPRODUTO, IDSUBPRODUTO,
+           SUM(QTDATUALESTOQUE * 1E0) AS SALDO_ATUAL
+    FROM DBA.ESTOQUE_SALDO_ATUAL
+    WHERE IDEMPRESA IN (1, 2, 3)
+      AND IDLOCALESTOQUE <> 6
+      AND QTDATUALESTOQUE BETWEEN -999999999.999 AND 999999999.999
+    GROUP BY IDPRODUTO, IDSUBPRODUTO
+) ES ON ES.IDPRODUTO = PG.IDPRODUTO AND ES.IDSUBPRODUTO = PG.IDSUBPRODUTO
+LEFT JOIN (
+    SELECT IDPRODUTO, IDSUBPRODUTO,
+           SUM(QTDPRODUTO * 1E0) AS QTDRESERVA
+    FROM DBA.ESTOQUE_ANALITICO_TMP
+    WHERE IDEMPRESA IN (1, 2, 3)
+      AND QTDPRODUTO BETWEEN -999999999.999 AND 999999999.999
+    GROUP BY IDPRODUTO, IDSUBPRODUTO
+) RES ON RES.IDPRODUTO = PG.IDPRODUTO AND RES.IDSUBPRODUTO = PG.IDSUBPRODUTO
+LEFT JOIN (
+    SELECT IDPRODUTO, IDSUBPRODUTO,
+           SUM(QTDESTMINIMO * 1E0) AS QTDREPOSICAO
+    FROM DBA.PRODUTO_COMPRAS
+    WHERE IDEMPRESA IN (1, 2, 3)
+      AND QTDESTMINIMO > 0
+    GROUP BY IDPRODUTO, IDSUBPRODUTO
+) PC ON PC.IDPRODUTO = PG.IDPRODUTO AND PC.IDSUBPRODUTO = PG.IDSUBPRODUTO
+LEFT JOIN (
+    SELECT T.IDPRODUTO, T.IDSUBPRODUTO,
+           T.DTMOVIMENTO        AS DTULT_COMPRA,
+           T.VALUNITBRUTO * 1E0 AS VAL_UNITARIO
+    FROM (
+        SELECT EA.IDPRODUTO, EA.IDSUBPRODUTO,
+               EA.DTMOVIMENTO, EA.VALUNITBRUTO,
+               ROW_NUMBER() OVER (
+                   PARTITION BY EA.IDPRODUTO, EA.IDSUBPRODUTO
+                   ORDER BY EA.DTMOVIMENTO DESC, EA.IDPLANILHA DESC
+               ) AS RN
+        FROM DBA.ESTOQUE_ANALITICO EA
+        INNER JOIN DBA.OPERACAO_INTERNA OI ON OI.IDOPERACAO = EA.IDOPERACAO
+        WHERE OI.TIPOCATEGORIA     = 'C'
+          AND OI.TIPOITEMCATEGORIA IN ('C1', 'C2')
+          AND OI.IDOPERACAO        <> 801
+          AND EA.IDEMPRESA         IN (1, 2, 3)
+          AND EA.IDLOCALESTOQUE    <> 6
+    ) T WHERE T.RN = 1
+) CMP ON CMP.IDPRODUTO = PG.IDPRODUTO AND CMP.IDSUBPRODUTO = PG.IDSUBPRODUTO
+LEFT JOIN (
+    SELECT PP.IDPRODUTO, PP.IDSUBPRODUTO,
+           SUM((PP.QTDSOLICITADA - PP.QTDATENDIDA) * 1E0) AS QTDPENDENTE
+    FROM DBA.PEDIDO_COMPRA_PROD PP
+    INNER JOIN DBA.PEDIDO_COMPRA PC2
+        ON  PP.IDEMPRESA = PC2.IDEMPRESA
+        AND PP.IDPEDIDO  = PC2.IDPEDIDO
+        AND PC2.IDCLIFOR = PP.IDCLIFOR
+    WHERE UPPER(PC2.FLAGCANCELADO)       = 'F'
+      AND (PC2.DTVALIDADEPEDIDO >= CURRENT DATE OR PC2.DTVALIDADEPEDIDO IS NULL)
+      AND UPPER(PC2.FLAGPEDIDOBLOQUEADO) = 'F'
+      AND (PC2.TIPOCATEGORIA IS NULL OR UPPER(PC2.TIPOCATEGORIA) = 'C')
+      AND PP.QTDSOLICITADA > PP.QTDATENDIDA
+      AND PP.IDEMPRESA IN (1, 2, 3)
+    GROUP BY PP.IDPRODUTO, PP.IDSUBPRODUTO
+) PEN ON PEN.IDPRODUTO = PG.IDPRODUTO AND PEN.IDSUBPRODUTO = PG.IDSUBPRODUTO
+WHERE PG.FLAGINATIVO        = 'F'
+  AND PG.FLAGINATIVOCOMPRA  = 'F'
+GROUP BY PG.IDPRODUTO, PRD.FABRICANTE
 WITH UR
 """
 

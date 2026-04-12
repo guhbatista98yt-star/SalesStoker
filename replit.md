@@ -20,6 +20,14 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (April 2026 — Copiloto: Integração com Estoque Real do ERP)
+
+- **Nova query DB2 `SQL_ESTOQUE_SUGESTAO`** em `sync/erp_queries.py` — snapshot sem parâmetros de data, agregado por (IDPRODUTO, FABRICANTE) para combinar com cache_campanhas. Captura: `SALDO_ATUAL` (ESTOQUE_SALDO_ATUAL), `QTDRESERVA` (ESTOQUE_ANALITICO_TMP), `SALDO_DISPONIVEL` = saldo − reserva, `QTDREPOSICAO` (PRODUTO_COMPRAS.QTDESTMINIMO), `DTULT_COMPRA`/`VAL_UNITARIO` (última compra via ESTOQUE_ANALITICO), `QTDPENDENTE` (PEDIDO_COMPRA_PROD pedidos abertos não atendidos).
+- **Nova rotina `sync_estoque_sugestao()`** em `sync/erp_sync.py` — estratégia TRUNCATE + INSERT (sem watermark), registrada como `estoque_sugestao` na tabela de rotinas. Incluída no `all`. Recomendada a cada 30 min durante horário comercial.
+- **Nova tabela `cache_estoque_sugestao`** (38ª tabela do schema) em `schema-bootstrap.ts` — índice único em (IDPRODUTO, FABRICANTE).
+- **`suggestion-engine.ts` atualizado** — todas as 3 funções de cálculo (por fornecedor, todas, por produto) agora carregam `cache_estoque_sugestao` em paralelo. Interface `ProductSuggestion` ganhou: `qtdReserva`, `saldoDisponivel`, `estoqueErpDisponivel`, `ultimaValorCompra`. Lógica de `estoqueSeguranca`: prefere config do produto → ponto de reposição ERP (QTDREPOSICAO) → padrão do sistema. `pedidosAbertos` agora usa QTDPENDENTE (pedidos de compra reais). `quantidadeSugerida` desconta estoque disponível E pedidos pendentes para evitar compra excessiva.
+- **Windows setup**: após `erp_sync.py campanhas`, executar `erp_sync.py estoque_sugestao` (ou `erp_sync.py all`) para popular `cache_estoque_sugestao`.
+
 ## Recent Changes (April 2026 — Configuração de Compras: Botão Sincronizar ERP)
 
 - **Novo endpoint** `POST /api/compras/fornecedores-config/sync` — materializa todos os FABRICANTEs distintos de `cache_campanhas` para `compras_fornecedores_config` (upsert idempotente, preserva configs manuais); retorna `{ created, updated, total }`.

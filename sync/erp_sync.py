@@ -19,11 +19,12 @@ SAFETY DESIGN PRINCIPLES
 
 USAGE
 ──────
-  python erp_sync.py vendas          # run incremental vendas sync
-  python erp_sync.py campanhas       # run incremental campanhas sync
-  python erp_sync.py tubos           # run incremental tubos/conexoes sync
-  python erp_sync.py pendentes       # run pending orders sync
-  python erp_sync.py all             # run all routines
+  python erp_sync.py vendas            # run incremental vendas sync
+  python erp_sync.py campanhas         # run incremental campanhas sync
+  python erp_sync.py tubos             # run incremental tubos/conexoes sync
+  python erp_sync.py pendentes         # run pending orders sync
+  python erp_sync.py estoque_sugestao  # run stock snapshot for Copiloto (TRUNCATE+INSERT)
+  python erp_sync.py all               # run all routines
 
 DEPENDENCIES
 ─────────────
@@ -45,7 +46,7 @@ from typing import Any, Generator, Iterator
 import psycopg2
 import psycopg2.extras
 import pyodbc
-from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS, SQL_PENDENTES
+from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS, SQL_PENDENTES, SQL_ESTOQUE_SUGESTAO
 from dotenv import load_dotenv
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -594,13 +595,79 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     return total_read, total_written
 
 
+# ─── Routine: cache_estoque_sugestao ─────────────────────────────────────────
+
+def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]:
+    """
+    Snapshot sync of current stock levels, pending purchase orders, and
+    reorder points for use in the Copiloto de Compras suggestion engine.
+
+    Strategy: FULL REPLACE (TRUNCATE + INSERT) — no watermark.
+    This query has no date parameters; it reflects the live ERP state.
+    The result is aggregated by (IDPRODUTO, FABRICANTE) to match the
+    same join keys used by cache_campanhas.
+
+    Columns written:
+      IDPRODUTO, FABRICANTE, SALDO_ATUAL, QTDRESERVA, SALDO_DISPONIVEL,
+      QTDREPOSICAO, DTULT_COMPRA, VAL_UNITARIO, QTDPENDENTE
+    """
+    routine = "cache_estoque_sugestao"
+    total_read, total_written = 0, 0
+
+    with db2_connection() as db2conn:
+        cur = db2conn.cursor()
+        cur.execute(SQL_ESTOQUE_SUGESTAO)
+        all_rows: list[tuple] = []
+        for batch in _fetch_batches(cur):
+            all_rows.extend(batch)
+            total_read += len(batch)
+        cur.close()
+
+    with pg.cursor() as pgcur:
+        pgcur.execute("TRUNCATE TABLE cache_estoque_sugestao")
+        if all_rows:
+            psycopg2.extras.execute_values(
+                pgcur,
+                """
+                INSERT INTO cache_estoque_sugestao
+                  ("IDPRODUTO","FABRICANTE",
+                   "SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
+                   "QTDREPOSICAO","DTULT_COMPRA","VAL_UNITARIO","QTDPENDENTE",
+                   synced_at)
+                VALUES %s
+                """,
+                [
+                    (
+                        r[0], r[1],
+                        _fix_monetary(r[2]),   # SALDO_ATUAL
+                        _fix_monetary(r[3]),   # QTDRESERVA
+                        _fix_monetary(r[4]),   # SALDO_DISPONIVEL
+                        _fix_monetary(r[5]),   # QTDREPOSICAO
+                        r[6],                  # DTULT_COMPRA (date or None)
+                        _fix_monetary(r[7]),   # VAL_UNITARIO
+                        _fix_monetary(r[8]),   # QTDPENDENTE
+                        datetime.now(timezone.utc),
+                    )
+                    for r in all_rows
+                ],
+                page_size=BATCH_SIZE,
+            )
+            total_written = len(all_rows)
+
+    pg.commit()
+    _update_watermark(pg, routine, date.today(), total_read, total_written)
+    log.info(f"[{routine}] lidas: {total_read}, gravadas: {total_written}")
+    return total_read, total_written
+
+
 # ─── Routine runner ───────────────────────────────────────────────────────────
 
 ROUTINES: dict[str, Any] = {
-    "vendas":    sync_vendas,
-    "campanhas": sync_campanhas,
-    "tubos":     sync_tubos,
-    "pendentes": sync_pendentes,
+    "vendas":            sync_vendas,
+    "campanhas":         sync_campanhas,
+    "tubos":             sync_tubos,
+    "pendentes":         sync_pendentes,
+    "estoque_sugestao":  sync_estoque_sugestao,
 }
 
 
@@ -653,7 +720,9 @@ def run_routine(name: str) -> None:
 # ─── SCHEDULE GUIDANCE ────────────────────────────────────────────────────────
 #
 # LIGHT  (can run every 15 min during business hours):
-#   - sync_pendentes   ~small aggregated set, current month only
+#   - sync_pendentes         ~small aggregated set, current month only
+#   - sync_estoque_sugestao  snapshot query — TRUNCATE + INSERT, moderate volume
+#                            Recommended: every 30 min or on-demand after receiving purchases
 #
 # MEDIUM (run every 30–60 min during business hours):
 #   - sync_vendas      incremental, 3-day overlap window

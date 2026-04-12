@@ -582,6 +582,28 @@ async function bootstrapCacheTables(): Promise<void> {
     ON cache_tubos_conexoes ("IDVENDEDOR", "DT_MOVIMENTO")`);
   await exec(`CREATE INDEX IF NOT EXISTS idx_ctc_empresa_dt
     ON cache_tubos_conexoes ("IDEMPRESA", "DT_MOVIMENTO")`);
+
+  // Stock snapshot for Copiloto de Compras suggestion engine
+  // One row per (IDPRODUTO, FABRICANTE) — matches cache_campanhas join keys.
+  // Full-replace strategy: TRUNCATE + INSERT on every sync (no watermark).
+  await exec(`
+    CREATE TABLE IF NOT EXISTS cache_estoque_sugestao (
+      "IDPRODUTO"        TEXT NOT NULL,
+      "FABRICANTE"       TEXT NOT NULL,
+      "SALDO_ATUAL"      NUMERIC(18,4) NOT NULL DEFAULT 0,
+      "QTDRESERVA"       NUMERIC(18,4) NOT NULL DEFAULT 0,
+      "SALDO_DISPONIVEL" NUMERIC(18,4) NOT NULL DEFAULT 0,
+      "QTDREPOSICAO"     NUMERIC(18,4) NOT NULL DEFAULT 0,
+      "DTULT_COMPRA"     DATE,
+      "VAL_UNITARIO"     NUMERIC(18,4) NOT NULL DEFAULT 0,
+      "QTDPENDENTE"      NUMERIC(18,4) NOT NULL DEFAULT 0,
+      synced_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ces_produto_fabricante
+    ON cache_estoque_sugestao ("IDPRODUTO", "FABRICANTE")`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_ces_fabricante
+    ON cache_estoque_sugestao ("FABRICANTE")`);
 }
 
 // ---------------------------------------------------------------------------
@@ -883,6 +905,7 @@ const REQUIRED_TABLES = [
   "sync_state", "sync_logs", "job_locks",
   "bootstrap_historico", "bootstrap_status",
   "cache_vendas", "cache_vendas_pendentes", "cache_campanhas", "cache_tubos_conexoes",
+  "cache_estoque_sugestao",
   "roles", "role_permissions", "access_audit",
   "purchase_alerts", "purchase_alert_events", "purchase_settings",
   "user_alert_preferences", "alert_delivery_state",

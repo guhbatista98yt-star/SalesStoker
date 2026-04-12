@@ -329,10 +329,17 @@ export function useComprasProdutoDetalhe(id: string) {
             urgencia: string;
             coberturaDias: number;
             estoqueAtual: number;
+            qtdReserva: number;
+            saldoDisponivel: number;
             estoqueSeguranca: number;
+            pedidosAbertos: number;
             consumoMedioDiario: number;
             quantidadeSugerida: number;
             leadTimeDias: number;
+            estoqueErpDisponivel: boolean;
+            ultimaCompra: string | null;
+            ultimaQtdComprada: number | null;
+            ultimaValorCompra: number | null;
           } | null;
           historico: { periodo: string; total_vendido: number }[];
           alertas: unknown[];
@@ -353,7 +360,10 @@ export function useComprasProdutoDetalhe(id: string) {
           fornecedor: s.fabricante,
           fornecedorId: encodeURIComponent(s.fabricante),
           estoqueAtual: s.estoqueAtual,
+          qtdReserva: s.qtdReserva ?? 0,
+          saldoDisponivel: s.saldoDisponivel ?? s.estoqueAtual,
           estoqueSeguranca: s.estoqueSeguranca,
+          pedidosAbertos: s.pedidosAbertos ?? 0,
           coberturaDias: Math.round(s.coberturaDias),
           dataEstimadaRuptura: estimateRupturaDate(s.coberturaDias),
           sugestaoCompra: s.quantidadeSugerida,
@@ -361,14 +371,20 @@ export function useComprasProdutoDetalhe(id: string) {
           consumoDiario: Math.round(s.consumoMedioDiario * 10) / 10,
           consumoSemanal: Math.round(s.consumoMedioDiario * 7 * 10) / 10,
           consumoMensal: Math.round(s.consumoMedioDiario * 30 * 10) / 10,
+          estoqueErpDisponivel: s.estoqueErpDisponivel ?? false,
+          ultimaCompra: s.ultimaCompra ?? undefined,
+          ultimaQtdComprada: s.ultimaQtdComprada ?? undefined,
+          ultimaValorCompra: s.ultimaValorCompra ?? undefined,
           historico,
         };
       } catch {
         return mockProdutoDetalhe[id] ?? {
           id, codigo: id, descricao: "Produto", fornecedor: "", fornecedorId: "",
-          estoqueAtual: 0, estoqueSeguranca: 0, coberturaDias: 0, dataEstimadaRuptura: "-",
+          estoqueAtual: 0, qtdReserva: 0, saldoDisponivel: 0, estoqueSeguranca: 0, pedidosAbertos: 0,
+          coberturaDias: 0, dataEstimadaRuptura: "-",
           sugestaoCompra: 0, criticidade: "normal" as Criticidade,
-          consumoDiario: 0, consumoSemanal: 0, consumoMensal: 0, historico: [],
+          consumoDiario: 0, consumoSemanal: 0, consumoMensal: 0,
+          estoqueErpDisponivel: false, historico: [],
         };
       }
     },

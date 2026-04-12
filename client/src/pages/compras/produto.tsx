@@ -98,9 +98,17 @@ export default function ProdutoDetalhe({ id }: { id: string }) {
                 <div className="p-2 rounded-xl bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 shrink-0">
                   <Package className="h-4 w-4" />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Estoque Atual</p>
-                  <p className="text-2xl font-bold">{produto.estoqueAtual}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Estoque Disponível
+                    {produto.estoqueErpDisponivel && (
+                      <span className="inline-flex items-center text-[10px] font-semibold bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 px-1 rounded">ERP</span>
+                    )}
+                  </p>
+                  <p className="text-2xl font-bold">{produto.saldoDisponivel}</p>
+                  {produto.qtdReserva > 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Reservado: {produto.qtdReserva}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">Mín: {produto.estoqueSeguranca}</p>
                 </div>
               </div>
@@ -170,12 +178,25 @@ export default function ProdutoDetalhe({ id }: { id: string }) {
                 <p className="text-xs text-muted-foreground">un/mês</p>
               </div>
             </div>
-            {produto.ultimaCompra && (
-              <p className="text-xs text-muted-foreground mt-3">
-                Última compra: <span className="font-medium">{produto.ultimaCompra}</span>
-                {" "}· Sugestão: <span className="font-semibold">{produto.sugestaoCompra} unidades</span>
+            <div className="mt-3 space-y-1">
+              {produto.ultimaCompra && (
+                <p className="text-xs text-muted-foreground">
+                  Última compra: <span className="font-medium">{produto.ultimaCompra}</span>
+                  {produto.ultimaQtdComprada != null && <span> · {produto.ultimaQtdComprada} un</span>}
+                  {produto.ultimaValorCompra != null && produto.ultimaValorCompra > 0 && (
+                    <span> · <span className="font-semibold text-foreground">R$ {produto.ultimaValorCompra.toFixed(2)}/un</span></span>
+                  )}
+                </p>
+              )}
+              {produto.pedidosAbertos > 0 && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  Pedido de compra aberto: <span className="font-semibold">{produto.pedidosAbertos} un</span> em trânsito
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Sugestão: <span className="font-semibold text-foreground">{produto.sugestaoCompra} unidades</span>
               </p>
-            )}
+            </div>
           </CardContent>
         </Card>
 

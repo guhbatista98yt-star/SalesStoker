@@ -79,7 +79,13 @@ export interface ProdutoDetalhe {
   fornecedor: string;
   fornecedorId: string;
   estoqueAtual: number;
+  /** Quantidade reservada para pedidos de venda existentes (ESTOQUE_ANALITICO_TMP) */
+  qtdReserva: number;
+  /** Estoque disponível = estoqueAtual − qtdReserva (fonte ERP quando sincronizado) */
+  saldoDisponivel: number;
   estoqueSeguranca: number;
+  /** Pedidos de compra abertos não atendidos (PEDIDO_COMPRA_PROD) */
+  pedidosAbertos: number;
   coberturaDias: number;
   dataEstimadaRuptura: string;
   sugestaoCompra: number;
@@ -87,7 +93,12 @@ export interface ProdutoDetalhe {
   consumoDiario: number;
   consumoSemanal: number;
   consumoMensal: number;
+  /** True quando estoqueAtual/pedidosAbertos vêm do ERP real (cache_estoque_sugestao) */
+  estoqueErpDisponivel: boolean;
   ultimaCompra?: string;
+  ultimaQtdComprada?: number;
+  /** Valor unitário da última compra (R$/un, fonte ERP) */
+  ultimaValorCompra?: number;
   historico: { data: string; consumo: number }[];
 }
 
