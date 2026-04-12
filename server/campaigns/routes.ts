@@ -254,16 +254,15 @@ router.get("/:id/relatorio", isAuthenticated, async (req, res) => {
     let salesRows: { IDVENDEDOR: string; total: number }[];
 
     if (suppliers.length > 0) {
-      const list = suppliers.map(s => `'${s.replace(/'/g, "''")}'`).join(",");
       salesRows = await pgAll<{ IDVENDEDOR: string; total: number }>(`
         SELECT "IDVENDEDOR",
           COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
         FROM cache_campanhas
         WHERE "IDVENDEDOR" IS NOT NULL AND "IDVENDEDOR" != ''
           AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
-          AND "FABRICANTE" IN (${list})
+          AND "FABRICANTE" = ANY(?::text[])
         GROUP BY "IDVENDEDOR"
-      `, [startDate, endDate]);
+      `, [startDate, endDate, suppliers]);
     } else {
       salesRows = await pgAll<{ IDVENDEDOR: string; total: number }>(`
         SELECT "IDVENDEDOR",

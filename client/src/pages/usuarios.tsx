@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { apiRequest } from "@/lib/queryClient";
@@ -182,7 +182,6 @@ function UsersTab() {
   const [resetDialog, setResetDialog] = useState<{ userId: number; email: string } | null>(null);
   const [newPass, setNewPass] = useState("");
   const [statusDialog, setStatusDialog] = useState<{ user: AppUser; newStatus: string } | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<AppUser | null>(null);
 
   const { data: users = [], isLoading } = useQuery<AppUser[]>({
     queryKey: ["/api/admin/users", search, filterRole, filterStatus],
@@ -773,11 +772,11 @@ function PermissionsTab() {
   const [localPerms, setLocalPerms] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
 
-  // Sync local state when perms load
-  useMemo(() => {
+  // Sync local state when role selection changes or perms reload
+  useEffect(() => {
     setLocalPerms({ ...permMap });
     setDirty(false);
-  }, [perms]);
+  }, [permMap]);
 
   function toggle(module: string, action: string) {
     const key = `${module}::${action}`;

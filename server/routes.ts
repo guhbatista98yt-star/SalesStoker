@@ -439,7 +439,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/vendor-settings", isAuthenticated, async (req, res) => {
+  app.get("/api/admin/vendor-settings", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const settings = await storage.getVendorDisplaySettings();
       res.json(settings);

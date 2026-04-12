@@ -29,7 +29,7 @@ export function registerCommissionRoutes(app: Express) {
     }
   });
 
-  app.post("/api/admin/commissions/rules", isAdmin, async (req: AuthRequest, res) => {
+  app.post("/api/admin/commissions/rules", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
     try {
       const { name, description, type, is_active, priority, applies_to, config } = req.body;
 
@@ -58,7 +58,7 @@ export function registerCommissionRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/admin/commissions/rules/:id", isAdmin, async (req: AuthRequest, res) => {
+  app.patch("/api/admin/commissions/rules/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
       const { name, description, type, is_active, priority, applies_to, config } = req.body;
@@ -88,7 +88,7 @@ export function registerCommissionRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/admin/commissions/rules/:id", isAdmin, async (req: AuthRequest, res) => {
+  app.delete("/api/admin/commissions/rules/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
     try {
       const existing = await pgGet(`SELECT id FROM commission_rules WHERE id = ?`, [req.params.id]);
       if (!existing) return res.status(404).json({ error: "Regra não encontrada" });

@@ -153,15 +153,17 @@ export function createAuthRouter(): Router {
         return res.status(400).json({ message: "A senha deve ter pelo menos 6 caracteres" });
       }
 
-      const existing = await db.select().from(users).where(eq(users.email, email));
+      const normalizedEmail = email.toLowerCase().trim();
+      const existing = await db.select().from(users)
+        .where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
       if (existing.length > 0) {
-        return res.status(400).json({ message: "Este email já está cadastrado" });
+        return res.status(400).json({ message: "Este login já está em uso" });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const [newUser] = await db.insert(users).values({
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         firstName: firstName || null,
         lastName: lastName || null,

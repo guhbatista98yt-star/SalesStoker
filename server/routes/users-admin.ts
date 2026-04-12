@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import { AuthRequest, isAuthenticated, isAdmin } from "../auth";
-import { pgGet, pgAll, pgRun } from "../pg-client";
+import { pgGet, pgAll, pgRun, pgTransaction } from "../pg-client";
 
 const router = Router();
 
@@ -96,7 +96,11 @@ router.get("/users", isAuthenticated, isAdmin, async (req: AuthRequest, res: Res
 router.get("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const user = await pgGet<any>(
-      `SELECT u.*, COALESCE(u.status, 'ativo') AS status,
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.display_name,
+              u.role, u.vendor_code, u.phone, u.cargo, u.company_id,
+              u.supervisor_id, u.team_members, u.module_permissions,
+              COALESCE(u.status, 'ativo') AS status,
+              u.last_login_at, u.notes, u.created_by, u.created_at, u.updated_at,
               s.first_name AS supervisor_first_name, s.last_name AS supervisor_last_name
        FROM users u
        LEFT JOIN users s ON s.id = u.supervisor_id
@@ -172,6 +176,11 @@ router.put("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res:
       teamMembers, modulePermissions, notes,
     } = req.body;
 
+    // Prevent admin from demoting themselves
+    if (uid === req.userId && role && role !== before.role) {
+      return res.status(400).json({ message: "Você não pode alterar seu próprio perfil de acesso" });
+    }
+
     await pgRun(`
       UPDATE users SET
         first_name = $1, last_name = $2, display_name = $3, role = $4,
@@ -204,7 +213,13 @@ router.put("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res:
       ip: req.ip,
     });
 
-    const updated = await pgGet<any>("SELECT * FROM users WHERE id = $1", [uid]);
+    const updated = await pgGet<any>(
+      `SELECT id, email, first_name, last_name, display_name, role, vendor_code, phone, cargo,
+              company_id, supervisor_id, team_members, module_permissions,
+              COALESCE(status, 'ativo') AS status, last_login_at, notes, created_by, created_at, updated_at
+       FROM users WHERE id = $1`,
+      [uid]
+    );
     res.json(updated);
   } catch (err) {
     console.error("PUT /admin/users/:id error:", err);
@@ -395,14 +410,15 @@ router.put("/roles/:id/permissions", isAuthenticated, isAdmin, async (req: AuthR
       [roleId]
     );
 
-    await pgRun("DELETE FROM role_permissions WHERE role_id = $1", [roleId]);
-
-    for (const p of permissions) {
-      await pgRun(
-        "INSERT INTO role_permissions (role_id, module, action, scope) VALUES ($1,$2,$3,$4) ON CONFLICT (role_id, module, action) DO UPDATE SET scope = $4",
-        [roleId, p.module, p.action, p.scope || "all"]
-      );
-    }
+    await pgTransaction(async (client) => {
+      await client.query("DELETE FROM role_permissions WHERE role_id = $1", [roleId]);
+      for (const p of permissions) {
+        await client.query(
+          "INSERT INTO role_permissions (role_id, module, action, scope) VALUES ($1,$2,$3,$4) ON CONFLICT (role_id, module, action) DO UPDATE SET scope = EXCLUDED.scope",
+          [roleId, p.module, p.action, p.scope || "all"]
+        );
+      }
+    });
 
     await writeAudit({
       actorId: req.userId, actorEmail: req.userEmail,
