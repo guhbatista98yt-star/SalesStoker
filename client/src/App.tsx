@@ -19,6 +19,7 @@ import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
   CommandGroup, CommandItem, CommandSeparator,
 } from "@/components/ui/command";
+import { DialogTitle } from "@/components/ui/dialog";
 import {
   LogOut, Loader2, KeyRound, LayoutDashboard, Users, Target, Bell,
   BarChart3, Settings, ChevronDown, Search, CalendarDays, CalendarRange,
@@ -219,6 +220,7 @@ function CommandPalette() {
       </button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
+        <DialogTitle className="sr-only">Pesquisar e navegar</DialogTitle>
         <CommandInput placeholder="Pesquisar páginas..." />
         <CommandList>
           <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>

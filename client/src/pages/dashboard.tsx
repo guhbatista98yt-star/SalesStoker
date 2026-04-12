@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { RefreshCw, Calendar, Download, DollarSign, Receipt, Package, GripVertical } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import {
   DndContext,
@@ -34,7 +35,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getClosedMonthPeriod, getCurrentWeekPeriod } from "@/lib/calendar-utils";
+import { getClosedMonthPeriod, getCurrentWeekPeriod, formatDateBR } from "@/lib/calendar-utils";
 import type { DatePeriod, RankingCriteria, Company, KPISummary, SalespersonRanking, ProductMix, AlertNotification, GoalWithProgress, SalesEvolutionData, SalespersonAFaturar } from "@shared/schema";
 
 function DragHandle({ id, attributes, listeners }: { id: string; attributes: any; listeners: any }) {
@@ -86,6 +87,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   // Redirect Gestor to Visão em Loja
   if (user?.role === "gerente") {
@@ -382,13 +384,34 @@ export default function Dashboard() {
             <Button
               variant={useSemanaFechada ? "secondary" : "outline"}
               size="sm"
-              onClick={() => setUseSemanaFechada(!useSemanaFechada)}
-              className="h-8 gap-1.5 text-xs font-medium rounded-lg"
+              onClick={() => {
+                const next = !useSemanaFechada;
+                setUseSemanaFechada(next);
+                if (next) {
+                  toast({
+                    title: "Período alterado: Semanas Fechadas",
+                    description: `${formatDateBR(closedMonth.periodStart)} até ${formatDateBR(closedMonth.periodEnd)}`,
+                  });
+                } else {
+                  toast({
+                    title: "Período alterado: Semana Atual",
+                    description: `${formatDateBR(currentWeek.startDate)} até ${formatDateBR(currentWeek.endDate)}`,
+                  });
+                }
+              }}
+              className="h-auto gap-1.5 px-2.5 py-1 rounded-lg flex-col items-start min-w-[110px] sm:min-w-[120px]"
               data-testid="toggle-semana-fechada"
+              title={useSemanaFechada ? "Clique para ver a semana atual" : "Clique para ver as semanas fechadas do mês"}
             >
-              <Calendar className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline">
-                {useSemanaFechada ? "S. Fechada" : "Semana Atual"}
+              <span className="flex items-center gap-1.5 text-xs font-medium w-full">
+                <Calendar className="h-3.5 w-3.5 shrink-0" />
+                {useSemanaFechada ? "S. Fechadas" : "Semana Atual"}
+              </span>
+              <span className="text-[10px] font-normal text-muted-foreground leading-none pl-5">
+                {useSemanaFechada
+                  ? `${formatDateBR(closedMonth.periodStart).slice(0, 5)} – ${formatDateBR(closedMonth.periodEnd).slice(0, 5)}`
+                  : `${formatDateBR(currentWeek.startDate).slice(0, 5)} – ${formatDateBR(currentWeek.endDate).slice(0, 5)}`
+                }
               </span>
             </Button>
 
