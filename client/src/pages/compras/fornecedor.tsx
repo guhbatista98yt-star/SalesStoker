@@ -166,7 +166,7 @@ export default function FornecedorDetalhe({ id }: { id: string }) {
                       {fornecedor.produtos.map(p => (
                         <tr key={p.id} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
                           <td className="px-4 py-3 font-mono text-xs">{p.codigo}</td>
-                          <td className="px-3 py-3 font-medium max-w-[220px] truncate">{p.descricao}</td>
+                          <td className="px-3 py-3 font-medium">{p.descricao}</td>
                           <td className="px-3 py-3 text-center tabular-nums">{p.estoqueAtual}</td>
                           <td className="px-3 py-3 text-center">
                             <span className={cn("font-medium tabular-nums", p.coberturaDias <= 3 ? "text-red-600 dark:text-red-400" : p.coberturaDias <= 7 ? "text-orange-600" : "")}>

@@ -580,9 +580,14 @@ function AbaFornecedores({
                     <BadgeAtivo ativo={f.ativo} />
                     {f.configurado && <BadgeConfig configurado />}
                   </div>
-                  {f.razao_social && (
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">{f.razao_social}</p>
-                  )}
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {f.codigo && (
+                      <span className="text-[11px] font-mono text-primary/70 font-semibold">{f.codigo}</span>
+                    )}
+                    {f.razao_social && (
+                      <p className="text-[11px] text-muted-foreground truncate">{f.razao_social}</p>
+                    )}
+                  </div>
                 </div>
                 <span className="text-xs text-center hidden sm:block text-muted-foreground">{f.lead_time_dias}d</span>
                 <span className="text-xs text-center hidden sm:block text-muted-foreground">{f.periodo_compra_dias}d</span>
