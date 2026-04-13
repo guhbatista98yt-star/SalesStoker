@@ -134,7 +134,7 @@ WITH UR
 #   [6] DTULT_COMPRA    — most recent purchase date across all variants (DATE or None)
 #   [7] VAL_UNITARIO    — unit cost from most recent purchase (FLOAT)
 #   [8] QTDPENDENTE     — total qty on open purchase orders not yet received (FLOAT)
-#   [9] DESCRICAO       — product description from DBA.PRODUTO (TEXT)
+#   [9] DESCRICAO       — product description from DBA.PRODUTO.DESCRCOMPRODUTO (TEXT)
 SQL_ESTOQUE_SUGESTAO = """
 SELECT
     CAST(PG.IDPRODUTO AS VARCHAR(50))                               AS IDPRODUTO,
@@ -147,7 +147,7 @@ SELECT
     MAX(CMP.DTULT_COMPRA)                                           AS DTULT_COMPRA,
     COALESCE(MAX(CMP.VAL_UNITARIO),  0E0)                           AS VAL_UNITARIO,
     COALESCE(SUM(PEN.QTDPENDENTE),   0E0)                           AS QTDPENDENTE,
-    CAST(COALESCE(PRD.DESCRICAO, '') AS VARCHAR(255))               AS DESCRICAO
+    CAST(COALESCE(PRD.DESCRCOMPRODUTO, '') AS VARCHAR(255))         AS DESCRICAO
 FROM DBA.PRODUTO_GRADE PG
 INNER JOIN DBA.PRODUTO PRD
     ON PRD.IDPRODUTO = PG.IDPRODUTO
@@ -214,7 +214,7 @@ LEFT JOIN (
 ) PEN ON PEN.IDPRODUTO = PG.IDPRODUTO AND PEN.IDSUBPRODUTO = PG.IDSUBPRODUTO
 WHERE PG.FLAGINATIVO        = 'F'
   AND PG.FLAGINATIVOCOMPRA  = 'F'
-GROUP BY PG.IDPRODUTO, PRD.FABRICANTE, PRD.DESCRICAO
+GROUP BY PG.IDPRODUTO, PRD.FABRICANTE, PRD.DESCRCOMPRODUTO
 WITH UR
 """
 
