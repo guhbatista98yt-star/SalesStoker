@@ -39,6 +39,7 @@ import os
 import socket
 import sys
 import time
+import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Generator, Iterator
@@ -697,6 +698,80 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
     return total_read, total_written
 
 
+# ─── Routine: compras_fornecedores_config ────────────────────────────────────
+#
+# Populates compras_fornecedores_config directly from the local cache tables,
+# bypassing the Node.js "Sincronizar ERP" API button entirely.
+# Run after campanhas + estoque_sugestao have been synced.
+#
+# Returns (fabricantes_found, rows_upserted).
+
+_SYNC_CONFIG_SQL = """
+    SELECT fabricante, company_id
+    FROM (
+        SELECT DISTINCT
+            TRIM("FABRICANTE") AS fabricante,
+            CASE
+                WHEN "IDEMPRESA" ~ '^[0-9]+$' THEN CAST("IDEMPRESA" AS INTEGER)
+                ELSE 1
+            END AS company_id
+        FROM cache_campanhas
+        WHERE "FABRICANTE" IS NOT NULL AND TRIM("FABRICANTE") != ''
+        UNION
+        SELECT DISTINCT
+            TRIM("FABRICANTE") AS fabricante,
+            1 AS company_id
+        FROM cache_estoque_sugestao
+        WHERE "FABRICANTE" IS NOT NULL AND TRIM("FABRICANTE") != ''
+    ) t
+    ORDER BY company_id, fabricante
+"""
+
+
+def sync_fornecedores_config(pg: psycopg2.extensions.connection) -> tuple[int, int]:
+    """
+    Upserts compras_fornecedores_config from cache_campanhas + cache_estoque_sugestao.
+    Preserves any existing user-configured values (only inserts new rows).
+    """
+    with pg.cursor() as cur:
+        cur.execute(_SYNC_CONFIG_SQL)
+        rows = cur.fetchall()  # [(fabricante, company_id), ...]
+
+    if not rows:
+        log.warning("[sync_config] Nenhum fabricante encontrado nos caches. "
+                    "Execute campanhas e estoque_sugestao primeiro.")
+        return 0, 0
+
+    created = 0
+    now = datetime.now(timezone.utc).isoformat()
+
+    with pg.cursor() as cur:
+        for (fabricante, company_id) in rows:
+            cur.execute(
+                "SELECT id FROM compras_fornecedores_config "
+                "WHERE company_id = %s AND fabricante_nome = %s",
+                (company_id, fabricante),
+            )
+            existing = cur.fetchone()
+            if not existing:
+                cur.execute(
+                    """
+                    INSERT INTO compras_fornecedores_config
+                      (id, company_id, fabricante_nome, codigo, razao_social,
+                       nome_fantasia, ativo, periodo_compra_dias, lead_time_dias,
+                       pedido_minimo_valor, observacoes, created_at, updated_at)
+                    VALUES (%s, %s, %s, '', '', %s, true, 30, 7, 0, '', %s, %s)
+                    """,
+                    (str(uuid.uuid4()), company_id, fabricante, fabricante, now, now),
+                )
+                created += 1
+
+    pg.commit()
+    log.info(f"[sync_config] {len(rows)} fabricantes processados — {created} criados, "
+             f"{len(rows) - created} já existiam.")
+    return len(rows), created
+
+
 # ─── Routine runner ───────────────────────────────────────────────────────────
 
 ROUTINES: dict[str, Any] = {
@@ -705,6 +780,7 @@ ROUTINES: dict[str, Any] = {
     "tubos":             sync_tubos,
     "pendentes":         sync_pendentes,
     "estoque_sugestao":  sync_estoque_sugestao,
+    "sync_config":       sync_fornecedores_config,
 }
 
 
