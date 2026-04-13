@@ -635,12 +635,46 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["vendor_display_settings", "allowed_roles", "TEXT NOT NULL DEFAULT ''"],
     // cache_estoque_sugestao — product description from ERP
     ["cache_estoque_sugestao", "DESCRICAO", "TEXT NOT NULL DEFAULT ''"],
+    // cache_campanhas — company ID from ERP (enables per-company filtering)
+    ["cache_campanhas", "IDEMPRESA", "TEXT NOT NULL DEFAULT ''"],
+    // compras config tables — company isolation
+    ["compras_fornecedores_config", "company_id", "INTEGER NOT NULL DEFAULT 1"],
+    ["compras_produtos_config",     "company_id", "INTEGER NOT NULL DEFAULT 1"],
   ];
 
   for (const [table, col, def] of migrations) {
     const did = await addColumnIfMissing(table, col, def);
     if (did) added.push(`${table}.${col}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Unique constraint migrations — expand UNIQUE keys to include company_id
+// ---------------------------------------------------------------------------
+
+async function applyUniqueConstraintMigrations(): Promise<void> {
+  // compras_fornecedores_config: drop single-column unique, add compound with company_id
+  await exec(`
+    ALTER TABLE compras_fornecedores_config
+      DROP CONSTRAINT IF EXISTS compras_fornecedores_config_fabricante_nome_key
+  `).catch(() => null);
+  await exec(`
+    DROP INDEX IF EXISTS idx_cfc_fabricante
+  `).catch(() => null);
+  await exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_cfc_company_fabricante
+      ON compras_fornecedores_config (company_id, fabricante_nome)
+  `).catch(() => null);
+
+  // compras_produtos_config: drop single-company unique, add compound with company_id
+  await exec(`
+    ALTER TABLE compras_produtos_config
+      DROP CONSTRAINT IF EXISTS compras_produtos_config_produto_id_fornecedor_nome_key
+  `).catch(() => null);
+  await exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_cpc_company_produto_forn
+      ON compras_produtos_config (company_id, produto_id, fornecedor_nome)
+  `).catch(() => null);
 }
 
 
@@ -978,6 +1012,9 @@ export async function runSchemaBootstrap(): Promise<void> {
     if (addedCols.length) {
       console.log(`[schema-bootstrap] Colunas adicionadas: ${addedCols.join(", ")}`);
     }
+
+    // ── Unique constraint migrations (company isolation) ──────────────────
+    await applyUniqueConstraintMigrations();
 
     // Log newly created tables
     for (const t of REQUIRED_TABLES) {

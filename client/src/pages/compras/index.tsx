@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useComprasDashboard, useComprasAlertas, useComprasFornecedores, useComprasProdutos, useComprasSugestoes } from "./use-compras";
+import { useComprasCompany } from "./use-company";
+import { CompanySelector } from "@/components/dashboard/company-selector";
 import { CriticidadeBadge, CriticidadeDot, CRITICIDADE_CONFIG } from "./criticidade";
 import type { Alerta, FornecedorRanking, ProdutoCritico, SugestaoFornecedor, Criticidade } from "./types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -209,11 +211,12 @@ function SimulacaoDrawer({
 
 /* ── Main Dashboard ─────────────────────────────────────────────────── */
 export default function ComprasDashboard() {
-  const { data: dashboard, isLoading: loadingDash, refetch: refetchDash } = useComprasDashboard();
+  const { companyId, setCompanyId, companies, companiesLoading } = useComprasCompany();
+  const { data: dashboard, isLoading: loadingDash, refetch: refetchDash } = useComprasDashboard(companyId);
   const { data: alertas = [], isLoading: loadingAlertas } = useComprasAlertas();
-  const { data: fornecedores = [], isLoading: loadingFornecedores } = useComprasFornecedores();
-  const { data: produtos = [], isLoading: loadingProdutos } = useComprasProdutos();
-  const { data: sugestoes = [] } = useComprasSugestoes();
+  const { data: fornecedores = [], isLoading: loadingFornecedores } = useComprasFornecedores(companyId);
+  const { data: produtos = [], isLoading: loadingProdutos } = useComprasProdutos(companyId);
+  const { data: sugestoes = [] } = useComprasSugestoes(companyId);
 
   const [alertasVisto, setAlertasVisto] = useState<Set<string>>(new Set());
   const [alertasSilenciado, setAlertasSilenciado] = useState<Set<string>>(new Set());
@@ -298,6 +301,12 @@ export default function ComprasDashboard() {
             <p className="text-sm text-muted-foreground">Visão em tempo real do estoque crítico e sugestões de compra</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <CompanySelector
+              companies={companies}
+              selectedId={companyId}
+              onChange={setCompanyId}
+              loading={companiesLoading}
+            />
             <Button size="sm" variant="outline" onClick={() => setShowInstrucoes(true)} className="gap-2">
               <HelpCircle className="h-3.5 w-3.5" /> Instruções
             </Button>

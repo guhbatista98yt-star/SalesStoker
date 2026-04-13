@@ -142,23 +142,50 @@ function calcCriticidade(
 }
 
 
+/**
+ * Builds a SQL clause fragment for filtering cache_campanhas by company.
+ * Returns empty string when companyId is not set (show all).
+ * Includes OR "IDEMPRESA" = '' for backwards compat with pre-migration rows.
+ */
+function companyClause(companyId?: number): { sql: string; params: unknown[] } {
+  if (!companyId || companyId <= 0) return { sql: "", params: [] };
+  return { sql: ` AND ("IDEMPRESA" = ? OR "IDEMPRESA" = '')`, params: [String(companyId)] };
+}
+
+/**
+ * Builds a WHERE clause for config tables filtered by company_id.
+ * Returns a neutral clause when companyId is not set.
+ */
+function configCompanyWhere(baseWhere: string, companyId?: number): { sql: string; params: unknown[] } {
+  if (!companyId || companyId <= 0) return { sql: baseWhere, params: [] };
+  const sep = baseWhere.trim() ? " AND" : " WHERE";
+  return { sql: `${baseWhere}${sep} company_id = ?`, params: [companyId] };
+}
+
 export async function calcularSugestoesPorFornecedor(
   fabricante: string,
   config: Partial<SuggestionEngineConfig> = {},
+  companyId?: number,
 ): Promise<ProductSuggestion[]> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const now = new Date();
   const dataFim = now.toISOString().split("T")[0];
+  const coCl = companyClause(companyId);
 
   // Load supplier config, product configs, and ERP stock snapshot in parallel
   const [fornConf, produtosConf, estoqueRows, ultimasCompras] = await Promise.all([
     pgGet<FornecedorConfig>(
-      `SELECT fabricante_nome, ativo, periodo_compra_dias, lead_time_dias FROM compras_fornecedores_config WHERE fabricante_nome = ?`,
-      [fabricante],
+      `SELECT fabricante_nome, ativo, periodo_compra_dias, lead_time_dias
+       FROM compras_fornecedores_config
+       WHERE fabricante_nome = ?${companyId ? " AND company_id = ?" : ""}
+       ORDER BY company_id DESC LIMIT 1`,
+      companyId ? [fabricante, companyId] : [fabricante],
     ).catch(() => null),
     pgAll<ProdutoConfig>(
-      `SELECT produto_id, fornecedor_nome, estoque_minimo, estoque_maximo, lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo FROM compras_produtos_config WHERE fornecedor_nome = ?`,
-      [fabricante],
+      `SELECT produto_id, fornecedor_nome, estoque_minimo, estoque_maximo, lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo
+       FROM compras_produtos_config
+       WHERE fornecedor_nome = ?${companyId ? " AND company_id = ?" : ""}`,
+      companyId ? [fabricante, companyId] : [fabricante],
     ).catch(() => [] as ProdutoConfig[]),
     pgAll<{
       IDPRODUTO: string; FABRICANTE: string; DESCRICAO: string;
@@ -176,11 +203,11 @@ export async function calcularSugestoesPorFornecedor(
        INNER JOIN (
          SELECT "IDPRODUTO", MAX("DTMOVIMENTO") as max_dt
          FROM cache_campanhas
-         WHERE "FABRICANTE" = ? AND "IDPRODUTO" IS NOT NULL
+         WHERE "FABRICANTE" = ? AND "IDPRODUTO" IS NOT NULL${coCl.sql}
          GROUP BY "IDPRODUTO"
        ) m ON c."IDPRODUTO" = m."IDPRODUTO" AND c."DTMOVIMENTO" = m.max_dt
        WHERE c."FABRICANTE" = ?`,
-      [fabricante, fabricante],
+      [fabricante, ...coCl.params, fabricante],
     ).catch(() => [] as { IDPRODUTO: string; ultima_compra: string; ultima_qtd: number }[]),
   ]);
 
@@ -201,10 +228,10 @@ export async function calcularSugestoesPorFornecedor(
        FROM cache_campanhas
        WHERE "FABRICANTE" = ?
          AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
-         AND "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''
+         AND "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''${coCl.sql}
        GROUP BY "IDPRODUTO", "FABRICANTE"
        ORDER BY total_vendido DESC`,
-      [fabricante, dataInicio, dataFim],
+      [fabricante, dataInicio, dataFim, ...coCl.params],
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
     // Produtos com estoque mas sem vendas para este fornecedor no período
     pgAll<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
@@ -216,9 +243,9 @@ export async function calcularSugestoesPorFornecedor(
            SELECT 1 FROM cache_campanhas c
            WHERE c."IDPRODUTO" = e."IDPRODUTO"
              AND c."FABRICANTE" = e."FABRICANTE"
-             AND c."DTMOVIMENTO" >= ? AND c."DTMOVIMENTO" <= ?
+             AND c."DTMOVIMENTO" >= ? AND c."DTMOVIMENTO" <= ?${coCl.sql}
          )`,
-      [fabricante, dataInicio, dataFim],
+      [fabricante, dataInicio, dataFim, ...coCl.params],
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
   ]);
 
@@ -251,18 +278,26 @@ export async function calcularSugestoesPorFornecedor(
 
 export async function calcularTodasSugestoes(
   config: Partial<SuggestionEngineConfig> = {},
+  companyId?: number,
 ): Promise<ProductSuggestion[]> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const now = new Date();
   const dataFim = now.toISOString().split("T")[0];
+  const coCl = companyClause(companyId);
 
   // Load per-supplier configs, per-product configs, and full ERP stock snapshot in parallel
   const [fornecedoresConf, produtosConf, estoqueRows] = await Promise.all([
     pgAll<FornecedorConfig>(
-      `SELECT fabricante_nome, ativo, periodo_compra_dias, lead_time_dias FROM compras_fornecedores_config`,
+      companyId
+        ? `SELECT fabricante_nome, ativo, periodo_compra_dias, lead_time_dias FROM compras_fornecedores_config WHERE company_id = ?`
+        : `SELECT fabricante_nome, ativo, periodo_compra_dias, lead_time_dias FROM compras_fornecedores_config`,
+      companyId ? [companyId] : [],
     ).catch(() => [] as FornecedorConfig[]),
     pgAll<ProdutoConfig>(
-      `SELECT produto_id, fornecedor_nome, estoque_minimo, estoque_maximo, lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo FROM compras_produtos_config`,
+      companyId
+        ? `SELECT produto_id, fornecedor_nome, estoque_minimo, estoque_maximo, lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo FROM compras_produtos_config WHERE company_id = ?`
+        : `SELECT produto_id, fornecedor_nome, estoque_minimo, estoque_maximo, lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo FROM compras_produtos_config`,
+      companyId ? [companyId] : [],
     ).catch(() => [] as ProdutoConfig[]),
     pgAll<{
       IDPRODUTO: string; FABRICANTE: string; DESCRICAO: string;
@@ -294,11 +329,11 @@ export async function calcularTodasSugestoes(
               COALESCE(SUM("QTD"), 0) as total_vendido
        FROM cache_campanhas
        WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
-         AND "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''
+         AND "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''${coCl.sql}
        GROUP BY "IDPRODUTO", "FABRICANTE"
        ORDER BY total_vendido DESC
        LIMIT 500`,
-      [dataInicioMax, dataFim],
+      [dataInicioMax, dataFim, ...coCl.params],
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
     // Produtos com estoque mas sem vendas no período — aparecem com consumo 0
     pgAll<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
@@ -310,10 +345,10 @@ export async function calcularTodasSugestoes(
            SELECT 1 FROM cache_campanhas c
            WHERE c."IDPRODUTO" = e."IDPRODUTO"
              AND c."FABRICANTE" = e."FABRICANTE"
-             AND c."DTMOVIMENTO" >= ? AND c."DTMOVIMENTO" <= ?
+             AND c."DTMOVIMENTO" >= ? AND c."DTMOVIMENTO" <= ?${coCl.sql}
          )
        LIMIT 500`,
-      [dataInicioMax, dataFim],
+      [dataInicioMax, dataFim, ...coCl.params],
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
     pgAll<{ IDPRODUTO: string; FABRICANTE: string; ultima_compra: string; ultima_qtd: number }>(
       `SELECT c."IDPRODUTO", c."FABRICANTE",
@@ -323,10 +358,11 @@ export async function calcularTodasSugestoes(
        INNER JOIN (
          SELECT "IDPRODUTO", "FABRICANTE", MAX("DTMOVIMENTO") as max_dt
          FROM cache_campanhas
-         WHERE "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''
+         WHERE "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''${coCl.sql}
          GROUP BY "IDPRODUTO", "FABRICANTE"
        ) m ON c."IDPRODUTO" = m."IDPRODUTO" AND c."FABRICANTE" = m."FABRICANTE"
             AND c."DTMOVIMENTO" = m.max_dt`,
+      [...coCl.params],
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; ultima_compra: string; ultima_qtd: number }[]),
   ]);
 
@@ -383,6 +419,7 @@ export async function calcularSugestaoProduto(
     loteMinimo?: number;
     multiploEmbalagem?: number;
   } = {},
+  companyId?: number,
 ): Promise<ProductSuggestion | null> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const now = new Date();
@@ -390,6 +427,7 @@ export async function calcularSugestaoProduto(
   const dataInicio = new Date(now.getTime() - cfg.periodoAnalise * 86400000)
     .toISOString()
     .split("T")[0];
+  const coCl = companyClause(companyId);
 
   const [row, estoqueRow] = await Promise.all([
     pgGet<{ IDPRODUTO: string; FABRICANTE: string; total_vendido: number }>(
@@ -397,9 +435,9 @@ export async function calcularSugestaoProduto(
               COALESCE(SUM("QTD"), 0) as total_vendido
        FROM cache_campanhas
        WHERE "IDPRODUTO" = ?
-         AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
+         AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?${coCl.sql}
        GROUP BY "IDPRODUTO", "FABRICANTE"`,
-      [produtoId, dataInicio, dataFim],
+      [produtoId, dataInicio, dataFim, ...coCl.params],
     ),
     pgGet<{
       DESCRICAO: string;

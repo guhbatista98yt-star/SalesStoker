@@ -154,14 +154,21 @@ async function fetchApi<T>(url: string): Promise<{ data: T; fromApi: boolean }> 
   return { data, fromApi: true };
 }
 
+/* ── helpers ──────────────────────────────────────────────────────── */
+
+function companyParam(companyId?: string): string {
+  if (!companyId || companyId === "all") return "";
+  return `?company_id=${encodeURIComponent(companyId)}`;
+}
+
 /* ── Hooks ────────────────────────────────────────────────────────── */
 
-export function useComprasDashboard() {
+export function useComprasDashboard(companyId?: string) {
   return useQuery<ComprasDashboard>({
-    queryKey: ["compras", "dashboard"],
+    queryKey: ["compras", "dashboard", companyId ?? "all"],
     queryFn: async () => {
       try {
-        const { data } = await fetchApi<Record<string, unknown>>("/api/compras/dashboard");
+        const { data } = await fetchApi<Record<string, unknown>>(`/api/compras/dashboard${companyParam(companyId)}`);
         return adaptDashboard(data);
       } catch {
         return mockDashboard;
@@ -188,12 +195,12 @@ export function useComprasAlertas() {
   });
 }
 
-export function useComprasFornecedores() {
+export function useComprasFornecedores(companyId?: string) {
   return useQuery<FornecedorRanking[]>({
-    queryKey: ["compras", "fornecedores"],
+    queryKey: ["compras", "fornecedores", companyId ?? "all"],
     queryFn: async () => {
       try {
-        const { data } = await fetchApi<BackendFornecedorItem[]>("/api/compras/fornecedores");
+        const { data } = await fetchApi<BackendFornecedorItem[]>(`/api/compras/fornecedores${companyParam(companyId)}`);
         return data.map(adaptFornecedorRanking);
       } catch {
         return mockFornecedores;
@@ -204,12 +211,12 @@ export function useComprasFornecedores() {
   });
 }
 
-export function useComprasProdutos() {
+export function useComprasProdutos(companyId?: string) {
   return useQuery<ProdutoCritico[]>({
-    queryKey: ["compras", "produtos"],
+    queryKey: ["compras", "produtos", companyId ?? "all"],
     queryFn: async () => {
       try {
-        const { data } = await fetchApi<BackendProdutoItem[]>("/api/compras/produtos");
+        const { data } = await fetchApi<BackendProdutoItem[]>(`/api/compras/produtos${companyParam(companyId)}`);
         return data.map(adaptProdutoCritico);
       } catch {
         return mockProdutos;
@@ -231,12 +238,12 @@ interface BackendProductSuggestion {
   consumoMedioDiario: number;
 }
 
-export function useComprasSugestoes() {
+export function useComprasSugestoes(companyId?: string) {
   return useQuery<SugestaoFornecedor[]>({
-    queryKey: ["compras", "sugestoes"],
+    queryKey: ["compras", "sugestoes", companyId ?? "all"],
     queryFn: async () => {
       try {
-        const { data } = await fetchApi<BackendProductSuggestion[]>("/api/compras/sugestoes");
+        const { data } = await fetchApi<BackendProductSuggestion[]>(`/api/compras/sugestoes${companyParam(companyId)}`);
         const urgenciaOrder: Record<string, number> = { critica: 0, alta: 1, media: 2, baixa: 3, ok: 4 };
         const fabricantesMap = new Map<string, { itens: number; urgenciaMaxima: string; criticidade: number }>();
         for (const s of data) {
@@ -270,9 +277,9 @@ export function useComprasSugestoes() {
   });
 }
 
-export function useComprasFornecedorDetalhe(id: string) {
+export function useComprasFornecedorDetalhe(id: string, companyId?: string) {
   return useQuery<FornecedorDetalhe>({
-    queryKey: ["compras", "fornecedores", id],
+    queryKey: ["compras", "fornecedores", id, companyId ?? "all"],
     queryFn: async () => {
       try {
         const fabricante = decodeURIComponent(id);
@@ -281,7 +288,7 @@ export function useComprasFornecedorDetalhe(id: string) {
           ranking: BackendFornecedorItem | null;
           produtos: BackendProdutoItem[];
           alertas: unknown[];
-        }>(`/api/compras/fornecedores/${encodeURIComponent(fabricante)}`);
+        }>(`/api/compras/fornecedores/${encodeURIComponent(fabricante)}${companyParam(companyId)}`);
 
         const rank = data.ranking;
         const produtos = (data.produtos ?? []).map(adaptProdutoCritico);
@@ -316,9 +323,9 @@ export function useComprasFornecedorDetalhe(id: string) {
   });
 }
 
-export function useComprasProdutoDetalhe(id: string) {
+export function useComprasProdutoDetalhe(id: string, companyId?: string) {
   return useQuery<ProdutoDetalhe>({
-    queryKey: ["compras", "produtos", id],
+    queryKey: ["compras", "produtos", id, companyId ?? "all"],
     queryFn: async () => {
       try {
         const { data } = await fetchApi<{
@@ -343,7 +350,7 @@ export function useComprasProdutoDetalhe(id: string) {
           } | null;
           historico: { periodo: string; total_vendido: number }[];
           alertas: unknown[];
-        }>(`/api/compras/produtos/${encodeURIComponent(id)}`);
+        }>(`/api/compras/produtos/${encodeURIComponent(id)}${companyParam(companyId)}`);
 
         const s = data.sugestao;
         if (!s) throw new Error("Produto não encontrado");

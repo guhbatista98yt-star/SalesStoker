@@ -70,25 +70,22 @@ export interface ProdutoRankingItem {
   estoqueAtual: number;
 }
 
-async function getSugestoesComConfig(): Promise<ProductSuggestion[]> {
+async function getEngineConfig(): Promise<Partial<SuggestionEngineConfig>> {
   const config = await pgGet<{ valor: string }>(
     `SELECT valor FROM purchase_settings WHERE chave = 'engine_config'`,
   );
-
-  let engineCfg: Partial<SuggestionEngineConfig> = {};
   if (config?.valor) {
-    try {
-      engineCfg = JSON.parse(config.valor);
-    } catch {
-      /* usa padrão */
-    }
+    try { return JSON.parse(config.valor); } catch { /* usa padrão */ }
   }
-
-  return calcularTodasSugestoes(engineCfg);
+  return {};
 }
 
-export async function getDashboardKPIs(): Promise<ComprasDashboardKPIs> {
-  const sugestoes = await getSugestoesComConfig();
+async function getSugestoesComConfig(companyId?: number): Promise<ProductSuggestion[]> {
+  return calcularTodasSugestoes(await getEngineConfig(), companyId);
+}
+
+export async function getDashboardKPIs(companyId?: number): Promise<ComprasDashboardKPIs> {
+  const sugestoes = await getSugestoesComConfig(companyId);
 
   const alertasAtivos = await pgGet<{ total: number }>(
     `SELECT COUNT(*) as total FROM purchase_alerts WHERE status NOT IN ('resolvido', 'silenciado')`,
@@ -160,8 +157,8 @@ export async function getDashboardKPIs(): Promise<ComprasDashboardKPIs> {
   };
 }
 
-export async function getRankingFornecedores(): Promise<FornecedorRankingItem[]> {
-  const sugestoes = await getSugestoesComConfig();
+export async function getRankingFornecedores(companyId?: number): Promise<FornecedorRankingItem[]> {
+  const sugestoes = await getSugestoesComConfig(companyId);
 
   const fabricantesMap = new Map<string, ProductSuggestion[]>();
   for (const s of sugestoes) {
@@ -203,25 +200,13 @@ export async function getRankingFornecedores(): Promise<FornecedorRankingItem[]>
   return ranking.sort((a, b) => b.criticidadeMedia - a.criticidadeMedia);
 }
 
-export async function getDetalheFornecedor(fabricante: string): Promise<{
+export async function getDetalheFornecedor(fabricante: string, companyId?: number): Promise<{
   fabricante: string;
   ranking: FornecedorRankingItem | null;
   produtos: ProdutoRankingItem[];
   alertas: any[];
 }> {
-  const config = await pgGet<{ valor: string }>(
-    `SELECT valor FROM purchase_settings WHERE chave = 'engine_config'`,
-  );
-  let engineCfg: Partial<SuggestionEngineConfig> = {};
-  if (config?.valor) {
-    try {
-      engineCfg = JSON.parse(config.valor);
-    } catch {
-      /* usa padrão */
-    }
-  }
-
-  const sugestoes = await calcularSugestoesPorFornecedor(fabricante, engineCfg);
+  const sugestoes = await calcularSugestoesPorFornecedor(fabricante, await getEngineConfig(), companyId);
   const alertas = await pgAll<any>(
     `SELECT * FROM purchase_alerts
      WHERE reference_key = ? AND status NOT IN ('resolvido', 'silenciado')
@@ -285,8 +270,9 @@ export async function getDetalheFornecedor(fabricante: string): Promise<{
 
 export async function getRankingProdutos(
   filtros: { urgencia?: string; fabricante?: string } = {},
+  companyId?: number,
 ): Promise<ProdutoRankingItem[]> {
-  const sugestoes = await getSugestoesComConfig();
+  const sugestoes = await getSugestoesComConfig(companyId);
 
   let filtered = sugestoes;
   if (filtros.urgencia) filtered = filtered.filter((s) => s.urgencia === filtros.urgencia);
@@ -308,12 +294,12 @@ export async function getRankingProdutos(
     }));
 }
 
-export async function getDetalheProduto(produtoId: string): Promise<{
+export async function getDetalheProduto(produtoId: string, companyId?: number): Promise<{
   sugestao: ProductSuggestion | null;
   alertas: any[];
   historico: any[];
 }> {
-  const sugestao = await calcularSugestaoProduto(produtoId);
+  const sugestao = await calcularSugestaoProduto(produtoId, await getEngineConfig(), {}, companyId);
   const alertas = await pgAll<any>(
     `SELECT * FROM purchase_alerts
      WHERE reference_key = ? AND status NOT IN ('resolvido', 'silenciado')
@@ -342,8 +328,9 @@ export async function getDetalheProduto(produtoId: string): Promise<{
 
 export async function getSugestoes(
   filtros: { urgencia?: string; fabricante?: string } = {},
+  companyId?: number,
 ): Promise<ProductSuggestion[]> {
-  const sugestoes = await getSugestoesComConfig();
+  const sugestoes = await getSugestoesComConfig(companyId);
 
   let filtered = sugestoes.filter((s) => s.quantidadeSugerida > 0 || s.urgencia !== "ok");
   if (filtros.urgencia) filtered = filtered.filter((s) => s.urgencia === filtros.urgencia);
@@ -354,19 +341,9 @@ export async function getSugestoes(
 
 export async function getSugestoesPorFornecedor(
   fabricante: string,
+  companyId?: number,
 ): Promise<ProductSuggestion[]> {
-  const config = await pgGet<{ valor: string }>(
-    `SELECT valor FROM purchase_settings WHERE chave = 'engine_config'`,
-  );
-  let engineCfg: Partial<SuggestionEngineConfig> = {};
-  if (config?.valor) {
-    try {
-      engineCfg = JSON.parse(config.valor);
-    } catch {
-      /* usa padrão */
-    }
-  }
-  return calcularSugestoesPorFornecedor(fabricante, engineCfg);
+  return calcularSugestoesPorFornecedor(fabricante, await getEngineConfig(), companyId);
 }
 
 export interface SimulacaoResultado {

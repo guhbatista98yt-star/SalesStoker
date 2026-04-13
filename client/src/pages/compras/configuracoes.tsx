@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useComprasCompany } from "./use-company";
+import { CompanySelector } from "@/components/dashboard/company-selector";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -968,6 +970,9 @@ function LoadingState({ label }: { label: string }) {
 export default function ComprasConfiguracoes() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { companyId, setCompanyId, companies, companiesLoading } = useComprasCompany();
+
+  const cParam = companyId && companyId !== "all" ? `?company_id=${encodeURIComponent(companyId)}` : "";
 
   const [fornecedorEditando, setFornecedorEditando] = useState<FornecedorConfig | null>(null);
   const [produtoEditando, setProdutoEditando] = useState<ProdutoConfig | null>(null);
@@ -976,9 +981,9 @@ export default function ComprasConfiguracoes() {
 
   /* ── Queries ──────────────────────────────────────────────────── */
   const { data: fornecedores = [], isLoading: loadingF } = useQuery<FornecedorConfig[]>({
-    queryKey: ["/api/compras/fornecedores-config"],
+    queryKey: ["/api/compras/fornecedores-config", companyId],
     queryFn: async () => {
-      const res = await fetch("/api/compras/fornecedores-config", { credentials: "include" });
+      const res = await fetch(`/api/compras/fornecedores-config${cParam}`, { credentials: "include" });
       if (!res.ok) throw new Error("Erro ao carregar fornecedores");
       return res.json();
     },
@@ -986,9 +991,9 @@ export default function ComprasConfiguracoes() {
   });
 
   const { data: produtos = [], isLoading: loadingP } = useQuery<ProdutoConfig[]>({
-    queryKey: ["/api/compras/produtos-config"],
+    queryKey: ["/api/compras/produtos-config", companyId],
     queryFn: async () => {
-      const res = await fetch("/api/compras/produtos-config", { credentials: "include" });
+      const res = await fetch(`/api/compras/produtos-config${cParam}`, { credentials: "include" });
       if (!res.ok) throw new Error("Erro ao carregar produtos");
       return res.json();
     },
@@ -998,7 +1003,7 @@ export default function ComprasConfiguracoes() {
   /* ── Sync ERP mutation ─────────────────────────────────────────── */
   const syncFornecedores = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/compras/fornecedores-config/sync", {
+      const res = await fetch(`/api/compras/fornecedores-config/sync${cParam}`, {
         method: "POST",
         credentials: "include",
       });
@@ -1024,7 +1029,7 @@ export default function ComprasConfiguracoes() {
   const saveFornecedor = useMutation({
     mutationFn: async (data: FornecedorConfig) => {
       const res = await fetch(
-        `/api/compras/fornecedores-config/${encodeURIComponent(data.fabricante_nome)}`,
+        `/api/compras/fornecedores-config/${encodeURIComponent(data.fabricante_nome)}${cParam}`,
         { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }
       );
       if (!res.ok) throw new Error("Erro ao salvar fornecedor");
@@ -1041,7 +1046,7 @@ export default function ComprasConfiguracoes() {
   const saveProduto = useMutation({
     mutationFn: async (data: ProdutoConfig) => {
       const res = await fetch(
-        `/api/compras/produtos-config/${encodeURIComponent(data.produto_id)}/${encodeURIComponent(data.fornecedor_nome)}`,
+        `/api/compras/produtos-config/${encodeURIComponent(data.produto_id)}/${encodeURIComponent(data.fornecedor_nome)}${cParam}`,
         { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }
       );
       if (!res.ok) throw new Error("Erro ao salvar produto");
@@ -1091,7 +1096,14 @@ export default function ComprasConfiguracoes() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <CompanySelector
+                companies={companies}
+                selectedId={companyId}
+                onChange={setCompanyId}
+                loading={companiesLoading}
+                compact
+              />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

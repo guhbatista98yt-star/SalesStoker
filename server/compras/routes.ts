@@ -81,9 +81,16 @@ router.get("/sse", async (req: AuthRequest, res) => {
 // BI Dashboard
 // ---------------------------------------------------------------------------
 
+function parseCompanyId(req: AuthRequest): number | undefined {
+  const raw = req.query.company_id as string | undefined;
+  if (!raw) return undefined;
+  const n = parseInt(raw, 10);
+  return isNaN(n) || n <= 0 ? undefined : n;
+}
+
 router.get("/dashboard", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const kpis = await service.getDashboardKPIs();
+    const kpis = await service.getDashboardKPIs(parseCompanyId(req));
     res.json(kpis);
   } catch (err: any) {
     console.error("[compras/dashboard]", err);
@@ -97,7 +104,7 @@ router.get("/dashboard", isAuthenticated, async (req: AuthRequest, res) => {
 
 router.get("/fornecedores", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const ranking = await service.getRankingFornecedores();
+    const ranking = await service.getRankingFornecedores(parseCompanyId(req));
     res.json(ranking);
   } catch (err: any) {
     console.error("[compras/fornecedores]", err);
@@ -108,7 +115,7 @@ router.get("/fornecedores", isAuthenticated, async (req: AuthRequest, res) => {
 router.get("/fornecedores/:id", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     const fabricante = decodeURIComponent(String(req.params.id));
-    const detalhe = await service.getDetalheFornecedor(fabricante);
+    const detalhe = await service.getDetalheFornecedor(fabricante, parseCompanyId(req));
     res.json(detalhe);
   } catch (err: any) {
     console.error("[compras/fornecedores/:id]", err);
@@ -122,10 +129,13 @@ router.get("/fornecedores/:id", isAuthenticated, async (req: AuthRequest, res) =
 
 router.get("/produtos", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const ranking = await service.getRankingProdutos({
-      urgencia: req.query.urgencia as string | undefined,
-      fabricante: req.query.fabricante as string | undefined,
-    });
+    const ranking = await service.getRankingProdutos(
+      {
+        urgencia: req.query.urgencia as string | undefined,
+        fabricante: req.query.fabricante as string | undefined,
+      },
+      parseCompanyId(req),
+    );
     res.json(ranking);
   } catch (err: any) {
     console.error("[compras/produtos]", err);
@@ -136,7 +146,7 @@ router.get("/produtos", isAuthenticated, async (req: AuthRequest, res) => {
 router.get("/produtos/:id", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     const produtoId = decodeURIComponent(String(req.params.id));
-    const detalhe = await service.getDetalheProduto(produtoId);
+    const detalhe = await service.getDetalheProduto(produtoId, parseCompanyId(req));
     res.json(detalhe);
   } catch (err: any) {
     console.error("[compras/produtos/:id]", err);
@@ -150,10 +160,13 @@ router.get("/produtos/:id", isAuthenticated, async (req: AuthRequest, res) => {
 
 router.get("/sugestoes", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const sugestoes = await service.getSugestoes({
-      urgencia: req.query.urgencia as string | undefined,
-      fabricante: req.query.fabricante as string | undefined,
-    });
+    const sugestoes = await service.getSugestoes(
+      {
+        urgencia: req.query.urgencia as string | undefined,
+        fabricante: req.query.fabricante as string | undefined,
+      },
+      parseCompanyId(req),
+    );
     res.json(sugestoes);
   } catch (err: any) {
     console.error("[compras/sugestoes]", err);
@@ -164,7 +177,7 @@ router.get("/sugestoes", isAuthenticated, async (req: AuthRequest, res) => {
 router.get("/sugestoes/fornecedor/:id", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     const fabricante = decodeURIComponent(String(req.params.id));
-    const sugestoes = await service.getSugestoesPorFornecedor(fabricante);
+    const sugestoes = await service.getSugestoesPorFornecedor(fabricante, parseCompanyId(req));
     res.json(sugestoes);
   } catch (err: any) {
     console.error("[compras/sugestoes/fornecedor/:id]", err);
@@ -594,16 +607,22 @@ router.post("/fornecedores-config/sync", isAuthenticated, isAdmin, async (req: A
 
 router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res) => {
   try {
+    const companyId = parseCompanyId(req);
     // Primary source: compras_fornecedores_config (populated by sync).
     // Augment with ERP movement data from both cache tables.
     const [configs, movimentosCampanhas, estoqueFabricantes, excecoesPorForn] = await Promise.all([
-      pgAll<Record<string, unknown>>(`SELECT * FROM compras_fornecedores_config ORDER BY fabricante_nome`),
+      pgAll<Record<string, unknown>>(
+        companyId
+          ? `SELECT * FROM compras_fornecedores_config WHERE company_id = ? ORDER BY fabricante_nome`
+          : `SELECT * FROM compras_fornecedores_config ORDER BY fabricante_nome`,
+        companyId ? [companyId] : [],
+      ),
       pgAll<{ fabricante: string; ultimo_movimento: string; total_skus: number }>(
         `SELECT "FABRICANTE" as fabricante,
                 MAX("DTMOVIMENTO") as ultimo_movimento,
                 COUNT(DISTINCT "IDPRODUTO") as total_skus
          FROM cache_campanhas
-         WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != ''
+         WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != ''${companyId ? ` AND ("IDEMPRESA" = '${companyId}' OR "IDEMPRESA" = '')` : ""}
          GROUP BY "FABRICANTE"`
       ).catch(() => [] as { fabricante: string; ultimo_movimento: string; total_skus: number }[]),
       pgAll<{ fabricante: string; total_skus: number }>(
@@ -614,9 +633,10 @@ router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res
          GROUP BY "FABRICANTE"`
       ).catch(() => [] as { fabricante: string; total_skus: number }[]),
       pgAll<{ fornecedor_nome: string; total_excecoes: number }>(
-        `SELECT fornecedor_nome, COUNT(*) as total_excecoes
-         FROM compras_produtos_config
-         GROUP BY fornecedor_nome`
+        companyId
+          ? `SELECT fornecedor_nome, COUNT(*) as total_excecoes FROM compras_produtos_config WHERE company_id = ? GROUP BY fornecedor_nome`
+          : `SELECT fornecedor_nome, COUNT(*) as total_excecoes FROM compras_produtos_config GROUP BY fornecedor_nome`,
+        companyId ? [companyId] : [],
       ).catch(() => [] as { fornecedor_nome: string; total_excecoes: number }[]),
     ]);
 
@@ -689,6 +709,7 @@ router.get("/fornecedores-config", isAuthenticated, async (req: AuthRequest, res
 router.put("/fornecedores-config/:fabricante", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const fabricante = decodeURIComponent(String(req.params.fabricante));
+    const companyId = parseCompanyId(req);
     const {
       codigo, razao_social, nome_fantasia, ativo,
       periodo_compra_dias, lead_time_dias, pedido_minimo_valor, observacoes,
@@ -696,7 +717,10 @@ router.put("/fornecedores-config/:fabricante", isAuthenticated, isAdmin, async (
 
     const now = new Date().toISOString();
     const existing = await pgGet<{ id: string }>(
-      `SELECT id FROM compras_fornecedores_config WHERE fabricante_nome = ?`, [fabricante]
+      companyId
+        ? `SELECT id FROM compras_fornecedores_config WHERE fabricante_nome = ? AND company_id = ?`
+        : `SELECT id FROM compras_fornecedores_config WHERE fabricante_nome = ?`,
+      companyId ? [fabricante, companyId] : [fabricante],
     );
 
     if (existing) {
@@ -705,23 +729,23 @@ router.put("/fornecedores-config/:fabricante", isAuthenticated, isAdmin, async (
            codigo = ?, razao_social = ?, nome_fantasia = ?, ativo = ?,
            periodo_compra_dias = ?, lead_time_dias = ?, pedido_minimo_valor = ?,
            observacoes = ?, updated_at = ?
-         WHERE fabricante_nome = ?`,
+         WHERE fabricante_nome = ?${companyId ? " AND company_id = ?" : ""}`,
         [
           String(codigo ?? ""), String(razao_social ?? ""), String(nome_fantasia ?? ""),
           ativo !== false ? 1 : 0,
           Number(periodo_compra_dias ?? 30), Number(lead_time_dias ?? 7),
           Number(pedido_minimo_valor ?? 0), String(observacoes ?? ""),
-          now, fabricante,
+          now, fabricante, ...(companyId ? [companyId] : []),
         ]
       );
     } else {
       await pgRun(
         `INSERT INTO compras_fornecedores_config
-           (id, fabricante_nome, codigo, razao_social, nome_fantasia, ativo,
+           (id, company_id, fabricante_nome, codigo, razao_social, nome_fantasia, ativo,
             periodo_compra_dias, lead_time_dias, pedido_minimo_valor, observacoes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          randomUUID(), fabricante,
+          randomUUID(), companyId ?? 1, fabricante,
           String(codigo ?? ""), String(razao_social ?? ""), String(nome_fantasia ?? ""),
           ativo !== false ? 1 : 0,
           Number(periodo_compra_dias ?? 30), Number(lead_time_dias ?? 7),
@@ -745,6 +769,7 @@ router.put("/fornecedores-config/:fabricante", isAuthenticated, isAdmin, async (
 router.get("/produtos-config", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     const { fabricante } = req.query as { fabricante?: string };
+    const companyId = parseCompanyId(req);
 
     let where = `WHERE "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''`;
     const params: unknown[] = [];
@@ -752,6 +777,25 @@ router.get("/produtos-config", isAuthenticated, async (req: AuthRequest, res) =>
       where += ` AND "FABRICANTE" = ?`;
       params.push(fabricante);
     }
+    if (companyId) {
+      where += ` AND ("IDEMPRESA" = ? OR "IDEMPRESA" = '')`;
+      params.push(String(companyId));
+    }
+
+    const configWhere = fabricante && companyId
+      ? `WHERE fornecedor_nome = ? AND company_id = ?`
+      : fabricante
+        ? `WHERE fornecedor_nome = ?`
+        : companyId
+          ? `WHERE company_id = ?`
+          : ``;
+    const configParams: unknown[] = fabricante && companyId
+      ? [fabricante, companyId]
+      : fabricante
+        ? [fabricante]
+        : companyId
+          ? [companyId]
+          : [];
 
     const [produtos, configs, ultimasCompras] = await Promise.all([
       pgAll<{ IDPRODUTO: string; FABRICANTE: string; nome_produto: string; total_vendido: number }>(
@@ -765,10 +809,8 @@ router.get("/produtos-config", isAuthenticated, async (req: AuthRequest, res) =>
         params
       ),
       pgAll<Record<string, unknown>>(
-        fabricante
-          ? `SELECT * FROM compras_produtos_config WHERE fornecedor_nome = ?`
-          : `SELECT * FROM compras_produtos_config`,
-        fabricante ? [fabricante] : []
+        `SELECT * FROM compras_produtos_config ${configWhere}`,
+        configParams,
       ),
       pgAll<{ IDPRODUTO: string; FABRICANTE: string; ultima_compra: string; ultima_qtd: number }>(
         `SELECT c."IDPRODUTO", c."FABRICANTE",
@@ -820,6 +862,7 @@ router.put("/produtos-config/:produtoId/:fornecedor", isAuthenticated, isAdmin, 
   try {
     const produtoId = decodeURIComponent(String(req.params.produtoId));
     const fornecedorNome = decodeURIComponent(String(req.params.fornecedor));
+    const companyId = parseCompanyId(req);
     const {
       estoque_minimo, estoque_maximo, lote_minimo,
       multiplo_embalagem, giro_periodo_dias, ativo,
@@ -827,8 +870,10 @@ router.put("/produtos-config/:produtoId/:fornecedor", isAuthenticated, isAdmin, 
 
     const now = new Date().toISOString();
     const existing = await pgGet<{ id: string }>(
-      `SELECT id FROM compras_produtos_config WHERE produto_id = ? AND fornecedor_nome = ?`,
-      [produtoId, fornecedorNome]
+      companyId
+        ? `SELECT id FROM compras_produtos_config WHERE produto_id = ? AND fornecedor_nome = ? AND company_id = ?`
+        : `SELECT id FROM compras_produtos_config WHERE produto_id = ? AND fornecedor_nome = ?`,
+      companyId ? [produtoId, fornecedorNome, companyId] : [produtoId, fornecedorNome],
     );
 
     if (existing) {
@@ -836,22 +881,22 @@ router.put("/produtos-config/:produtoId/:fornecedor", isAuthenticated, isAdmin, 
         `UPDATE compras_produtos_config SET
            estoque_minimo = ?, estoque_maximo = ?, lote_minimo = ?,
            multiplo_embalagem = ?, giro_periodo_dias = ?, ativo = ?, updated_at = ?
-         WHERE produto_id = ? AND fornecedor_nome = ?`,
+         WHERE produto_id = ? AND fornecedor_nome = ?${companyId ? " AND company_id = ?" : ""}`,
         [
           Number(estoque_minimo ?? 0), Number(estoque_maximo ?? 0), Number(lote_minimo ?? 1),
           Number(multiplo_embalagem ?? 1), Number(giro_periodo_dias ?? 90),
           ativo !== false ? 1 : 0, now,
-          produtoId, fornecedorNome,
+          produtoId, fornecedorNome, ...(companyId ? [companyId] : []),
         ]
       );
     } else {
       await pgRun(
         `INSERT INTO compras_produtos_config
-           (id, produto_id, fornecedor_nome, estoque_minimo, estoque_maximo,
+           (id, company_id, produto_id, fornecedor_nome, estoque_minimo, estoque_maximo,
             lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          randomUUID(), produtoId, fornecedorNome,
+          randomUUID(), companyId ?? 1, produtoId, fornecedorNome,
           Number(estoque_minimo ?? 0), Number(estoque_maximo ?? 0),
           Number(lote_minimo ?? 1), Number(multiplo_embalagem ?? 1),
           Number(giro_periodo_dias ?? 90), ativo !== false ? 1 : 0,

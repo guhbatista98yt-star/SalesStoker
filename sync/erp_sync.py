@@ -443,20 +443,21 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             (watermark, date_to),
         )
         # Columns: IDVENDEDOR[0] NOMEVENDEDOR[1] IDPRODUTO[2] FABRICANTE[3]
-        #          VALOR_LIQUIDO[4] QTD[5] DTMOVIMENTO[6]
+        #          VALOR_LIQUIDO[4] QTD[5] DTMOVIMENTO[6] IDEMPRESA[7]
         if all_rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 """
                 INSERT INTO cache_campanhas
                   ("IDVENDEDOR","NOMEVENDEDOR","IDPRODUTO","FABRICANTE",
-                   "VALOR_LIQUIDO","QTD","DTMOVIMENTO", synced_at)
+                   "VALOR_LIQUIDO","QTD","DTMOVIMENTO","IDEMPRESA",synced_at)
                 VALUES %s
                 """,
                 [
                     (r[0], r[1], r[2], r[3],
                      _fix_monetary(r[4]), _fix_monetary(r[5]),
-                     r[6], datetime.now(timezone.utc))
+                     r[6], str(r[7]) if len(r) > 7 and r[7] is not None else '',
+                     datetime.now(timezone.utc))
                     for r in all_rows
                 ],
                 page_size=BATCH_SIZE,
