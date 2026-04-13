@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { useComprasFornecedorDetalhe } from "./use-compras";
+import { useComprasCompany } from "./use-company";
 import { CriticidadeBadge, CriticidadeDot } from "./criticidade";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function FornecedorDetalhe({ id }: { id: string }) {
-  const { data: fornecedor, isLoading } = useComprasFornecedorDetalhe(id);
+  const { companyId } = useComprasCompany();
+  const { data: fornecedor, isLoading } = useComprasFornecedorDetalhe(id, companyId !== "all" ? companyId : undefined);
 
   if (isLoading) {
     return (

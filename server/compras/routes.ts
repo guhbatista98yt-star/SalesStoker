@@ -543,14 +543,22 @@ router.put("/configuracoes", isAuthenticated, async (req: AuthRequest, res) => {
  */
 router.post("/fornecedores-config/sync", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
+    const companyId = parseCompanyId(req);
+    const cid = companyId ?? 1;
+
     // Union de cache_campanhas (vendas) + cache_estoque_sugestao (estoque ERP).
     // Funciona mesmo que apenas uma das fontes esteja populada.
+    // cache_campanhas é filtrado por empresa; cache_estoque_sugestao é global (sem IDEMPRESA).
+    const campanhasFilter = companyId
+      ? `AND ("IDEMPRESA" = '${companyId}' OR "IDEMPRESA" = '')`
+      : "";
+
     const fabricantes = await pgAll<{ fabricante_nome: string; total_skus: number }>(
       `SELECT "FABRICANTE" as fabricante_nome, SUM(total_skus) as total_skus
        FROM (
          SELECT "FABRICANTE", COUNT(DISTINCT "IDPRODUTO") as total_skus
          FROM cache_campanhas
-         WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != ''
+         WHERE "FABRICANTE" IS NOT NULL AND "FABRICANTE" != '' ${campanhasFilter}
          GROUP BY "FABRICANTE"
          UNION ALL
          SELECT "FABRICANTE", COUNT(DISTINCT "IDPRODUTO") as total_skus
@@ -564,7 +572,7 @@ router.post("/fornecedores-config/sync", isAuthenticated, isAdmin, async (req: A
 
     if (fabricantes.length === 0) {
       return res.status(400).json({
-        error: "Sem dados de fornecedores. Execute no Windows: python sync/erp_sync.py all",
+        error: "Sem dados de fornecedores. Execute no Windows: python sync/erp_sync.py campanhas && python sync/erp_sync.py estoque_sugestao",
       });
     }
 
@@ -575,24 +583,24 @@ router.post("/fornecedores-config/sync", isAuthenticated, isAdmin, async (req: A
     for (const f of fabricantes) {
       const nome = f.fabricante_nome;
       const existing = await pgGet<{ id: string }>(
-        `SELECT id FROM compras_fornecedores_config WHERE fabricante_nome = ?`,
-        [nome],
+        `SELECT id FROM compras_fornecedores_config WHERE company_id = ? AND fabricante_nome = ?`,
+        [cid, nome],
       );
 
       if (!existing) {
         await pgRun(
           `INSERT INTO compras_fornecedores_config
-             (id, fabricante_nome, codigo, razao_social, nome_fantasia, ativo,
+             (id, company_id, fabricante_nome, codigo, razao_social, nome_fantasia, ativo,
               periodo_compra_dias, lead_time_dias, pedido_minimo_valor, observacoes, created_at, updated_at)
-           VALUES (?, ?, '', '', ?, 1, 30, 7, 0, '', ?, ?)`,
-          [randomUUID(), nome, nome, now, now],
+           VALUES (?, ?, ?, '', '', ?, 1, 30, 7, 0, '', ?, ?)`,
+          [randomUUID(), cid, nome, nome, now, now],
         );
         created++;
       } else {
         // Only bump updated_at — never overwrite user-configured values
         await pgRun(
-          `UPDATE compras_fornecedores_config SET updated_at = ? WHERE fabricante_nome = ?`,
-          [now, nome],
+          `UPDATE compras_fornecedores_config SET updated_at = ? WHERE company_id = ? AND fabricante_nome = ?`,
+          [now, cid, nome],
         );
         updated++;
       }
