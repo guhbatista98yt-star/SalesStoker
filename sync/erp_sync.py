@@ -128,6 +128,40 @@ def pg_connection() -> Generator[psycopg2.extensions.connection, None, None]:
             conn.close()
 
 
+# ─── Schema guard ─────────────────────────────────────────────────────────────
+#
+# Mirrors the column-addition logic in server/schema-bootstrap.ts so the Python
+# sync scripts are self-sufficient even when the Node server hasn't run yet on
+# this machine (e.g. fresh Windows install, CI environment, or manual runs).
+
+_REQUIRED_COLUMNS: list[tuple[str, str, str]] = [
+    # (table, column, definition)
+    ("cache_campanhas",             "IDEMPRESA",  "TEXT NOT NULL DEFAULT ''"),
+    ("cache_estoque_sugestao",      "DESCRICAO",  "TEXT NOT NULL DEFAULT ''"),
+    ("compras_fornecedores_config", "company_id", "INTEGER NOT NULL DEFAULT 1"),
+    ("compras_produtos_config",     "company_id", "INTEGER NOT NULL DEFAULT 1"),
+]
+
+
+def ensure_schema(pg: psycopg2.extensions.connection) -> None:
+    """Adds any missing columns that the Node schema-bootstrap would normally add."""
+    with pg.cursor() as cur:
+        for table, col, definition in _REQUIRED_COLUMNS:
+            cur.execute(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = %s AND column_name = %s
+                """,
+                (table, col),
+            )
+            if cur.fetchone() is None:
+                cur.execute(
+                    f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS "{col}" {definition}'
+                )
+                log.info(f"[schema] Adicionada coluna {table}.{col}")
+    pg.commit()
+
+
 # ─── Job lock helpers ─────────────────────────────────────────────────────────
 
 def _acquire_lock(pg: psycopg2.extensions.connection, routine: str) -> bool:
@@ -679,6 +713,7 @@ def run_routine(name: str) -> None:
     log.info(f"=== Iniciando routine: {name} ===")
 
     with pg_connection() as pg:
+        ensure_schema(pg)
         if not _acquire_lock(pg, name):
             log.warning(f"[{name}] Já está em execução em outro processo — abortando.")
             return

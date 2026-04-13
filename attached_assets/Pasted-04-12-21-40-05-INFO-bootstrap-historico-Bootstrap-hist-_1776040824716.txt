@@ -1,0 +1,36 @@
+04-12 21:40:05 [INFO] bootstrap_historico — === Bootstrap histórico: vendas ===
+2026-04-12 21:40:05 [INFO] bootstrap_historico — [vendas] Bootstrap já concluído. Use --force para reprocessar.
+2026-04-12 21:40:05 [INFO] bootstrap_historico — === Bootstrap histórico: campanhas ===
+2026-04-12 21:40:05 [INFO] bootstrap_historico — [campanhas] Bootstrap já concluído. Use --force para reprocessar.
+2026-04-12 21:40:05 [INFO] bootstrap_historico — === Bootstrap histórico: tubos ===
+2026-04-12 21:40:05 [INFO] bootstrap_historico — [tubos] Bootstrap já concluído. Use --force para reprocessar.
+A sintaxe do nome do arquivo, do nome do diretório ou do rótulo do volume está incorreta.
+2026-04-12 21:40:05 [INFO] erp_sync — === Iniciando routine: vendas ===
+2026-04-12 21:40:06 [INFO] erp_sync — [cache_vendas] Sync incremental desde: 2026-04-09
+2026-04-12 21:40:07 [INFO] erp_sync — [cache_vendas] Consulta DB2 executada. Lendo em lotes de 2000…
+2026-04-12 21:40:07 [INFO] erp_sync — [cache_vendas] 3546 linhas lidas do DB2. Gravando no PostgreSQL…
+2026-04-12 21:40:07 [INFO] erp_sync — [cache_vendas] Concluído — lidas: 3546, gravadas: 3546
+2026-04-12 21:40:07 [INFO] erp_sync — === Routine vendas concluída em 1s ===
+2026-04-12 21:40:07 [INFO] erp_sync — === Iniciando routine: campanhas ===
+2026-04-12 21:40:08 [ERROR] erp_sync — [campanhas] Falha durante a sincronização
+Traceback (most recent call last):
+  File "C:\Users\Micro\Documents\SalesStoker\sync\erp_sync.py", line 692, in run_routine
+    records_read, records_written = fn(pg)
+                                    ~~^^^^
+  File "C:\Users\Micro\Documents\SalesStoker\sync\erp_sync.py", line 448, in sync_campanhas
+    psycopg2.extras.execute_values(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pgcur,
+        ^^^^^^
+    ...<13 lines>...
+        page_size=BATCH_SIZE,
+        ^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Micro\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\psycopg2\extras.py", line 1299, in execute_values
+    cur.execute(b''.join(parts))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+psycopg2.errors.UndefinedColumn: ERRO:  coluna "IDEMPRESA" da relação "cache_campanhas" não existe
+LINE 4: ...              "VALOR_LIQUIDO","QTD","DTMOVIMENTO","IDEMPRESA...
+                                                             ^
+
