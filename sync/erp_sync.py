@@ -760,7 +760,7 @@ def sync_fornecedores_config(pg: psycopg2.extensions.connection) -> tuple[int, i
                       (id, company_id, fabricante_nome, codigo, razao_social,
                        nome_fantasia, ativo, periodo_compra_dias, lead_time_dias,
                        pedido_minimo_valor, observacoes, created_at, updated_at)
-                    VALUES (%s, %s, %s, '', '', %s, true, 30, 7, 0, '', %s, %s)
+                    VALUES (%s, %s, %s, '', '', %s, 1, 30, 7, 0, '', %s, %s)
                     """,
                     (str(uuid.uuid4()), company_id, fabricante, fabricante, now, now),
                 )

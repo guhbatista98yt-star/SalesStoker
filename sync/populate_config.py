@@ -75,7 +75,7 @@ INSERT INTO compras_fornecedores_config
   (id, company_id, fabricante_nome, codigo, razao_social,
    nome_fantasia, ativo, periodo_compra_dias, lead_time_dias,
    pedido_minimo_valor, observacoes, created_at, updated_at)
-VALUES (%s, %s, %s, '', '', %s, true, 30, 7, 0, '', %s, %s)
+VALUES (%s, %s, %s, '', '', %s, 1, 30, 7, 0, '', %s, %s)
 """
 
 
