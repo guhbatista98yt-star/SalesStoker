@@ -68,7 +68,7 @@ BATCH_SIZE = 2_000
 MAX_CACHE_DAYS = 730
 
 # Lock expiry: if a lock is older than this, treat it as stale
-LOCK_TTL_SECONDS = 3600
+LOCK_TTL_SECONDS = 900  # 15 minutes — reduced from 3600 so failed runs don't block for an hour
 
 
 logging.basicConfig(
@@ -708,12 +708,15 @@ ROUTINES: dict[str, Any] = {
 }
 
 
-def run_routine(name: str) -> None:
+def run_routine(name: str, force: bool = False) -> None:
     started = datetime.now(timezone.utc)
-    log.info(f"=== Iniciando routine: {name} ===")
+    log.info(f"=== Iniciando routine: {name}{' (--force)' if force else ''} ===")
 
     with pg_connection() as pg:
         ensure_schema(pg)
+        if force:
+            _release_lock(pg, name)
+            log.info(f"[{name}] Lock liberado por --force")
         if not _acquire_lock(pg, name):
             log.warning(f"[{name}] Já está em execução em outro processo — abortando.")
             return
@@ -786,13 +789,18 @@ def main() -> None:
         choices=list(ROUTINES.keys()) + ["all"],
         help="Rotina a executar",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignora e libera o lock existente antes de executar (útil após falhas)",
+    )
     args = parser.parse_args()
 
     if args.routine == "all":
         for name in ROUTINES:
-            run_routine(name)
+            run_routine(name, force=args.force)
     else:
-        run_routine(args.routine)
+        run_routine(args.routine, force=args.force)
 
 
 if __name__ == "__main__":
