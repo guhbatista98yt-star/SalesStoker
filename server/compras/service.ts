@@ -316,7 +316,7 @@ export async function getDetalheProduto(produtoId: string): Promise<{
   const sugestao = await calcularSugestaoProduto(produtoId);
   const alertas = await pgAll<any>(
     `SELECT * FROM purchase_alerts
-     WHERE produto_id = ? AND status NOT IN ('resolvido', 'silenciado')
+     WHERE reference_key = ? AND status NOT IN ('resolvido', 'silenciado')
      ORDER BY created_at DESC`,
     [produtoId],
   );

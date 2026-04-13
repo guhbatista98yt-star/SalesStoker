@@ -609,7 +609,7 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
 
     Columns written:
       IDPRODUTO, FABRICANTE, SALDO_ATUAL, QTDRESERVA, SALDO_DISPONIVEL,
-      QTDREPOSICAO, DTULT_COMPRA, VAL_UNITARIO, QTDPENDENTE
+      QTDREPOSICAO, DTULT_COMPRA, VAL_UNITARIO, QTDPENDENTE, DESCRICAO
     """
     routine = "cache_estoque_sugestao"
     total_read, total_written = 0, 0
@@ -633,6 +633,7 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
                   ("IDPRODUTO","FABRICANTE",
                    "SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
                    "QTDREPOSICAO","DTULT_COMPRA","VAL_UNITARIO","QTDPENDENTE",
+                   "DESCRICAO",
                    synced_at)
                 VALUES %s
                 """,
@@ -646,6 +647,7 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
                         r[6],                  # DTULT_COMPRA (date or None)
                         _fix_monetary(r[7]),   # VAL_UNITARIO
                         _fix_monetary(r[8]),   # QTDPENDENTE
+                        str(r[9]) if r[9] else "",  # DESCRICAO
                         datetime.now(timezone.utc),
                     )
                     for r in all_rows

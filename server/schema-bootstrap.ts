@@ -633,6 +633,8 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["users", "created_by",     "INTEGER"],
     // Vendor visibility — per-role restriction
     ["vendor_display_settings", "allowed_roles", "TEXT NOT NULL DEFAULT ''"],
+    // cache_estoque_sugestao — product description from ERP
+    ["cache_estoque_sugestao", "DESCRICAO", "TEXT NOT NULL DEFAULT ''"],
   ];
 
   for (const [table, col, def] of migrations) {

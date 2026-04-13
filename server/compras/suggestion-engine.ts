@@ -161,11 +161,11 @@ export async function calcularSugestoesPorFornecedor(
       [fabricante],
     ).catch(() => [] as ProdutoConfig[]),
     pgAll<{
-      IDPRODUTO: string; FABRICANTE: string;
+      IDPRODUTO: string; FABRICANTE: string; DESCRICAO: string;
       SALDO_ATUAL: number; QTDRESERVA: number; SALDO_DISPONIVEL: number;
       QTDREPOSICAO: number; DTULT_COMPRA: string | null; VAL_UNITARIO: number; QTDPENDENTE: number;
     }>(
-      `SELECT "IDPRODUTO","FABRICANTE","SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
+      `SELECT "IDPRODUTO","FABRICANTE","DESCRICAO","SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
               "QTDREPOSICAO","DTULT_COMPRA","VAL_UNITARIO","QTDPENDENTE"
        FROM cache_estoque_sugestao WHERE "FABRICANTE" = ?`,
       [fabricante],
@@ -229,6 +229,7 @@ export async function calcularSugestoesPorFornecedor(
     const ultima   = ultimaMap.get(row.IDPRODUTO);
     const est      = estoqueMap.get(row.IDPRODUTO);
     return buildSuggestion(row, { ...cfg, periodoAnalise }, dataFim, {
+      produtoNome:      est?.DESCRICAO || undefined,
       leadTimeDias:     fornConf ? Number(fornConf.lead_time_dias)     : cfg.leadTimePadrao,
       coberturaAlvoDias: fornConf ? Number(fornConf.periodo_compra_dias) : cfg.coberturaAlvoDias,
       estoqueSeguranca: prodConf ? Number(prodConf.estoque_minimo)     : cfg.estoqueSegurancaPadrao,
@@ -264,11 +265,11 @@ export async function calcularTodasSugestoes(
       `SELECT produto_id, fornecedor_nome, estoque_minimo, estoque_maximo, lote_minimo, multiplo_embalagem, giro_periodo_dias, ativo FROM compras_produtos_config`,
     ).catch(() => [] as ProdutoConfig[]),
     pgAll<{
-      IDPRODUTO: string; FABRICANTE: string;
+      IDPRODUTO: string; FABRICANTE: string; DESCRICAO: string;
       SALDO_ATUAL: number; QTDRESERVA: number; SALDO_DISPONIVEL: number;
       QTDREPOSICAO: number; DTULT_COMPRA: string | null; VAL_UNITARIO: number; QTDPENDENTE: number;
     }>(
-      `SELECT "IDPRODUTO","FABRICANTE","SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
+      `SELECT "IDPRODUTO","FABRICANTE","DESCRICAO","SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
               "QTDREPOSICAO","DTULT_COMPRA","VAL_UNITARIO","QTDPENDENTE"
        FROM cache_estoque_sugestao`,
     ).catch(() => []),
@@ -351,6 +352,7 @@ export async function calcularTodasSugestoes(
       const cfgScaled = { ...cfg, periodoAnalise };
 
       return buildSuggestion(rowScaled, cfgScaled, dataFim, {
+        produtoNome:      est?.DESCRICAO || undefined,
         leadTimeDias:     fornConf ? Number(fornConf.lead_time_dias)     : cfg.leadTimePadrao,
         coberturaAlvoDias: fornConf ? Number(fornConf.periodo_compra_dias) : cfg.coberturaAlvoDias,
         estoqueSeguranca: prodConf ? Number(prodConf.estoque_minimo)     : cfg.estoqueSegurancaPadrao,
@@ -400,10 +402,11 @@ export async function calcularSugestaoProduto(
       [produtoId, dataInicio, dataFim],
     ),
     pgGet<{
+      DESCRICAO: string;
       SALDO_ATUAL: number; QTDRESERVA: number; SALDO_DISPONIVEL: number;
       QTDREPOSICAO: number; DTULT_COMPRA: string | null; VAL_UNITARIO: number; QTDPENDENTE: number;
     }>(
-      `SELECT "SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
+      `SELECT "DESCRICAO","SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
               "QTDREPOSICAO","DTULT_COMPRA","VAL_UNITARIO","QTDPENDENTE"
        FROM cache_estoque_sugestao WHERE "IDPRODUTO" = ? LIMIT 1`,
       [produtoId],
@@ -414,6 +417,7 @@ export async function calcularSugestaoProduto(
 
   return buildSuggestion(row, cfg, dataFim, {
     ...overrides,
+    produtoNome: estoqueRow?.DESCRICAO || undefined,
     estoqueErp: estoqueRow ? {
       saldoAtual:      Number(estoqueRow.SALDO_ATUAL),
       qtdReserva:      Number(estoqueRow.QTDRESERVA),
@@ -441,6 +445,7 @@ function buildSuggestion(
   cfg: SuggestionEngineConfig,
   dataFim: string,
   overrides: {
+    produtoNome?: string;
     estoqueAtual?: number;
     pedidosAbertos?: number;
     leadTimeDias?: number;
@@ -516,7 +521,7 @@ function buildSuggestion(
 
   return {
     produtoId: row.IDPRODUTO,
-    produtoNome: row.IDPRODUTO,
+    produtoNome: overrides.produtoNome || row.IDPRODUTO,
     fabricante: row.FABRICANTE || "",
 
     consumoMedioDiario: Math.round(consumoMedioDiario * 100) / 100,
