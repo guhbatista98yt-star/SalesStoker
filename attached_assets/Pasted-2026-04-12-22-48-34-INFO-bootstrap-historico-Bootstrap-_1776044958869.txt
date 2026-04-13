@@ -1,0 +1,26 @@
+2026-04-12 22:48:34 [INFO] bootstrap_historico — === Bootstrap histórico: vendas ===
+2026-04-12 22:48:34 [INFO] bootstrap_historico — [vendas] Bootstrap já concluído. Use --force para reprocessar.
+2026-04-12 22:48:34 [INFO] bootstrap_historico — === Bootstrap histórico: campanhas ===
+2026-04-12 22:48:34 [INFO] bootstrap_historico — [campanhas] Bootstrap já concluído. Use --force para reprocessar.
+2026-04-12 22:48:34 [INFO] bootstrap_historico — === Bootstrap histórico: tubos ===
+2026-04-12 22:48:34 [INFO] bootstrap_historico — [tubos] Bootstrap já concluído. Use --force para reprocessar.
+A sintaxe do nome do arquivo, do nome do diretório ou do rótulo do volume está incorreta.
+2026-04-12 22:48:35 [INFO] erp_sync — === Iniciando routine: vendas ===
+2026-04-12 22:48:35 [INFO] erp_sync — [cache_vendas] Sync incremental desde: 2026-04-09
+2026-04-12 22:49:05 [ERROR] erp_sync — [vendas] Falha durante a sincronização
+Traceback (most recent call last):
+  File "C:\Users\Micro\Documents\SalesStoker\sync\erp_sync.py", line 806, in run_routine
+    records_read, records_written = fn(pg)
+                                    ~~^^^^
+  File "C:\Users\Micro\Documents\SalesStoker\sync\erp_sync.py", line 375, in sync_vendas
+    with db2_connection() as db2conn:
+         ~~~~~~~~~~~~~~^^
+  File "C:\Users\Micro\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py", line 141, in __enter__
+    return next(self.gen)
+  File "C:\Users\Micro\Documents\SalesStoker\sync\erp_sync.py", line 98, in db2_connection
+    conn = pyodbc.connect(
+        f"DSN={DB2_DSN};UID={DB2_UID};PWD={DB2_PWD}",
+        autocommit=True,          # no implicit transaction for reads
+        timeout=30,               # connection timeout
+    )
+pyodbc.OperationalError: ('08001', '[08001] [IBM][CLI Driver] SQL30081N  Foi detectado um erro de comunicação. Protocolo de comunicação sendo utilizado: "TCP/IP". API de Comunicação sendo utilizada: "SOCKETS". Localização onde o erro foi detectado: "192.168.1.200". Função de comunicação que está detectando o erro: "selectForConnectTimeout". Código(s) de erro específico(s) de protocolo: "0", "*", "*".  SQLSTATE=08001\r\n (-30081) (SQLDriverConnect)')
