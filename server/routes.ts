@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import type { RankingCriteria } from "@shared/schema";
 import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth";
 import campaignRoutes from "./campaigns/routes";
+import campaignAIRouter from "./campaigns/ai-assistant";
 import { initCampaignTables } from "./campaigns/init";
 import { initCommissionTables } from "./commissions/init";
 import { registerCommissionRoutes } from "./commissions/routes";
@@ -836,6 +837,7 @@ export async function registerRoutes(
   });
 
   app.use("/api/campaigns", campaignRoutes);
+  app.use("/api/campaigns-ai", campaignAIRouter);
 
   // Movimentações por vendedor
   app.get("/api/movimentacoes/:vendedorId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {

@@ -1,0 +1,245 @@
+import { useState, useRef, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sparkles, Send, Loader2, X, CheckCircle2,
+  RotateCcw, ChevronRight, Bot, User,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface AICampaignAssistantProps {
+  onApply: (draft: Record<string, any>) => void;
+  onClose: () => void;
+}
+
+const SUGGESTIONS = [
+  "Campanha do fornecedor Tigre no mês de junho: quem vender 50 unidades ganha R$200",
+  "Ranking de vendas de julho a setembro, top 3 ganham R$500, R$300 e R$150",
+  "Comissão de 2% sobre tudo vendido de conexões em julho",
+  "Campanha mensal recorrente: quem bater R$10.000 em vendas ganha R$100",
+];
+
+export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantProps) {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      content: "Olá! Descreva a campanha que você quer criar e eu monto tudo automaticamente. Pode ser simples ou detalhada — o que fizer sentido para você.\n\nSe eu precisar de alguma informação adicional, vou perguntar.",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [pendingDraft, setPendingDraft] = useState<Record<string, any> | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const chatMutation = useMutation({
+    mutationFn: async (msgs: Message[]) => {
+      const res = await apiRequest("POST", "/api/campaigns-ai/chat", { messages: msgs });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro ao comunicar com IA");
+      }
+      return res.json() as Promise<{ message: string; campaignDraft: Record<string, any> | null }>;
+    },
+    onSuccess: (data) => {
+      const assistantMsg: Message = { role: "assistant", content: data.message };
+      setMessages(prev => [...prev, assistantMsg]);
+      if (data.campaignDraft) {
+        setPendingDraft(data.campaignDraft);
+      }
+    },
+    onError: (e: any) => {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Ocorreu um erro: ${e.message}. Tente novamente.`,
+      }]);
+    },
+  });
+
+  function handleSend(text?: string) {
+    const msg = (text ?? input).trim();
+    if (!msg || chatMutation.isPending) return;
+    const userMsg: Message = { role: "user", content: msg };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput("");
+    setPendingDraft(null);
+    chatMutation.mutate(newMessages);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  function handleReset() {
+    setMessages([{
+      role: "assistant",
+      content: "Conversa reiniciada. Descreva a nova campanha que você quer criar.",
+    }]);
+    setPendingDraft(null);
+    setInput("");
+  }
+
+  function handleApply() {
+    if (pendingDraft) {
+      onApply(pendingDraft);
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-background">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/20 dark:to-blue-950/20">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-full bg-violet-600 flex items-center justify-center">
+            <Sparkles className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Assistente de Campanhas</p>
+            <p className="text-[10px] text-muted-foreground">IA para criar campanhas em linguagem natural</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleReset} title="Recomeçar">
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <ScrollArea className="flex-1 px-4 py-3">
+        <div className="space-y-4 max-w-2xl mx-auto">
+          {messages.map((msg, i) => (
+            <div key={i} className={cn("flex gap-2.5", msg.role === "user" ? "justify-end" : "justify-start")}>
+              {msg.role === "assistant" && (
+                <div className="h-7 w-7 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                </div>
+              )}
+              <div className={cn(
+                "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                msg.role === "user"
+                  ? "bg-violet-600 text-white rounded-tr-sm"
+                  : "bg-muted rounded-tl-sm"
+              )}>
+                {msg.content.split("\n").map((line, j) => (
+                  <span key={j}>
+                    {line}
+                    {j < msg.content.split("\n").length - 1 && <br />}
+                  </span>
+                ))}
+              </div>
+              {msg.role === "user" && (
+                <div className="h-7 w-7 rounded-full bg-violet-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="h-3.5 w-3.5 text-white" />
+                </div>
+              )}
+            </div>
+          ))}
+
+          {chatMutation.isPending && (
+            <div className="flex gap-2.5 justify-start">
+              <div className="h-7 w-7 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
+                <Bot className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+              </div>
+              <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+              </div>
+            </div>
+          )}
+
+          {pendingDraft && !chatMutation.isPending && (
+            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl p-3 flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                  Campanha pronta para configurar!
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
+                  "{pendingDraft.name}" — clique em Aplicar ao Formulário para preencher automaticamente.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="shrink-0 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleApply}
+              >
+                Aplicar ao Formulário <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+      </ScrollArea>
+
+      {/* Suggestions — show only at start */}
+      {messages.length === 1 && (
+        <div className="px-4 pb-2">
+          <p className="text-[10px] text-muted-foreground mb-2 font-medium uppercase tracking-wide">Exemplos</p>
+          <div className="grid grid-cols-1 gap-1.5">
+            {SUGGESTIONS.map((s, i) => (
+              <button
+                key={i}
+                className="text-left text-xs px-3 py-2 rounded-lg bg-muted/60 hover:bg-muted border border-transparent hover:border-muted-foreground/20 transition-colors text-muted-foreground hover:text-foreground"
+                onClick={() => handleSend(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="px-4 pb-4 pt-2 border-t">
+        <div className="flex gap-2 items-end">
+          <Textarea
+            ref={textareaRef}
+            className="flex-1 resize-none text-sm min-h-[60px] max-h-[120px]"
+            placeholder="Descreva a campanha em linguagem natural..."
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={2}
+            disabled={chatMutation.isPending}
+          />
+          <Button
+            size="icon"
+            className="h-10 w-10 shrink-0 bg-violet-600 hover:bg-violet-700"
+            onClick={() => handleSend()}
+            disabled={!input.trim() || chatMutation.isPending}
+          >
+            {chatMutation.isPending
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Send className="h-4 w-4" />
+            }
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+          Enter para enviar · Shift+Enter para nova linha · Powered by Google Gemini (gratuito)
+        </p>
+      </div>
+    </div>
+  );
+}

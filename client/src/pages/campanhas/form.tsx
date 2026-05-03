@@ -25,8 +25,9 @@ import {
   ChevronLeft, Save, Loader2, AlertTriangle, CheckCircle2,
   Info, Plus, Trash2, Layers, ClipboardList, Zap,
   Users, GitBranch, Trophy, Shield, FlaskConical, BarChart3,
-  Upload, X as XIcon, RefreshCw,
+  Upload, X as XIcon, RefreshCw, Sparkles,
 } from "lucide-react";
+import { AICampaignAssistant } from "./components/ai-assistant";
 import { cn } from "@/lib/utils";
 import { RuleBuilder } from "./components/rule-builder";
 import { RewardForm } from "./components/reward-form";
@@ -740,6 +741,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [pendingSave, setPendingSave] = useState(false);
   const [validation, setValidation] = useState<{ errors: string[]; conflicts: any[] } | null>(null);
+  const [aiOpen, setAiOpen] = useState(!isEditing);
 
   // Load existing campaign
   const { data: existing, isLoading: loadingExisting } = useQuery<Campaign>({
@@ -813,8 +815,46 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
 
   const isReadonly = existing?.status === "encerrada" || existing?.status === "cancelada";
 
+  function handleAIApply(draft: Record<string, any>) {
+    setForm(prev => ({
+      ...prev,
+      name: draft.name ?? prev.name,
+      description: draft.description ?? prev.description,
+      objective: draft.objective ?? prev.objective,
+      supplier_name: draft.supplier_name ?? prev.supplier_name,
+      campaign_type: draft.campaign_type ?? prev.campaign_type,
+      campaign_mode: draft.campaign_mode ?? prev.campaign_mode,
+      starts_at: draft.starts_at ?? prev.starts_at,
+      ends_at: draft.ends_at ?? prev.ends_at,
+      cycle_type: draft.cycle_type ?? prev.cycle_type,
+      auto_renew: draft.auto_renew ?? prev.auto_renew,
+      priority: draft.priority ?? prev.priority,
+      is_cumulative: draft.is_cumulative ?? prev.is_cumulative,
+      is_exclusive: draft.is_exclusive ?? prev.is_exclusive,
+      targets: draft.targets ?? prev.targets,
+      bases: draft.bases ?? prev.bases,
+      conditions: draft.conditions ?? prev.conditions,
+      triggers: draft.triggers ?? prev.triggers,
+      rewards: draft.rewards ?? prev.rewards,
+      limits: draft.limits ?? prev.limits,
+      exceptions: draft.exceptions ?? prev.exceptions,
+      natural_language: draft.natural_language ?? prev.natural_language,
+    }));
+    setAiOpen(false);
+    toast({ title: "Campanha preenchida pela IA!", description: "Revise os campos e salve quando estiver pronto." });
+  }
+
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex overflow-hidden">
+      {/* AI Assistant panel */}
+      {aiOpen && !isEditing && (
+        <div className="w-[420px] min-w-[320px] max-w-[45vw] border-r flex flex-col shrink-0 bg-background">
+          <AICampaignAssistant onApply={handleAIApply} onClose={() => setAiOpen(false)} />
+        </div>
+      )}
+
+      {/* Main form area */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
       {/* Top bar */}
       <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 border-b bg-background/95 backdrop-blur shrink-0">
         <div className="flex items-center gap-3">
@@ -839,6 +879,17 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {!isEditing && (
+            <Button
+              size="sm"
+              variant={aiOpen ? "default" : "outline"}
+              className={cn("h-8 text-xs gap-1.5", aiOpen && "bg-violet-600 hover:bg-violet-700 border-violet-600")}
+              onClick={() => setAiOpen(v => !v)}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {aiOpen ? "Fechar IA" : "Criar com IA"}
+            </Button>
+          )}
           {existing && (
             <Button
               size="sm"
@@ -1412,6 +1463,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
         </AlertDialogContent>
       </AlertDialog>
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.campanhasForm} />
+      </div> {/* end main form area */}
     </div>
   );
 }
