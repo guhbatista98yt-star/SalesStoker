@@ -8,7 +8,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 
 // ─── Supported providers ──────────────────────────────────────────────────────
 
-const PROVIDERS: Record<string, { label: string; models: { id: string; label: string }[]; urlFn: (model: string, key: string) => string }> = {
+const PROVIDERS: Record<string, { label: string; models: { id: string; label: string }[] }> = {
   gemini: {
     label: "Google Gemini (gratuito)",
     models: [
@@ -16,7 +16,6 @@ const PROVIDERS: Record<string, { label: string; models: { id: string; label: st
       { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
       { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
     ],
-    urlFn: (model, key) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
   },
   openai: {
     label: "OpenAI (ChatGPT)",
@@ -25,7 +24,30 @@ const PROVIDERS: Record<string, { label: string; models: { id: string; label: st
       { id: "gpt-4o", label: "GPT-4o" },
       { id: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
     ],
-    urlFn: () => "https://api.openai.com/v1/chat/completions",
+  },
+  claude: {
+    label: "Anthropic Claude",
+    models: [
+      { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (econômico)" },
+      { id: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet (recomendado)" },
+      { id: "claude-3-opus-20240229", label: "Claude 3 Opus (poderoso)" },
+    ],
+  },
+  groq: {
+    label: "Groq (rápido e gratuito)",
+    models: [
+      { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (recomendado)" },
+      { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B (mais rápido)" },
+      { id: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+    ],
+  },
+  mistral: {
+    label: "Mistral AI",
+    models: [
+      { id: "mistral-small-latest", label: "Mistral Small (econômico)" },
+      { id: "mistral-medium-latest", label: "Mistral Medium" },
+      { id: "mistral-large-latest", label: "Mistral Large (poderoso)" },
+    ],
   },
 };
 
@@ -464,6 +486,147 @@ async function callOpenAI(
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
+async function callClaude(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  systemPrompt: string
+): Promise<string> {
+  const builtMessages: any[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    const isLast = i === messages.length - 1;
+
+    if (m.role === "assistant") {
+      builtMessages.push({ role: "assistant", content: m.content });
+      continue;
+    }
+
+    const contentParts: any[] = [];
+    if (isLast && m.attachment) {
+      if (m.attachment.type === "image" && m.attachment.data && m.attachment.mimeType) {
+        contentParts.push({ type: "image", source: { type: "base64", media_type: m.attachment.mimeType, data: m.attachment.data } });
+        contentParts.push({ type: "text", text: m.content || "Analise a imagem e monte a campanha de vendas." });
+      } else if (m.attachment.type === "pdf" && m.attachment.text) {
+        contentParts.push({ type: "text", text: `[Conteúdo do PDF "${m.attachment.name}":\n${m.attachment.text}\n]\n\n${m.content || "Monte a campanha com base neste PDF."}` });
+      } else {
+        contentParts.push({ type: "text", text: m.content });
+      }
+    } else {
+      contentParts.push({ type: "text", text: m.content });
+    }
+    builtMessages.push({ role: "user", content: contentParts });
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({ model, system: systemPrompt, messages: builtMessages, max_tokens: 2048 }),
+  });
+
+  if (!res.ok) {
+    const raw = await res.text();
+    let msg = `Erro ${res.status} na API Claude.`;
+    try {
+      const parsed = JSON.parse(raw);
+      const type = parsed?.error?.type ?? "";
+      const detail = parsed?.error?.message ?? "";
+      if (res.status === 429 || type === "rate_limit_error") {
+        msg = `Limite de requisições Claude atingido (429). Aguarde alguns segundos e tente novamente.`;
+      } else if (res.status === 401 || type === "authentication_error") {
+        msg = `Chave API Claude inválida (401). Verifique em https://console.anthropic.com/settings/keys.`;
+      } else if (res.status === 403 || type === "permission_error") {
+        msg = `Sem créditos ou permissão negada na conta Anthropic (403). Adicione créditos em https://console.anthropic.com/settings/billing.`;
+      } else if (detail) {
+        msg = `Claude: ${detail.slice(0, 300)}`;
+      }
+    } catch { msg = `Claude API erro ${res.status}: ${raw.slice(0, 200)}`; }
+    throw new Error(msg);
+  }
+  const data = await res.json() as any;
+  return data?.content?.[0]?.text ?? "";
+}
+
+async function callGroq(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  systemPrompt: string
+): Promise<string> {
+  const builtMessages: any[] = [{ role: "system", content: systemPrompt }];
+  for (const m of messages) {
+    builtMessages.push({ role: m.role === "assistant" ? "assistant" : "user", content: m.content });
+  }
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 2048 }),
+  });
+
+  if (!res.ok) {
+    const raw = await res.text();
+    let msg = `Erro ${res.status} na API Groq.`;
+    try {
+      const parsed = JSON.parse(raw);
+      const code = parsed?.error?.code ?? "";
+      const detail = parsed?.error?.message ?? "";
+      if (res.status === 429 || code === "rate_limit_exceeded") {
+        msg = `Limite de requisições Groq atingido (429). O plano gratuito tem limites por minuto — aguarde alguns segundos.`;
+      } else if (res.status === 401 || code === "invalid_api_key") {
+        msg = `Chave API Groq inválida (401). Verifique em https://console.groq.com/keys.`;
+      } else if (detail) {
+        msg = `Groq: ${detail.slice(0, 300)}`;
+      }
+    } catch { msg = `Groq API erro ${res.status}: ${raw.slice(0, 200)}`; }
+    throw new Error(msg);
+  }
+  const data = await res.json() as any;
+  return data?.choices?.[0]?.message?.content ?? "";
+}
+
+async function callMistral(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  systemPrompt: string
+): Promise<string> {
+  const builtMessages: any[] = [{ role: "system", content: systemPrompt }];
+  for (const m of messages) {
+    builtMessages.push({ role: m.role === "assistant" ? "assistant" : "user", content: m.content });
+  }
+
+  const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 2048 }),
+  });
+
+  if (!res.ok) {
+    const raw = await res.text();
+    let msg = `Erro ${res.status} na API Mistral.`;
+    try {
+      const parsed = JSON.parse(raw);
+      const detail = parsed?.message ?? parsed?.error?.message ?? "";
+      if (res.status === 429) {
+        msg = `Limite de requisições Mistral atingido (429). Aguarde alguns segundos.`;
+      } else if (res.status === 401 || res.status === 403) {
+        msg = `Chave API Mistral inválida ou sem permissão (${res.status}). Verifique em https://console.mistral.ai/api-keys.`;
+      } else if (detail) {
+        msg = `Mistral: ${detail.slice(0, 300)}`;
+      }
+    } catch { msg = `Mistral API erro ${res.status}: ${raw.slice(0, 200)}`; }
+    throw new Error(msg);
+  }
+  const data = await res.json() as any;
+  return data?.choices?.[0]?.message?.content ?? "";
+}
+
 // ─── Chat route ───────────────────────────────────────────────────────────────
 
 router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
@@ -481,6 +644,12 @@ router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
     let text = "";
     if (cfg.provider === "openai") {
       text = await callOpenAI(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+    } else if (cfg.provider === "claude") {
+      text = await callClaude(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+    } else if (cfg.provider === "groq") {
+      text = await callGroq(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+    } else if (cfg.provider === "mistral") {
+      text = await callMistral(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
     } else {
       text = await callGemini(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
     }

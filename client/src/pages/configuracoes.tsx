@@ -297,19 +297,36 @@ function AISection() {
         {provider === "gemini" && (
           <p className="text-xs text-muted-foreground">
             Obtenha sua chave gratuita em{" "}
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-              aistudio.google.com/app/apikey
-            </a>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">aistudio.google.com/app/apikey</a>
             {" "}— sem cartão de crédito, até 1.500 req/dia grátis.
           </p>
         )}
         {provider === "openai" && (
           <p className="text-xs text-muted-foreground">
             Obtenha sua chave em{" "}
-            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-              platform.openai.com/api-keys
-            </a>
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">platform.openai.com/api-keys</a>
             {" "}— requer conta com créditos.
+          </p>
+        )}
+        {provider === "claude" && (
+          <p className="text-xs text-muted-foreground">
+            Obtenha sua chave em{" "}
+            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">console.anthropic.com</a>
+            {" "}— requer conta com créditos (sem plano gratuito).
+          </p>
+        )}
+        {provider === "groq" && (
+          <p className="text-xs text-muted-foreground">
+            Obtenha sua chave gratuita em{" "}
+            <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">console.groq.com/keys</a>
+            {" "}— sem cartão de crédito, modelos open-source ultra-rápidos.
+          </p>
+        )}
+        {provider === "mistral" && (
+          <p className="text-xs text-muted-foreground">
+            Obtenha sua chave em{" "}
+            <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">console.mistral.ai</a>
+            {" "}— plano gratuito disponível (La Plateforme).
           </p>
         )}
       </div>
