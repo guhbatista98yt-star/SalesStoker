@@ -35,12 +35,6 @@ export default function Vendedores() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    if (companies.length > 0 && !companies.find(c => c.id === companyId)) {
-      setCompanyId(companies[0].id);
-    }
-  }, [companies]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
   const [showHidden, setShowHidden] = useState(false);
@@ -50,6 +44,12 @@ export default function Vendedores() {
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
   });
+
+  useEffect(() => {
+    if (companies.length > 0 && !companies.find(c => c.id === companyId)) {
+      setCompanyId(companies[0].id);
+    }
+  }, [companies]);
 
   const { data: hiddenVendors = [] } = useQuery<{ id: string; isHidden: boolean }[]>({
     queryKey: ["/api/admin/vendor-visibility"],

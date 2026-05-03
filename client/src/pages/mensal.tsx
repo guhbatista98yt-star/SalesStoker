@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +51,70 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   }
   return null;
 };
+
+interface MonthlyCardProps {
+  salesperson: { id: string; name: string; email: string };
+  weeklySales: { week: string; cumulative: number; yoyCumulative: number }[];
+  totalMonth: number;
+  yoyVariacao: number | null;
+  metaProgress: number;
+}
+
+const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress }: MonthlyCardProps) {
+  const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
+  return (
+    <Card data-testid={`monthly-card-${salesperson.id}`}>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarFallback className="bg-primary/10 text-primary font-medium">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <CardTitle className="text-base truncate">{salesperson.name}</CardTitle>
+              <p className="text-sm text-muted-foreground truncate">{salesperson.email}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-2 sm:mt-0">
+            <div className="text-left sm:text-right">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs text-muted-foreground">Total Mês:</span>
+                <span className="text-base sm:text-lg font-semibold">{formatCurrency(totalMonth)}</span>
+              </div>
+              <div className={`flex items-center gap-1 ${getValueColor(yoyVariacao)} mt-0.5`}>
+                {getTrendIcon(yoyVariacao)}
+                <span className="text-xs font-medium whitespace-nowrap">{formatPercentage(yoyVariacao)} YoY</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Progress value={metaProgress} className="w-24 sm:w-32 h-2" />
+              <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">{metaProgress.toFixed(0)}%</span>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[200px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={weeklySales}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="week" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+              <YAxis className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Area type="monotone" dataKey="cumulative" name="Acumulado Atual"
+                stroke="hsl(217, 91%, 50%)" fill="hsl(217, 91%, 50%)" fillOpacity={0.1}
+                strokeWidth={2} isAnimationActive={false} />
+              <Area type="monotone" dataKey="yoyCumulative" name="Acumulado Anterior"
+                stroke="hsl(217, 20%, 65%)" fill="hsl(217, 20%, 65%)" fillOpacity={0.05}
+                strokeWidth={2} strokeDasharray="5 5" isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
 
 export default function Mensal() {
   const { user } = useAuth();
@@ -139,89 +203,16 @@ export default function Mensal() {
           </div>
         ) : (
           <div className="space-y-6">
-            {filteredData.map(({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress }) => {
-              const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
-              
-              return (
-                <Card key={salesperson.id} data-testid={`monthly-card-${salesperson.id}`}>
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <CardTitle className="text-base truncate">{salesperson.name}</CardTitle>
-                          <p className="text-sm text-muted-foreground truncate">{salesperson.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-2 sm:mt-0">
-                        <div className="text-left sm:text-right">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-xs text-muted-foreground">Total Mês:</span>
-                            <span className="text-base sm:text-lg font-semibold">{formatCurrency(totalMonth)}</span>
-                          </div>
-                          <div className={`flex items-center gap-1 ${getValueColor(yoyVariacao)} mt-0.5`}>
-                            {getTrendIcon(yoyVariacao)}
-                            <span className="text-xs font-medium whitespace-nowrap">
-                              {formatPercentage(yoyVariacao)} YoY
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Progress value={metaProgress} className="w-24 sm:w-32 h-2" />
-                          <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
-                            {metaProgress.toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={weeklySales}>
-                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                          <XAxis 
-                            dataKey="week" 
-                            className="text-xs" 
-                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                          />
-                          <YAxis 
-                            className="text-xs" 
-                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                            tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-                          />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                          <Area
-                            type="monotone"
-                            dataKey="cumulative"
-                            name="Acumulado Atual"
-                            stroke="hsl(217, 91%, 50%)"
-                            fill="hsl(217, 91%, 50%)"
-                            fillOpacity={0.1}
-                            strokeWidth={2}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="yoyCumulative"
-                            name="Acumulado Anterior"
-                            stroke="hsl(217, 20%, 65%)"
-                            fill="hsl(217, 20%, 65%)"
-                            fillOpacity={0.05}
-                            strokeWidth={2}
-                            strokeDasharray="5 5"
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {filteredData.map(({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress }) => (
+              <MonthlyCard
+                key={salesperson.id}
+                salesperson={salesperson}
+                weeklySales={weeklySales}
+                totalMonth={totalMonth}
+                yoyVariacao={yoyVariacao}
+                metaProgress={metaProgress}
+              />
+            ))}
           </div>
         )}
       </div>

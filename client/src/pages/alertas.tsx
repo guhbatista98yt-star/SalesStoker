@@ -81,13 +81,6 @@ export default function Alertas() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [tab, setTab] = useState<"notifications" | "config">("notifications");
-
-  const { data: companiesForInit = [] } = useQuery<Company[]>({ queryKey: ["/api/companies"] });
-  useEffect(() => {
-    if (companiesForInit.length > 0 && !companiesForInit.find(c => c.id === companyId)) {
-      setCompanyId(companiesForInit[0].id);
-    }
-  }, [companiesForInit]);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem(SOUND_PREF_KEY);
@@ -103,6 +96,12 @@ export default function Alertas() {
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
   });
+
+  useEffect(() => {
+    if (companies.length > 0 && !companies.find(c => c.id === companyId)) {
+      setCompanyId(companies[0].id);
+    }
+  }, [companies]);
 
   const { data: notifications = [], isLoading: notificationsLoading } = useQuery<AlertNotification[]>({
     queryKey: ["/api/alerts", companyId],
