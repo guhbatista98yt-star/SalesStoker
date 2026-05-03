@@ -12,8 +12,8 @@ const PROVIDERS: Record<string, { label: string; models: { id: string; label: st
   gemini: {
     label: "Google Gemini (gratuito)",
     models: [
-      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash (recomendado)" },
-      { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+      { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash (recomendado)" },
+      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
       { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
     ],
     urlFn: (model, key) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -38,14 +38,14 @@ async function loadAIConfig(): Promise<{ provider: string; model: string; apiKey
       const cfg = JSON.parse(row.value);
       return {
         provider: cfg.provider || "gemini",
-        model: cfg.model || "gemini-2.0-flash",
+        model: cfg.model || "gemini-1.5-flash",
         apiKey: cfg.apiKey || process.env.GEMINI_API_KEY || "",
       };
     }
   } catch {}
   return {
     provider: "gemini",
-    model: "gemini-2.0-flash",
+    model: "gemini-1.5-flash",
     apiKey: process.env.GEMINI_API_KEY || "",
   };
 }
@@ -317,18 +317,39 @@ interface ChatMessage {
   };
 }
 
+const GEMINI_FALLBACK_CHAIN = ["gemini-1.5-flash", "gemini-1.5-pro"];
+
+async function callGeminiModel(
+  apiKey: string,
+  model: string,
+  contents: any[],
+  systemPrompt: string
+): Promise<{ ok: true; text: string } | { ok: false; status: number; raw: string }> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const payload = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents,
+    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return { ok: false, status: res.status, raw: await res.text() };
+  const data = await res.json() as any;
+  return { ok: true, text: data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "" };
+}
+
 async function callGemini(
   apiKey: string,
   model: string,
   messages: ChatMessage[],
   systemPrompt: string
 ): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
   const contents = messages.map((m, i) => {
     const isLast = i === messages.length - 1;
     const parts: any[] = [];
-
     if (m.attachment && isLast) {
       if (m.attachment.type === "image" && m.attachment.data && m.attachment.mimeType) {
         parts.push({ inline_data: { mime_type: m.attachment.mimeType, data: m.attachment.data } });
@@ -336,43 +357,44 @@ async function callGemini(
         parts.push({ text: `[Conteúdo do PDF "${m.attachment.name}":\n${m.attachment.text}\n]\n\n` });
       }
     }
-
     parts.push({ text: m.content || (m.attachment ? "Analise o conteúdo enviado e monte a campanha." : "") });
-
     return { role: m.role === "assistant" ? "model" : "user", parts };
   });
 
-  const payload = {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents,
-    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
-  };
+  // Try the configured model first, then fall back automatically on quota errors
+  const modelsToTry = [model, ...GEMINI_FALLBACK_CHAIN.filter(m => m !== model)];
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  let lastError = "";
+  for (const tryModel of modelsToTry) {
+    const result = await callGeminiModel(apiKey, tryModel, contents, systemPrompt);
+    if (result.ok) return result.text;
 
-  if (!res.ok) {
-    const raw = await res.text();
-    let msg = `Erro ${res.status} na API Gemini.`;
+    const { status, raw } = result;
+    let isQuota = false;
     try {
       const parsed = JSON.parse(raw);
-      const code = parsed?.error?.code ?? res.status;
+      const code = parsed?.error?.code ?? status;
       const detail = parsed?.error?.message ?? "";
       if (code === 429 || detail.includes("RESOURCE_EXHAUSTED") || detail.includes("quota")) {
-        msg = `Cota da API Gemini esgotada (429). Possíveis causas: limite gratuito atingido, projeto sem cota ativa, ou modelo "${model}" não disponível neste nível. Verifique em https://aistudio.google.com/app/apikey e tente o modelo "Gemini 1.5 Flash".`;
+        isQuota = true;
+        lastError = detail;
       } else if (code === 401 || code === 403 || detail.includes("API_KEY_INVALID") || detail.includes("PERMISSION_DENIED")) {
-        msg = `Chave API inválida ou sem permissão (${code}). Verifique se a chave está correta e se o projeto Google tem a API Generative Language ativada.`;
-      } else if (detail) {
-        msg = `Gemini: ${detail.slice(0, 300)}`;
+        throw new Error(`Chave API inválida ou sem permissão (${code}). Verifique se a chave está correta e se o projeto Google tem a API Generative Language ativada.`);
+      } else {
+        throw new Error(detail ? `Gemini: ${detail.slice(0, 300)}` : `Gemini API erro ${status}`);
       }
-    } catch { msg = `Gemini API erro ${res.status}: ${raw.slice(0, 200)}`; }
-    throw new Error(msg);
+    } catch (e: any) {
+      if (e.message.startsWith("Chave") || e.message.startsWith("Gemini")) throw e;
+      isQuota = true;
+      lastError = raw.slice(0, 100);
+    }
+    if (!isQuota) break;
+    // quota error — try next model in chain
   }
-  const data = await res.json() as any;
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+  throw new Error(
+    `Cota esgotada em todos os modelos Gemini disponíveis. Verifique sua chave em https://aistudio.google.com/app/apikey — certifique-se de que o projeto Google tem a API "Generative Language" ativada e não tem restrições de cota zeradas.`
+  );
 }
 
 async function callOpenAI(
