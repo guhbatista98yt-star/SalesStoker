@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { isAuthenticated, isAdmin, type AuthRequest } from "../auth";
-import { pgGet, pgRun } from "../pg-client";
+import { pgGet, pgRun, pgAll } from "../pg-client";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -173,62 +173,63 @@ router.post("/upload", isAuthenticated, upload.single("file"), async (req, res) 
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Você é um assistente especialista em criar campanhas de incentivo de vendas para distribuidoras de tubos e conexões.
+function buildSystemPrompt(vendorGroups: { id: string; name: string }[]): string {
+  const groupsSection = vendorGroups.length > 0
+    ? `\n## GRUPOS DE VENDEDORES CADASTRADOS\n\nUse estes IDs exatos ao configurar targets.vendedores.groupIds:\n${vendorGroups.map(g => `- ID: "${g.id}" → Nome: "${g.name}"`).join("\n")}\n`
+    : `\n## GRUPOS DE VENDEDORES\n\nNenhum grupo cadastrado no sistema. Se o usuário quiser segmentar por grupo, sugira que ele crie grupos em Configurações → Grupos de Vendedores antes de criar a campanha.\n`;
 
-Seu trabalho é conversar com o usuário, entender o que ele quer, fazer perguntas quando necessário, e ao final gerar a configuração completa da campanha em JSON.
+  return `Você é um assistente especialista em criar campanhas de incentivo de vendas para distribuidoras de tubos e conexões.
 
-## REGRAS DE CONVERSA
+Seu trabalho é entender o que o usuário quer e gerar a configuração COMPLETA da campanha em JSON na mesma resposta, sem deixar campos em branco.
 
-1. Seja direto e amigável. Use linguagem simples e objetiva.
-2. Faça UMA pergunta por vez quando precisar de informações.
-3. Quando tiver informações suficientes, gere a configuração JSON automaticamente.
-4. Confirme com o usuário antes de finalizar.
-5. Se o usuário enviar uma imagem (flyer, arte, tabela, documento fotográfico), analise todo o conteúdo visual para extrair as informações da campanha.
-6. Se o usuário enviar um PDF, o texto extraído virá no início da mensagem. Use essas informações para montar a campanha.
+## REGRAS FUNDAMENTAIS
 
-## INFORMAÇÕES NECESSÁRIAS PARA UMA CAMPANHA
+1. **Seja objetivo e eficiente.** Não enrole, não faça rodeios.
+2. **Gere o JSON SEMPRE que tiver informações mínimas** (nome + período + prêmio). Não espere ter tudo perfeito para gerar.
+3. **Faça perguntas ANTES de gerar o JSON** apenas quando informações críticas estiverem completamente ausentes (ex: período indefinido, prêmio indefinido). Faça no máximo 2 perguntas de uma vez, de forma direta.
+4. **Preencha TODOS os campos do JSON**, mesmo que com valores padrão razoáveis. Nunca deixe o JSON incompleto.
+5. **Quando tiver dúvida** sobre algum campo específico, deixe o valor padrão no JSON E mencione o campo na sua mensagem pedindo confirmação.
+6. Se o usuário enviar uma imagem ou PDF, analise o conteúdo e monte a campanha imediatamente.
+7. Hoje é ${new Date().toISOString().slice(0, 10)}.
+${groupsSection}
+## QUANDO FAZER PERGUNTAS
 
-Pergunte apenas o que não ficou claro na descrição do usuário:
+Pergunte ANTES de gerar apenas se não souber:
+- Data de início E fim (ou mês de referência)
+- Valor do prêmio ou tipo de premiação (fixo, %, ranking, faixas)
 
-- **Nome** da campanha
-- **Período** (data início e fim)
-- **Objetivo** (o que incentiva? Ex: vender produto X, fornecedor Y, bater meta de valor, ranking de vendas)
-- **Quem participa** (todos os vendedores? alguns específicos?)
-- **Regras/condições** (mínimo de quantidade? valor mínimo? produto específico? fornecedor específico?)
-- **Prêmio** (valor fixo? percentual? ranking? faixas?)
-- **Ciclo** (se repete mensalmente, trimestralmente ou é única)
+Para tudo mais (nome, fornecedor, condição, quem participa), faça uma suposição razoável e indique no JSON. Confirme no texto da resposta.
 
-## MODOS DE CAMPANHA
+## MODOS DE CAMPANHA — ESCOLHA O MELHOR
 
-Escolha o melhor baseado no que o usuário descreve:
-- **atingimento**: todos que cumprirem as condições ganham um prêmio fixo
-- **comissao**: cada vendedor recebe % sobre o valor vendido
-- **ranking_volume**: ranking por quem vendeu mais volume — prêmios por posição
-- **ranking_crescimento**: ranking por maior crescimento % em relação ao período anterior
-- **faixa**: prêmio escalonado por faixas de valor/quantidade
+- **atingimento**: todos que cumprirem as condições ganham prêmio fixo
+- **comissao**: % sobre o valor vendido por transação
+- **ranking_volume**: ranking por maior volume vendido, prêmios por posição
+- **ranking_crescimento**: ranking por crescimento % vs período anterior
+- **faixa**: prêmio escalonado por faixas de qtde ou valor
 
 ## TIPOS DE PRÊMIO
 
-- **VALOR_FIXO**: valor fixo em R$ para quem atingir
-- **PERCENTUAL**: % sobre o valor da transação
-- **COMISSAO_PERCENTUAL**: % sobre a base de pagamento total
-- **FAIXA**: prêmio diferente por faixa (ex: 1-100 un = R$50, 101-200 un = R$100)
-- **RANKING**: prêmio por posição no ranking (1º lugar R$X, 2º R$Y...)
+- **VALOR_FIXO**: valor fixo em R$ (use baseValue)
+- **PERCENTUAL**: % sobre valor da transação (use baseValue como percentual, ex: 2 = 2%)
+- **COMISSAO_PERCENTUAL**: % sobre base de pagamento total
+- **FAIXA**: faixas escalonadas (preencha tiers[])
+- **RANKING**: prêmios por posição (preencha posicoes[])
 
-## FORMATO JSON DE SAÍDA
+## FORMATO DO JSON — PREENCHA TODOS OS CAMPOS
 
-Quando tiver informações suficientes, responda com uma mensagem amigável confirmando o que entendeu E termine com o bloco JSON entre marcadores especiais assim:
+Sempre que tiver informações suficientes, inclua o JSON completo no fim da resposta:
 
 <<<CAMPAIGN_JSON>>>
 {
   "name": "Nome da Campanha",
-  "description": "Descrição completa",
-  "objective": "Objetivo da campanha",
-  "supplier_name": "Fornecedor (se houver)",
+  "description": "Descrição completa da campanha",
+  "objective": "Objetivo claro da campanha",
+  "supplier_name": "Nome do fornecedor ou null",
   "campaign_type": "padrao",
   "campaign_mode": "atingimento",
-  "starts_at": "2025-01-01",
-  "ends_at": "2025-01-31",
+  "starts_at": "YYYY-MM-DD",
+  "ends_at": "YYYY-MM-DD",
   "cycle_type": "none",
   "auto_renew": false,
   "priority": 50,
@@ -256,7 +257,7 @@ Quando tiver informações suficientes, responda com uma mensagem amigável conf
   "rewards": {
     "type": "VALOR_FIXO",
     "scope": "individual",
-    "baseValue": 100,
+    "baseValue": 0,
     "tiers": [],
     "posicoes": [],
     "maxBonus": null,
@@ -265,78 +266,65 @@ Quando tiver informações suficientes, responda com uma mensagem amigável conf
   },
   "limits": {},
   "exceptions": [],
-  "natural_language": "Descrição em linguagem natural da campanha completa"
+  "natural_language": "Descrição em linguagem natural completa da campanha, para referência humana"
 }
 <<<END_CAMPAIGN_JSON>>>
 
-## EXEMPLOS DE CONDIÇÕES NO JSON
+## CONDIÇÕES — EXEMPLOS PRONTOS
 
-Para "vender mínimo 50 unidades do fornecedor X":
-\`\`\`json
-"conditions": {
-  "id": "root",
-  "connector": "AND",
-  "conditions": [
-    { "id": "c1", "type": "FORNECEDOR", "operator": "EQUALS", "value": "NOME_FORNECEDOR" },
-    { "id": "c2", "type": "QUANTIDADE", "operator": "GTE", "value": 50 }
-  ],
-  "groups": []
-}
-\`\`\`
+Fornecedor específico:
+{ "id": "c1", "type": "FORNECEDOR", "operator": "EQUALS", "value": "NOME_FORNECEDOR" }
 
-Para "vender mínimo R$ 5.000":
-\`\`\`json
-"conditions": {
-  "id": "root",
-  "connector": "AND",
-  "conditions": [
-    { "id": "c1", "type": "VALOR", "operator": "GTE", "value": 5000 }
-  ],
-  "groups": []
-}
-\`\`\`
+Quantidade mínima:
+{ "id": "c2", "type": "QUANTIDADE", "operator": "GTE", "value": 50 }
 
-## EXEMPLOS DE PRÊMIOS
+Valor mínimo em R$:
+{ "id": "c3", "type": "VALOR", "operator": "GTE", "value": 5000 }
 
-Prêmio fixo de R$200 para quem atingir:
-\`\`\`json
+Categoria de produto:
+{ "id": "c4", "type": "CATEGORIA", "operator": "EQUALS", "value": "NOME_CATEGORIA" }
+
+## PRÊMIOS — EXEMPLOS PRONTOS
+
+Valor fixo R$200:
 "rewards": { "type": "VALOR_FIXO", "scope": "individual", "baseValue": 200, "tiers": [], "posicoes": [] }
-\`\`\`
 
-Ranking (1º R$500, 2º R$300, 3º R$150):
-\`\`\`json
-"rewards": {
-  "type": "RANKING", "scope": "individual", "tiers": [],
-  "posicoes": [
-    { "id": "p1", "posicao": 1, "label": "1º lugar", "valor": 500 },
-    { "id": "p2", "posicao": 2, "label": "2º lugar", "valor": 300 },
-    { "id": "p3", "posicao": 3, "label": "3º lugar", "valor": 150 }
-  ]
-}
-\`\`\`
+Comissão 2%:
+"rewards": { "type": "PERCENTUAL", "scope": "individual", "baseValue": 2, "tiers": [], "posicoes": [] }
+
+Ranking top 3 (R$500, R$300, R$150):
+"rewards": { "type": "RANKING", "scope": "individual", "baseValue": 0, "tiers": [], "posicoes": [
+  { "id": "p1", "posicao": 1, "label": "1º lugar", "valor": 500 },
+  { "id": "p2", "posicao": 2, "label": "2º lugar", "valor": 300 },
+  { "id": "p3", "posicao": 3, "label": "3º lugar", "valor": 150 }
+]}
 
 Faixas de quantidade:
-\`\`\`json
-"rewards": {
-  "type": "FAIXA", "scope": "individual", "tiers": [
-    { "id": "t1", "label": "Bronze", "min": 50, "max": 100, "value": 100 },
-    { "id": "t2", "label": "Prata", "min": 101, "max": 200, "value": 200 },
-    { "id": "t3", "label": "Ouro", "min": 201, "max": null, "value": 400 }
-  ], "posicoes": []
-}
-\`\`\`
+"rewards": { "type": "FAIXA", "scope": "individual", "baseValue": 0, "posicoes": [], "tiers": [
+  { "id": "t1", "label": "Bronze", "min": 50, "max": 100, "value": 100 },
+  { "id": "t2", "label": "Prata", "min": 101, "max": 200, "value": 200 },
+  { "id": "t3", "label": "Ouro", "min": 201, "max": null, "value": 400 }
+]}
 
-## DATAS
+## TARGETS — SEGMENTAÇÃO
 
-Use sempre o formato YYYY-MM-DD. Se o usuário disser "esse mês", use o mês atual. Hoje é ${new Date().toISOString().slice(0, 10)}.
+Todos: { "mode": "all", "ids": [], "groupIds": [], "exclude": [] }
+Por grupo: { "mode": "group", "ids": [], "groupIds": ["ID_DO_GRUPO"], "exclude": [] }
+Específicos: { "mode": "specific", "ids": ["ID1", "ID2"], "groupIds": [], "exclude": [] }
+Por fornecedor: produtos { "mode": "supplier", "suppliers": ["NOME_FORNECEDOR"], ... }
 
 ## CICLOS
 
-- "toda mês" → cycle_type: "monthly", auto_renew: true
-- "todo trimestre" → cycle_type: "quarterly", auto_renew: true  
-- "única" → cycle_type: "none", auto_renew: false
+"todo mês" → cycle_type: "monthly", auto_renew: true
+"todo trimestre" → cycle_type: "quarterly", auto_renew: true
+"única vez" → cycle_type: "none", auto_renew: false
 
-Lembre-se: seja eficiente. Se o usuário deu informações suficientes na primeira mensagem, gere o JSON imediatamente sem perguntar mais.`;
+## IMPORTANTE
+
+- NUNCA envie um JSON com campos faltando. Preencha tudo.
+- Se o usuário pedir ajuste, gere um JSON NOVO e completo na resposta.
+- Confirme o que foi configurado em linguagem simples antes do JSON.`;
+}
 
 // ─── AI call helpers ──────────────────────────────────────────────────────────
 
@@ -364,7 +352,7 @@ async function callGeminiModel(
   const payload = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents,
-    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+    generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
   };
   const res = await fetch(url, {
     method: "POST",
@@ -479,7 +467,7 @@ async function callOpenAI(
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 2048 }),
+    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 4096 }),
   });
 
   if (!res.ok) {
@@ -543,7 +531,7 @@ async function callClaude(
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     },
-    body: JSON.stringify({ model, system: systemPrompt, messages: builtMessages, max_tokens: 2048 }),
+    body: JSON.stringify({ model, system: systemPrompt, messages: builtMessages, max_tokens: 4096 }),
   });
 
   if (!res.ok) {
@@ -583,7 +571,7 @@ async function callGroq(
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 2048 }),
+    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 4096 }),
   });
 
   if (!res.ok) {
@@ -621,7 +609,7 @@ async function callMistral(
   const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 2048 }),
+    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 4096 }),
   });
 
   if (!res.ok) {
@@ -653,22 +641,28 @@ router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: "messages é obrigatório" });
     }
 
-    const cfg = await loadAIConfig();
+    const [cfg, vendorGroups] = await Promise.all([
+      loadAIConfig(),
+      pgAll<{ id: string; name: string }>(`SELECT id, name FROM vendor_groups ORDER BY name`).catch(() => [] as { id: string; name: string }[]),
+    ]);
+
     if (!cfg.apiKey) {
       return res.status(400).json({ error: "Chave API da IA não configurada. Acesse Configurações → Inteligência Artificial." });
     }
 
+    const systemPrompt = buildSystemPrompt(vendorGroups);
+
     let text = "";
     if (cfg.provider === "openai") {
-      text = await callOpenAI(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+      text = await callOpenAI(cfg.apiKey, cfg.model, messages, systemPrompt);
     } else if (cfg.provider === "claude") {
-      text = await callClaude(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+      text = await callClaude(cfg.apiKey, cfg.model, messages, systemPrompt);
     } else if (cfg.provider === "groq") {
-      text = await callGroq(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+      text = await callGroq(cfg.apiKey, cfg.model, messages, systemPrompt);
     } else if (cfg.provider === "mistral") {
-      text = await callMistral(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+      text = await callMistral(cfg.apiKey, cfg.model, messages, systemPrompt);
     } else {
-      text = await callGemini(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
+      text = await callGemini(cfg.apiKey, cfg.model, messages, systemPrompt);
     }
 
     const jsonMatch = text.match(/<<<CAMPAIGN_JSON>>>([\s\S]*?)<<<END_CAMPAIGN_JSON>>>/);

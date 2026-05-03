@@ -80,6 +80,10 @@ function Section({ title, description, children }: { title: string; description?
 // ─── Target form ──────────────────────────────────────────────────────────────
 
 function TargetForm({ value, onChange }: { value: TargetSegment; onChange: (v: TargetSegment) => void }) {
+  const { data: vendorGroups = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/vendor-groups"],
+  });
+
   function updateVendedores(patch: Partial<TargetSegment["vendedores"]>) {
     onChange({ ...value, vendedores: { ...value.vendedores, ...patch } });
   }
@@ -162,8 +166,35 @@ function TargetForm({ value, onChange }: { value: TargetSegment; onChange: (v: T
           )}
           {value.vendedores.mode === "group" && (
             <div className="space-y-1.5">
-              <Label className="text-xs">IDs dos grupos incluídos</Label>
-              <MultiIdList list={value.vendedores.groupIds} onChange={groupIds => updateVendedores({ groupIds })} placeholder="ID do grupo, Enter para adicionar" />
+              <Label className="text-xs">Grupos de vendedores</Label>
+              {vendorGroups.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Nenhum grupo cadastrado. Crie grupos em Configurações → Grupos de Vendedores.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {vendorGroups.map(g => {
+                    const selected = value.vendedores.groupIds.includes(g.id);
+                    return (
+                      <Badge
+                        key={g.id}
+                        variant={selected ? "default" : "outline"}
+                        className="cursor-pointer text-xs gap-1 select-none hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          const groupIds = selected
+                            ? value.vendedores.groupIds.filter(id => id !== g.id)
+                            : [...value.vendedores.groupIds, g.id];
+                          updateVendedores({ groupIds });
+                        }}
+                      >
+                        {selected && <CheckCircle2 className="h-3 w-3" />}
+                        {g.name}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+              {value.vendedores.groupIds.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">{value.vendedores.groupIds.length} grupo(s) selecionado(s)</p>
+              )}
             </div>
           )}
           {value.vendedores.mode !== "all" && (
