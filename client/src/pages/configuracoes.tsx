@@ -63,6 +63,10 @@ import {
   Tv,
   Eye,
   EyeOff,
+  Sparkles,
+  Key,
+  Bot,
+  AlertCircle,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GoalSwitch } from "@/components/goal-switch";
@@ -100,6 +104,7 @@ const NAV_ITEMS = [
   { id: "permissoes", label: "Permissões", icon: ShieldCheck },
   { id: "alertas-compras", label: "Alertas de Compras", icon: Bell },
   { id: "tv", label: "Configuração de TV", icon: Tv },
+  { id: "ia", label: "Inteligência Artificial", icon: Sparkles },
 ];
 
 const ALL_MODULES = [
@@ -165,6 +170,234 @@ function buildGoalInitials(
 
 function fmtBRL(v: number | undefined | null) {
   return (v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: IA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface AIProvider {
+  id: string;
+  label: string;
+  models: { id: string; label: string }[];
+}
+
+interface AIConfig {
+  provider: string;
+  model: string;
+  hasKey: boolean;
+  providers: AIProvider[];
+}
+
+function AISection() {
+  const { toast } = useToast();
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [testResult, setTestResult] = useState<"idle" | "ok" | "error">("idle");
+  const [testMsg, setTestMsg] = useState("");
+
+  const { data: cfg, isLoading } = useQuery<AIConfig>({
+    queryKey: ["/api/campaigns-ai/config"],
+  });
+
+  useEffect(() => {
+    if (cfg && !provider) {
+      setProvider(cfg.provider);
+      setModel(cfg.model);
+    }
+  }, [cfg]);
+
+  const currentProviders = cfg?.providers ?? [];
+  const currentProvider = currentProviders.find(p => p.id === provider);
+  const availableModels = currentProvider?.models ?? [];
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/campaigns-ai/config", { provider, model, apiKey: apiKey || undefined });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns-ai/config"] });
+      setApiKey("");
+      toast({ title: "Configuração de IA salva!" });
+    },
+    onError: (e: any) => toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" }),
+  });
+
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/campaigns-ai/chat", {
+        messages: [{ role: "user", content: "Olá, responda apenas 'OK' para confirmar que está funcionando." }],
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+      return res.json();
+    },
+    onSuccess: (d) => {
+      setTestResult("ok");
+      setTestMsg(d.message?.slice(0, 80) || "IA respondeu com sucesso!");
+    },
+    onError: (e: any) => {
+      setTestResult("error");
+      setTestMsg(e.message);
+    },
+  });
+
+  if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <div>
+        <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-violet-600" />
+          Inteligência Artificial
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Configure o provedor e a chave de API usado pelo assistente de criação de campanhas.
+        </p>
+      </div>
+
+      {/* Status badge */}
+      <div className={cn(
+        "flex items-center gap-3 p-3 rounded-lg border text-sm",
+        cfg?.hasKey
+          ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
+          : "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800"
+      )}>
+        {cfg?.hasKey
+          ? <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+          : <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 shrink-0" />
+        }
+        <span className={cfg?.hasKey ? "text-green-700 dark:text-green-300" : "text-yellow-700 dark:text-yellow-300"}>
+          {cfg?.hasKey ? "Chave API configurada e ativa." : "Nenhuma chave API configurada. O assistente de IA não funcionará."}
+        </span>
+      </div>
+
+      {/* Provider */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium flex items-center gap-1.5">
+          <Bot className="h-4 w-4" /> Provedor de IA
+        </label>
+        <select
+          className="w-full h-9 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          value={provider}
+          onChange={e => {
+            setProvider(e.target.value);
+            const first = currentProviders.find(p => p.id === e.target.value)?.models[0]?.id ?? "";
+            setModel(first);
+            setTestResult("idle");
+          }}
+        >
+          {currentProviders.map(p => (
+            <option key={p.id} value={p.id}>{p.label}</option>
+          ))}
+        </select>
+        {provider === "gemini" && (
+          <p className="text-xs text-muted-foreground">
+            Obtenha sua chave gratuita em{" "}
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              aistudio.google.com/app/apikey
+            </a>
+            {" "}— sem cartão de crédito, até 1.500 req/dia grátis.
+          </p>
+        )}
+        {provider === "openai" && (
+          <p className="text-xs text-muted-foreground">
+            Obtenha sua chave em{" "}
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              platform.openai.com/api-keys
+            </a>
+            {" "}— requer conta com créditos.
+          </p>
+        )}
+      </div>
+
+      {/* Model */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Modelo</label>
+        <select
+          className="w-full h-9 px-3 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          value={model}
+          onChange={e => setModel(e.target.value)}
+        >
+          {availableModels.map(m => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* API Key */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium flex items-center gap-1.5">
+          <Key className="h-4 w-4" /> Chave API
+        </label>
+        <div className="relative">
+          <input
+            type={showKey ? "text" : "password"}
+            className="w-full h-9 px-3 pr-10 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+            placeholder={cfg?.hasKey ? "••••••••••••••••••• (deixe em branco para manter atual)" : "Cole sua chave API aqui"}
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+          />
+          <button
+            type="button"
+            className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowKey(v => !v)}
+          >
+            {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">A chave é armazenada de forma segura no banco de dados.</p>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3 pt-1">
+        <Button
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending || !provider || !model}
+          className="gap-1.5"
+        >
+          {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Salvar configuração
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={() => { setTestResult("idle"); testMutation.mutate(); }}
+          disabled={testMutation.isPending || !cfg?.hasKey}
+          className="gap-1.5"
+        >
+          {testMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          Testar conexão
+        </Button>
+      </div>
+
+      {/* Test result */}
+      {testResult !== "idle" && (
+        <div className={cn(
+          "p-3 rounded-lg text-sm border flex items-start gap-2",
+          testResult === "ok"
+            ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-950/20 dark:border-green-800 dark:text-green-300"
+            : "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/20 dark:border-red-800 dark:text-red-300"
+        )}>
+          {testResult === "ok"
+            ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+            : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          }
+          <span>{testResult === "ok" ? `✓ Funcionando: "${testMsg}"` : `✗ Erro: ${testMsg}`}</span>
+        </div>
+      )}
+
+      {/* Info box */}
+      <div className="p-4 rounded-lg bg-muted/40 border space-y-2 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">Como funciona o assistente de IA</p>
+        <p>Ao criar uma nova campanha, um painel lateral aparece onde você descreve a campanha em linguagem natural. A IA interpreta, faz perguntas se necessário, e preenche automaticamente todos os campos do formulário.</p>
+        <p className="text-xs">A IA <strong>nunca salva automaticamente</strong> — você sempre revisa e confirma antes de salvar.</p>
+      </div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1235,6 +1468,9 @@ export default function Configuracoes() {
             )}
             {activeSection === "tv" && (
               <TVSection />
+            )}
+            {activeSection === "ia" && (
+              <AISection />
             )}
           </div>
         </main>

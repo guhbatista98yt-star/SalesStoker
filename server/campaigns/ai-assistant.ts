@@ -1,9 +1,98 @@
 import { Router } from "express";
-import { isAuthenticated, type AuthRequest } from "../auth";
+import { isAuthenticated, isAdmin, type AuthRequest } from "../auth";
+import { pgGet, pgRun } from "../pg-client";
 
 const router = Router();
 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+// ─── Supported providers ──────────────────────────────────────────────────────
+
+const PROVIDERS: Record<string, { label: string; models: { id: string; label: string }[]; urlFn: (model: string, key: string) => string }> = {
+  gemini: {
+    label: "Google Gemini (gratuito)",
+    models: [
+      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash (recomendado)" },
+      { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+      { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+    ],
+    urlFn: (model, key) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+  },
+  openai: {
+    label: "OpenAI (ChatGPT)",
+    models: [
+      { id: "gpt-4o-mini", label: "GPT-4o Mini (econômico)" },
+      { id: "gpt-4o", label: "GPT-4o" },
+      { id: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+    ],
+    urlFn: () => "https://api.openai.com/v1/chat/completions",
+  },
+};
+
+// ─── Load / save AI config from app_settings ─────────────────────────────────
+
+async function loadAIConfig(): Promise<{ provider: string; model: string; apiKey: string }> {
+  try {
+    const row = await pgGet<{ value: string }>(`SELECT value FROM app_settings WHERE key = 'ai_config' LIMIT 1`);
+    if (row?.value) {
+      const cfg = JSON.parse(row.value);
+      return {
+        provider: cfg.provider || "gemini",
+        model: cfg.model || "gemini-2.0-flash",
+        apiKey: cfg.apiKey || process.env.GEMINI_API_KEY || "",
+      };
+    }
+  } catch {}
+  return {
+    provider: "gemini",
+    model: "gemini-2.0-flash",
+    apiKey: process.env.GEMINI_API_KEY || "",
+  };
+}
+
+async function saveAIConfig(provider: string, model: string, apiKey: string): Promise<void> {
+  const value = JSON.stringify({ provider, model, apiKey });
+  await pgRun(`
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES ('ai_config', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+  `, [value]);
+}
+
+// ─── Routes: get/set AI config ────────────────────────────────────────────────
+
+router.get("/config", isAuthenticated, isAdmin, async (_req, res) => {
+  try {
+    const cfg = await loadAIConfig();
+    res.json({
+      provider: cfg.provider,
+      model: cfg.model,
+      hasKey: Boolean(cfg.apiKey),
+      providers: Object.entries(PROVIDERS).map(([id, p]) => ({
+        id, label: p.label, models: p.models,
+      })),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/config", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { provider, model, apiKey } = req.body;
+    if (!provider || !model) return res.status(400).json({ error: "provider e model são obrigatórios" });
+    if (!PROVIDERS[provider]) return res.status(400).json({ error: "Provider inválido" });
+
+    const current = await loadAIConfig();
+    const keyToSave = apiKey || current.apiKey;
+    if (!keyToSave) return res.status(400).json({ error: "Chave API é obrigatória" });
+
+    await saveAIConfig(provider, model, keyToSave);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── System prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `Você é um assistente especialista em criar campanhas de incentivo de vendas para distribuidoras de tubos e conexões.
 
@@ -168,52 +257,76 @@ Use sempre o formato YYYY-MM-DD. Se o usuário disser "esse mês", use o mês at
 
 Lembre-se: seja eficiente. Se o usuário deu informações suficientes na primeira mensagem, gere o JSON imediatamente sem perguntar mais.`;
 
+// ─── Chat route ───────────────────────────────────────────────────────────────
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
 
+async function callGemini(apiKey: string, model: string, contents: any[], systemPrompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const payload = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents,
+    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API error: ${err}`);
+  }
+  const data = await res.json() as any;
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+}
+
+async function callOpenAI(apiKey: string, model: string, messages: any[], systemPrompt: string): Promise<string> {
+  const payload = {
+    model,
+    messages: [{ role: "system", content: systemPrompt }, ...messages.map((m: any) => ({ role: m.role, content: m.content }))],
+    temperature: 0.7,
+    max_tokens: 2048,
+  };
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenAI API error: ${err}`);
+  }
+  const data = await res.json() as any;
+  return data?.choices?.[0]?.message?.content ?? "";
+}
+
 router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
   try {
     const { messages }: { messages: ChatMessage[] } = req.body;
-
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "messages é obrigatório" });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY não configurada" });
+    const cfg = await loadAIConfig();
+    if (!cfg.apiKey) {
+      return res.status(400).json({ error: "Chave API da IA não configurada. Acesse Configurações → Inteligência Artificial." });
     }
 
-    const contents = messages.map(m => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
-
-    const payload = {
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
-      },
-    };
-
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[AI Assistant] Gemini error:", errText);
-      return res.status(500).json({ error: "Erro ao comunicar com IA. Verifique a chave GEMINI_API_KEY." });
+    let text = "";
+    if (cfg.provider === "openai") {
+      const msgs = messages.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
+      text = await callOpenAI(cfg.apiKey, cfg.model, msgs, SYSTEM_PROMPT);
+    } else {
+      const contents = messages.map(m => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+      text = await callGemini(cfg.apiKey, cfg.model, contents, SYSTEM_PROMPT);
     }
-
-    const data = await response.json() as any;
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
     const jsonMatch = text.match(/<<<CAMPAIGN_JSON>>>([\s\S]*?)<<<END_CAMPAIGN_JSON>>>/);
     let campaignDraft = null;
