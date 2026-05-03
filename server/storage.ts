@@ -70,6 +70,8 @@ export interface IStorage {
 
   getVendorDisplaySettings(): Promise<VendorDisplaySettings[]>;
   updateVendorDisplaySetting(setting: VendorDisplaySettings): Promise<VendorDisplaySettings>;
+  getVendorsTVSettings(): Promise<Array<{ vendorId: string; displayName: string; displayCode: string; showOnTv: boolean }>>;
+  setVendorTVVisible(vendorId: string, showOnTv: boolean): Promise<void>;
   getTVDashboardData(weekStart: string, weekEnd: string, userRole: string, teamMembers?: string[]): Promise<TVDashboardData>;
 
   getGoalSettings(salespersonId: string, month: number, year: number): Promise<GoalSetting[]>;
@@ -1887,6 +1889,8 @@ export const storage = {
   getAFaturarPorVendedor: (cid: string, tm?: string[]) => getStorage().then(s => s.getAFaturarPorVendedor(cid, tm)),
   getVendorDisplaySettings: () => getStorage().then(s => s.getVendorDisplaySettings()),
   updateVendorDisplaySetting: (set: VendorDisplaySettings) => getStorage().then(s => s.updateVendorDisplaySetting(set)),
+  getVendorsTVSettings: () => getStorage().then(s => s.getVendorsTVSettings()),
+  setVendorTVVisible: (vid: string, showOnTv: boolean) => getStorage().then(s => s.setVendorTVVisible(vid, showOnTv)),
   getTVDashboardData: (ws: string, we: string, ur: string, tm?: string[]) => getStorage().then(s => s.getTVDashboardData(ws, we, ur, tm)),
   getGoalSettings: (spid: string, m: number, y: number) => getStorage().then(s => s.getGoalSettings(spid, m, y)),
   saveGoalSettings: (set: GoalSetting) => getStorage().then(s => s.saveGoalSettings(set)),

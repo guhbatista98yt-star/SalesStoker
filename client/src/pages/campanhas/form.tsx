@@ -847,7 +847,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
   return (
     <div className="h-full flex overflow-hidden">
       {/* AI Assistant panel */}
-      {aiOpen && !isEditing && (
+      {aiOpen && !isReadonly && (
         <div className="w-[420px] min-w-[320px] max-w-[45vw] border-r flex flex-col shrink-0 bg-background">
           <AICampaignAssistant onApply={handleAIApply} onClose={() => setAiOpen(false)} />
         </div>
@@ -879,7 +879,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!isEditing && (
+          {!isReadonly && (
             <Button
               size="sm"
               variant={aiOpen ? "default" : "outline"}
@@ -887,7 +887,7 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
               onClick={() => setAiOpen(v => !v)}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              {aiOpen ? "Fechar IA" : "Criar com IA"}
+              {aiOpen ? "Fechar IA" : isEditing ? "Reformular com IA" : "Criar com IA"}
             </Button>
           )}
           {existing && (

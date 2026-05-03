@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { getAuthToken } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -72,14 +73,19 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
     mutationFn: async (file: File) => {
       const form = new FormData();
       form.append("file", file);
+      const token = getAuthToken();
       const res = await fetch("/api/campaigns-ai/upload", {
         method: "POST",
         body: form,
-        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Erro ao enviar arquivo");
+        let errMsg = "Erro ao enviar arquivo";
+        try {
+          const err = await res.json();
+          errMsg = err.error || err.message || errMsg;
+        } catch { /* not JSON */ }
+        throw new Error(errMsg);
       }
       return res.json() as Promise<{
         type: "image" | "pdf";

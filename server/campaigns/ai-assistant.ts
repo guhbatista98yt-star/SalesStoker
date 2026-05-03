@@ -8,13 +8,21 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 
 // ─── Supported providers ──────────────────────────────────────────────────────
 
+// Models that were deprecated and should be auto-upgraded
+const GEMINI_DEPRECATED_MODELS: Record<string, string> = {
+  "gemini-1.5-flash": "gemini-2.0-flash",
+  "gemini-1.5-flash-latest": "gemini-2.0-flash",
+  "gemini-1.5-pro": "gemini-2.0-flash",
+  "gemini-1.5-pro-latest": "gemini-2.0-flash",
+  "gemini-pro": "gemini-2.0-flash",
+};
+
 const PROVIDERS: Record<string, { label: string; models: { id: string; label: string }[] }> = {
   gemini: {
     label: "Google Gemini (gratuito)",
     models: [
-      { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash (recomendado)" },
-      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
-      { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash (recomendado)" },
+      { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite (mais rápido)" },
     ],
   },
   openai: {
@@ -58,16 +66,20 @@ async function loadAIConfig(): Promise<{ provider: string; model: string; apiKey
     const row = await pgGet<{ value: string }>(`SELECT value FROM app_settings WHERE key = 'ai_config' LIMIT 1`);
     if (row?.value) {
       const cfg = JSON.parse(row.value);
+      const rawModel = cfg.model || "gemini-2.0-flash";
+      const migratedModel = (cfg.provider === "gemini" && GEMINI_DEPRECATED_MODELS[rawModel])
+        ? GEMINI_DEPRECATED_MODELS[rawModel]
+        : rawModel;
       return {
         provider: cfg.provider || "gemini",
-        model: cfg.model || "gemini-1.5-flash",
+        model: migratedModel,
         apiKey: cfg.apiKey || process.env.GEMINI_API_KEY || "",
       };
     }
-  } catch {}
+  } catch { }
   return {
     provider: "gemini",
-    model: "gemini-1.5-flash",
+    model: "gemini-2.0-flash",
     apiKey: process.env.GEMINI_API_KEY || "",
   };
 }
@@ -138,7 +150,8 @@ router.post("/upload", isAuthenticated, upload.single("file"), async (req, res) 
     }
 
     if (file.mimetype === PDF_TYPE) {
-      const pdfParse = (await import("pdf-parse")).default;
+      const pdfParseModule: any = await import("pdf-parse");
+      const pdfParse = pdfParseModule.default || pdfParseModule;
       const parsed = await pdfParse(file.buffer);
       const text = parsed.text?.trim() || "";
       if (!text) return res.status(422).json({ error: "Não foi possível extrair texto do PDF" });
@@ -339,7 +352,7 @@ interface ChatMessage {
   };
 }
 
-const GEMINI_FALLBACK_CHAIN = ["gemini-1.5-flash", "gemini-1.5-pro"];
+const GEMINI_FALLBACK_CHAIN = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
 
 async function callGeminiModel(
   apiKey: string,
@@ -395,27 +408,31 @@ async function callGemini(
     let isQuota = false;
     try {
       const parsed = JSON.parse(raw);
-      const code = parsed?.error?.code ?? status;
-      const detail = parsed?.error?.message ?? "";
+      const code: number = parsed?.error?.code ?? status;
+      const detail: string = parsed?.error?.message ?? "";
       if (code === 429 || detail.includes("RESOURCE_EXHAUSTED") || detail.includes("quota")) {
         isQuota = true;
-        lastError = detail;
+        lastError = detail || `quota esgotada no modelo ${tryModel}`;
       } else if (code === 401 || code === 403 || detail.includes("API_KEY_INVALID") || detail.includes("PERMISSION_DENIED")) {
         throw new Error(`Chave API inválida ou sem permissão (${code}). Verifique se a chave está correta e se o projeto Google tem a API Generative Language ativada.`);
       } else {
+        // Any other error (404 model not found, 400 bad request, etc.) — throw immediately
         throw new Error(detail ? `Gemini: ${detail.slice(0, 300)}` : `Gemini API erro ${status}`);
       }
     } catch (e: any) {
+      // Re-throw errors we intentionally created above
       if (e.message.startsWith("Chave") || e.message.startsWith("Gemini")) throw e;
-      isQuota = true;
-      lastError = raw.slice(0, 100);
+      // JSON.parse failed — response was not JSON (unlikely for Google API but handle it)
+      throw new Error(`Gemini API retornou resposta inválida (status ${status}). Raw: ${raw.slice(0, 150)}`);
     }
     if (!isQuota) break;
-    // quota error — try next model in chain
+    // quota/rate-limit error — try next model in chain
   }
 
   throw new Error(
-    `Cota esgotada em todos os modelos Gemini disponíveis. Verifique sua chave em https://aistudio.google.com/app/apikey — certifique-se de que o projeto Google tem a API "Generative Language" ativada e não tem restrições de cota zeradas.`
+    `Limite de requisições atingido em todos os modelos Gemini (erro 429). ` +
+    `O plano gratuito permite 15 req/min e 1.500 req/dia. Aguarde 1 minuto e tente novamente. ` +
+    `Último detalhe: ${lastError.slice(0, 200)}`
   );
 }
 
