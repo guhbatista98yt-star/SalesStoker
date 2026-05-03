@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,12 @@ export default function Vendedores() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (companies.length > 0 && !companies.find(c => c.id === companyId)) {
+      setCompanyId(companies[0].id);
+    }
+  }, [companies]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
   const [showHidden, setShowHidden] = useState(false);
