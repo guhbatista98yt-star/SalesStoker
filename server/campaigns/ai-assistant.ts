@@ -1,8 +1,10 @@
 import { Router } from "express";
+import multer from "multer";
 import { isAuthenticated, isAdmin, type AuthRequest } from "../auth";
 import { pgGet, pgRun } from "../pg-client";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 // ─── Supported providers ──────────────────────────────────────────────────────
 
@@ -92,6 +94,48 @@ router.post("/config", isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
+// ─── Upload route ─────────────────────────────────────────────────────────────
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const PDF_TYPE = "application/pdf";
+
+router.post("/upload", isAuthenticated, upload.single("file"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+
+    if (IMAGE_TYPES.includes(file.mimetype)) {
+      const base64 = file.buffer.toString("base64");
+      return res.json({
+        type: "image",
+        mimeType: file.mimetype,
+        data: base64,
+        name: file.originalname,
+        size: file.size,
+      });
+    }
+
+    if (file.mimetype === PDF_TYPE) {
+      const pdfParse = (await import("pdf-parse")).default;
+      const parsed = await pdfParse(file.buffer);
+      const text = parsed.text?.trim() || "";
+      if (!text) return res.status(422).json({ error: "Não foi possível extrair texto do PDF" });
+      return res.json({
+        type: "pdf",
+        text,
+        name: file.originalname,
+        pages: parsed.numpages,
+        size: file.size,
+      });
+    }
+
+    return res.status(415).json({ error: "Tipo de arquivo não suportado. Use imagens (JPG, PNG, WebP) ou PDF." });
+  } catch (err: any) {
+    console.error("[AI Upload]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `Você é um assistente especialista em criar campanhas de incentivo de vendas para distribuidoras de tubos e conexões.
@@ -104,6 +148,8 @@ Seu trabalho é conversar com o usuário, entender o que ele quer, fazer pergunt
 2. Faça UMA pergunta por vez quando precisar de informações.
 3. Quando tiver informações suficientes, gere a configuração JSON automaticamente.
 4. Confirme com o usuário antes de finalizar.
+5. Se o usuário enviar uma imagem (flyer, arte, tabela, documento fotográfico), analise todo o conteúdo visual para extrair as informações da campanha.
+6. Se o usuário enviar um PDF, o texto extraído virá no início da mensagem. Use essas informações para montar a campanha.
 
 ## INFORMAÇÕES NECESSÁRIAS PARA UMA CAMPANHA
 
@@ -257,25 +303,57 @@ Use sempre o formato YYYY-MM-DD. Se o usuário disser "esse mês", use o mês at
 
 Lembre-se: seja eficiente. Se o usuário deu informações suficientes na primeira mensagem, gere o JSON imediatamente sem perguntar mais.`;
 
-// ─── Chat route ───────────────────────────────────────────────────────────────
+// ─── AI call helpers ──────────────────────────────────────────────────────────
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  attachment?: {
+    type: "image" | "pdf";
+    mimeType?: string;
+    data?: string;
+    text?: string;
+    name: string;
+  };
 }
 
-async function callGemini(apiKey: string, model: string, contents: any[], systemPrompt: string): Promise<string> {
+async function callGemini(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  systemPrompt: string
+): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const contents = messages.map((m, i) => {
+    const isLast = i === messages.length - 1;
+    const parts: any[] = [];
+
+    if (m.attachment && isLast) {
+      if (m.attachment.type === "image" && m.attachment.data && m.attachment.mimeType) {
+        parts.push({ inline_data: { mime_type: m.attachment.mimeType, data: m.attachment.data } });
+      } else if (m.attachment.type === "pdf" && m.attachment.text) {
+        parts.push({ text: `[Conteúdo do PDF "${m.attachment.name}":\n${m.attachment.text}\n]\n\n` });
+      }
+    }
+
+    parts.push({ text: m.content || (m.attachment ? "Analise o conteúdo enviado e monte a campanha." : "") });
+
+    return { role: m.role === "assistant" ? "model" : "user", parts };
+  });
+
   const payload = {
     system_instruction: { parts: [{ text: systemPrompt }] },
     contents,
     generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
   };
+
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Gemini API error: ${err}`);
@@ -284,18 +362,52 @@ async function callGemini(apiKey: string, model: string, contents: any[], system
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
-async function callOpenAI(apiKey: string, model: string, messages: any[], systemPrompt: string): Promise<string> {
-  const payload = {
-    model,
-    messages: [{ role: "system", content: systemPrompt }, ...messages.map((m: any) => ({ role: m.role, content: m.content }))],
-    temperature: 0.7,
-    max_tokens: 2048,
-  };
+async function callOpenAI(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  systemPrompt: string
+): Promise<string> {
+  const builtMessages: any[] = [{ role: "system", content: systemPrompt }];
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    const isLast = i === messages.length - 1;
+
+    if (m.role === "assistant") {
+      builtMessages.push({ role: "assistant", content: m.content });
+      continue;
+    }
+
+    if (isLast && m.attachment) {
+      const contentParts: any[] = [];
+
+      if (m.attachment.type === "image" && m.attachment.data && m.attachment.mimeType) {
+        contentParts.push({
+          type: "image_url",
+          image_url: { url: `data:${m.attachment.mimeType};base64,${m.attachment.data}` },
+        });
+        if (m.content) contentParts.push({ type: "text", text: m.content });
+        else contentParts.push({ type: "text", text: "Analise a imagem e monte a campanha de vendas." });
+      } else if (m.attachment.type === "pdf" && m.attachment.text) {
+        const fullText = `[Conteúdo do PDF "${m.attachment.name}":\n${m.attachment.text}\n]\n\n${m.content || "Monte a campanha com base neste PDF."}`;
+        contentParts.push({ type: "text", text: fullText });
+      } else {
+        contentParts.push({ type: "text", text: m.content });
+      }
+
+      builtMessages.push({ role: "user", content: contentParts });
+    } else {
+      builtMessages.push({ role: "user", content: m.content });
+    }
+  }
+
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ model, messages: builtMessages, temperature: 0.7, max_tokens: 2048 }),
   });
+
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`OpenAI API error: ${err}`);
@@ -303,6 +415,8 @@ async function callOpenAI(apiKey: string, model: string, messages: any[], system
   const data = await res.json() as any;
   return data?.choices?.[0]?.message?.content ?? "";
 }
+
+// ─── Chat route ───────────────────────────────────────────────────────────────
 
 router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
   try {
@@ -318,14 +432,9 @@ router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
 
     let text = "";
     if (cfg.provider === "openai") {
-      const msgs = messages.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
-      text = await callOpenAI(cfg.apiKey, cfg.model, msgs, SYSTEM_PROMPT);
+      text = await callOpenAI(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
     } else {
-      const contents = messages.map(m => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      }));
-      text = await callGemini(cfg.apiKey, cfg.model, contents, SYSTEM_PROMPT);
+      text = await callGemini(cfg.apiKey, cfg.model, messages, SYSTEM_PROMPT);
     }
 
     const jsonMatch = text.match(/<<<CAMPAIGN_JSON>>>([\s\S]*?)<<<END_CAMPAIGN_JSON>>>/);

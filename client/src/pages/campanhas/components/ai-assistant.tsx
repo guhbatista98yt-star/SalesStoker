@@ -3,23 +3,38 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sparkles, Send, Loader2, X, CheckCircle2,
-  RotateCcw, ChevronRight, Bot, User,
+  RotateCcw, ChevronRight, Bot, User, Paperclip,
+  FileText, ImageIcon, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Attachment {
+  type: "image" | "pdf";
+  name: string;
+  mimeType?: string;
+  data?: string;
+  text?: string;
+  previewUrl?: string;
+  pages?: number;
+}
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  attachment?: Attachment;
 }
 
 interface AICampaignAssistantProps {
   onApply: (draft: Record<string, any>) => void;
   onClose: () => void;
 }
+
+// ─── Suggestions ──────────────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
   "Campanha do fornecedor Tigre no mês de junho: quem vender 50 unidades ganha R$200",
@@ -28,21 +43,76 @@ const SUGGESTIONS = [
   "Campanha mensal recorrente: quem bater R$10.000 em vendas ganha R$100",
 ];
 
+const MAX_FILE_MB = 10;
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Olá! Descreva a campanha que você quer criar e eu monto tudo automaticamente. Pode ser simples ou detalhada — o que fizer sentido para você.\n\nSe eu precisar de alguma informação adicional, vou perguntar.",
+      content: "Olá! Descreva a campanha que você quer criar e eu monto tudo automaticamente.\n\nVocê também pode enviar uma imagem (flyer, arte) ou PDF com os detalhes da campanha.",
     },
   ]);
   const [input, setInput] = useState("");
   const [pendingDraft, setPendingDraft] = useState<Record<string, any> | null>(null);
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // ─── Upload mutation ───────────────────────────────────────────────────────
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/campaigns-ai/upload", {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro ao enviar arquivo");
+      }
+      return res.json() as Promise<{
+        type: "image" | "pdf";
+        mimeType?: string;
+        data?: string;
+        text?: string;
+        name: string;
+        pages?: number;
+        size: number;
+      }>;
+    },
+    onSuccess: (data, file) => {
+      setUploadError(null);
+      const att: Attachment = {
+        type: data.type,
+        name: data.name,
+        mimeType: data.mimeType,
+        data: data.data,
+        text: data.text,
+        pages: data.pages,
+        previewUrl: data.type === "image" && data.data && data.mimeType
+          ? `data:${data.mimeType};base64,${data.data}`
+          : undefined,
+      };
+      setAttachment(att);
+    },
+    onError: (e: any) => {
+      setUploadError(e.message);
+      setAttachment(null);
+    },
+  });
+
+  // ─── Chat mutation ─────────────────────────────────────────────────────────
 
   const chatMutation = useMutation({
     mutationFn: async (msgs: Message[]) => {
@@ -54,11 +124,8 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
       return res.json() as Promise<{ message: string; campaignDraft: Record<string, any> | null }>;
     },
     onSuccess: (data) => {
-      const assistantMsg: Message = { role: "assistant", content: data.message };
-      setMessages(prev => [...prev, assistantMsg]);
-      if (data.campaignDraft) {
-        setPendingDraft(data.campaignDraft);
-      }
+      setMessages(prev => [...prev, { role: "assistant", content: data.message }]);
+      if (data.campaignDraft) setPendingDraft(data.campaignDraft);
     },
     onError: (e: any) => {
       setMessages(prev => [...prev, {
@@ -68,13 +135,43 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
     },
   });
 
+  // ─── Handlers ─────────────────────────────────────────────────────────────
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      setUploadError(`Arquivo muito grande. Limite: ${MAX_FILE_MB}MB`);
+      return;
+    }
+
+    setUploadError(null);
+    setAttachment(null);
+    uploadMutation.mutate(file);
+  }
+
+  function handleRemoveAttachment() {
+    setAttachment(null);
+    setUploadError(null);
+    uploadMutation.reset();
+  }
+
   function handleSend(text?: string) {
     const msg = (text ?? input).trim();
-    if (!msg || chatMutation.isPending) return;
-    const userMsg: Message = { role: "user", content: msg };
+    if ((!msg && !attachment) || chatMutation.isPending || uploadMutation.isPending) return;
+
+    const userMsg: Message = {
+      role: "user",
+      content: msg,
+      attachment: attachment ?? undefined,
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
+    setAttachment(null);
+    setUploadError(null);
     setPendingDraft(null);
     chatMutation.mutate(newMessages);
   }
@@ -93,16 +190,18 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
     }]);
     setPendingDraft(null);
     setInput("");
+    setAttachment(null);
+    setUploadError(null);
   }
 
-  function handleApply() {
-    if (pendingDraft) {
-      onApply(pendingDraft);
-    }
-  }
+  const isBusy = chatMutation.isPending || uploadMutation.isPending;
+  const canSend = (input.trim().length > 0 || attachment !== null) && !isBusy;
+
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full bg-background">
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/20 dark:to-blue-950/20">
         <div className="flex items-center gap-2">
@@ -111,7 +210,7 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
           </div>
           <div>
             <p className="text-sm font-semibold">Assistente de Campanhas</p>
-            <p className="text-[10px] text-muted-foreground">IA para criar campanhas em linguagem natural</p>
+            <p className="text-[10px] text-muted-foreground">Texto · Imagens · PDF</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -134,18 +233,52 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
                   <Bot className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
                 </div>
               )}
-              <div className={cn(
-                "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-                msg.role === "user"
-                  ? "bg-violet-600 text-white rounded-tr-sm"
-                  : "bg-muted rounded-tl-sm"
-              )}>
-                {msg.content.split("\n").map((line, j) => (
-                  <span key={j}>
-                    {line}
-                    {j < msg.content.split("\n").length - 1 && <br />}
-                  </span>
-                ))}
+              <div className="max-w-[85%] space-y-1.5">
+                {/* Attachment display */}
+                {msg.attachment && (
+                  <div className={cn(
+                    "rounded-xl overflow-hidden border",
+                    msg.role === "user" ? "border-violet-400/40" : "border-border"
+                  )}>
+                    {msg.attachment.type === "image" && msg.attachment.previewUrl ? (
+                      <img
+                        src={msg.attachment.previewUrl}
+                        alt={msg.attachment.name}
+                        className="max-w-[220px] max-h-[180px] object-cover block"
+                      />
+                    ) : (
+                      <div className={cn(
+                        "flex items-center gap-2 px-3 py-2 text-xs",
+                        msg.role === "user"
+                          ? "bg-violet-500 text-white"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="truncate max-w-[160px]">{msg.attachment.name}</span>
+                        {msg.attachment.pages && (
+                          <span className="shrink-0 opacity-70">({msg.attachment.pages} pág.)</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Text bubble */}
+                {msg.content && (
+                  <div className={cn(
+                    "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                    msg.role === "user"
+                      ? "bg-violet-600 text-white rounded-tr-sm"
+                      : "bg-muted rounded-tl-sm"
+                  )}>
+                    {msg.content.split("\n").map((line, j) => (
+                      <span key={j}>
+                        {line}
+                        {j < msg.content.split("\n").length - 1 && <br />}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               {msg.role === "user" && (
                 <div className="h-7 w-7 rounded-full bg-violet-600 flex items-center justify-center shrink-0 mt-0.5">
@@ -155,6 +288,7 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
             </div>
           ))}
 
+          {/* Thinking indicator */}
           {chatMutation.isPending && (
             <div className="flex gap-2.5 justify-start">
               <div className="h-7 w-7 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
@@ -168,6 +302,7 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
             </div>
           )}
 
+          {/* Draft ready */}
           {pendingDraft && !chatMutation.isPending && (
             <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl p-3 flex items-start gap-3">
               <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
@@ -182,7 +317,7 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
               <Button
                 size="sm"
                 className="shrink-0 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleApply}
+                onClick={() => onApply(pendingDraft)}
               >
                 Aplicar ao Formulário <ChevronRight className="h-3.5 w-3.5" />
               </Button>
@@ -211,24 +346,91 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
         </div>
       )}
 
+      {/* Attachment preview */}
+      {(attachment || uploadMutation.isPending || uploadError) && (
+        <div className="px-4 pb-1">
+          {uploadMutation.isPending && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Processando arquivo...
+            </div>
+          )}
+          {uploadError && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-400">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              {uploadError}
+              <button className="ml-auto" onClick={() => setUploadError(null)}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+          {attachment && !uploadMutation.isPending && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800">
+              {attachment.type === "image"
+                ? <ImageIcon className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
+                : <FileText className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
+              }
+              <span className="text-xs text-violet-700 dark:text-violet-300 truncate flex-1">
+                {attachment.name}
+                {attachment.pages && ` (${attachment.pages} páginas)`}
+              </span>
+              {attachment.type === "image" && attachment.previewUrl && (
+                <img src={attachment.previewUrl} alt="" className="h-8 w-8 object-cover rounded" />
+              )}
+              <button
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={handleRemoveAttachment}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Input */}
       <div className="px-4 pb-4 pt-2 border-t">
         <div className="flex gap-2 items-end">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          {/* Attach button */}
+          <Button
+            size="icon"
+            variant="outline"
+            className={cn(
+              "h-10 w-10 shrink-0",
+              attachment && "border-violet-400 bg-violet-50 dark:bg-violet-950/20"
+            )}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBusy}
+            title="Anexar imagem ou PDF"
+          >
+            <Paperclip className="h-4 w-4" />
+          </Button>
+
           <Textarea
             ref={textareaRef}
             className="flex-1 resize-none text-sm min-h-[60px] max-h-[120px]"
-            placeholder="Descreva a campanha em linguagem natural..."
+            placeholder={attachment ? "Adicione uma mensagem (opcional) ou envie direto..." : "Descreva a campanha em linguagem natural..."}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={2}
-            disabled={chatMutation.isPending}
+            disabled={isBusy}
           />
+
           <Button
             size="icon"
             className="h-10 w-10 shrink-0 bg-violet-600 hover:bg-violet-700"
             onClick={() => handleSend()}
-            disabled={!input.trim() || chatMutation.isPending}
+            disabled={!canSend}
           >
             {chatMutation.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -237,7 +439,7 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-          Enter para enviar · Shift+Enter para nova linha · Powered by Google Gemini (gratuito)
+          Enter para enviar · Shift+Enter para nova linha · Suporta imagens e PDF
         </p>
       </div>
     </div>
