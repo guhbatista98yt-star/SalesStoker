@@ -1086,10 +1086,46 @@ export class PostgresStorage implements IStorage {
         displayCode: r.displayCode,
         displayName: r.displayName,
         isHidden: r.isHidden === 1 || r.isHidden === true,
+        showOnTv: r.showOnTv === 0 ? false : true,
         companyId: r.companyId,
       }));
     } catch {
       return [];
+    }
+  }
+
+  async getVendorsTVSettings(): Promise<Array<{ vendorId: string; displayName: string; displayCode: string; showOnTv: boolean }>> {
+    try {
+      const salespersons = await this.getSalespersonsFromCache();
+      const settings = await this.getVendorDisplaySettings();
+      return salespersons.map(sp => {
+        const s = settings.find(x => x.vendorId === sp.id);
+        return {
+          vendorId: sp.id,
+          displayName: s?.displayName || sp.name.split(' ')[0],
+          displayCode: s?.displayCode || sp.id.slice(0, 4),
+          showOnTv: s ? (s.showOnTv !== false) : true,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  async setVendorTVVisible(vendorId: string, showOnTv: boolean): Promise<void> {
+    try {
+      const existing = await pgGet(`SELECT * FROM vendor_display_settings WHERE "vendorId" = ?`, [vendorId]);
+      if (existing) {
+        await pgRun(`UPDATE vendor_display_settings SET "showOnTv" = ?, updated_at = CURRENT_TIMESTAMP WHERE "vendorId" = ?`,
+          [showOnTv ? 1 : 0, vendorId]);
+      } else {
+        const { randomUUID } = await import("crypto");
+        await pgRun(`INSERT INTO vendor_display_settings (id, "vendorId", "isHidden", "showOnTv", "companyId") VALUES (?, ?, 0, ?, 'all')`,
+          [randomUUID(), vendorId, showOnTv ? 1 : 0]);
+      }
+    } catch (err) {
+      console.error("Error updating TV visibility:", err);
+      throw err;
     }
   }
 
@@ -1147,6 +1183,7 @@ export class PostgresStorage implements IStorage {
     const vendorsData = (await Promise.all(salespersons.map(async (sp) => {
       const setting = settings.find(s => s.vendorId === sp.id);
       if (setting?.isHidden) return null;
+      if (setting && setting.showOnTv === false) return null;
 
       let l01Sales = 0, l03Sales = 0, lMatrizSales = 0;
       try {
@@ -1276,11 +1313,17 @@ export class PostgresStorage implements IStorage {
     try {
       if (/^\d+$/.test(email.trim())) return email.trim();
 
-      const user = await pgGet<{ first_name: string }>(
-        "SELECT first_name FROM users WHERE LOWER(email) = LOWER(?)",
+      const user = await pgGet<{ first_name: string; vendor_code: string | null }>(
+        "SELECT first_name, vendor_code FROM users WHERE LOWER(email) = LOWER(?)",
         [email]
       );
-      if (!user || !user.first_name) return email;
+      if (!user) return email;
+
+      if (user.vendor_code && user.vendor_code.trim()) {
+        return user.vendor_code.trim();
+      }
+
+      if (!user.first_name) return email;
 
       const numericUser = await pgGet<{ email: string }>(
         "SELECT email FROM users WHERE UPPER(first_name) = UPPER(?) AND email ~ '^[0-9]' LIMIT 1",

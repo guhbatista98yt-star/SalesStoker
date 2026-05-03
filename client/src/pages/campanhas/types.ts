@@ -197,6 +197,9 @@ export interface Campaign {
   exceptions: CampaignException[];
   natural_language?: string;
   internal_notes?: string;
+  cycle_type?: "none" | "monthly" | "quarterly" | "annual";
+  auto_renew?: boolean;
+  cycle_count?: number;
   created_by: string;
   updated_by?: string;
   change_reason?: string;

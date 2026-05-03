@@ -81,6 +81,27 @@ router.post("/:id/clone", isAuthenticated, isAdmin, async (req: AuthRequest, res
   }
 });
 
+// ─── Renew campaign cycle ─────────────────────────────────────────────────────
+router.post("/:id/renovar", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
+  try {
+    const actor = req.userEmail || "sistema";
+    const campaign = await service.renewCampaignCycle(String(req.params.id), actor);
+    res.status(201).json(campaign);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ─── Check and renew all eligible cycles ──────────────────────────────────────
+router.post("/check-renewals", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
+  try {
+    const renewed = await service.checkAndRenewCampaigns(req.userEmail || "sistema");
+    res.json({ renewed: renewed.length, ids: renewed });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Validate campaign ────────────────────────────────────────────────────────
 router.get("/:id/validate", isAuthenticated, async (req, res) => {
   try {

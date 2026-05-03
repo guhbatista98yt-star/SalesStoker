@@ -25,7 +25,7 @@ import {
   ChevronLeft, Save, Loader2, AlertTriangle, CheckCircle2,
   Info, Plus, Trash2, Layers, ClipboardList, Zap,
   Users, GitBranch, Trophy, Shield, FlaskConical, BarChart3,
-  Upload, X as XIcon,
+  Upload, X as XIcon, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RuleBuilder } from "./components/rule-builder";
@@ -1218,6 +1218,56 @@ export default function CampaignForm({ campaignId }: CampaignFormProps) {
                     onChange={e => update({ internal_notes: e.target.value })}
                     disabled={isReadonly}
                   />
+                </Section>
+
+                <Separator />
+
+                <Section
+                  title="Ciclo Automático"
+                  description="Configure renovação automática da campanha ao final de cada período."
+                >
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Tipo de Ciclo</Label>
+                      <Select
+                        value={form.cycle_type ?? "none"}
+                        onValueChange={v => update({ cycle_type: v as any })}
+                        disabled={isReadonly}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none" className="text-xs">Sem ciclo (única)</SelectItem>
+                          <SelectItem value="monthly" className="text-xs">Mensal</SelectItem>
+                          <SelectItem value="quarterly" className="text-xs">Trimestral</SelectItem>
+                          <SelectItem value="annual" className="text-xs">Anual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {(form.cycle_type && form.cycle_type !== "none") && (
+                      <div className="flex items-center gap-3 pt-5">
+                        <Switch
+                          checked={form.auto_renew === true}
+                          onCheckedChange={v => update({ auto_renew: v })}
+                          disabled={isReadonly}
+                        />
+                        <div>
+                          <Label className="text-xs">Renovação automática</Label>
+                          <p className="text-[10px] text-muted-foreground">
+                            Cria próximo ciclo automaticamente ao encerrar.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {(form.cycle_type && form.cycle_type !== "none") && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <RefreshCw className="h-3.5 w-3.5 text-blue-500" />
+                      <p className="text-[10px] text-muted-foreground">
+                        {form.cycle_type === "monthly" ? "Ciclo mensal" : form.cycle_type === "quarterly" ? "Ciclo trimestral" : "Ciclo anual"} — datas serão avançadas automaticamente no próximo ciclo.
+                        {(form.cycle_count ?? 0) > 0 && ` Ciclo atual: #${form.cycle_count}.`}
+                      </p>
+                    </div>
+                  )}
                 </Section>
 
                 {/* Natural language preview */}

@@ -60,6 +60,9 @@ import {
   ChevronRight,
   Upload,
   Bell,
+  Tv,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GoalSwitch } from "@/components/goal-switch";
@@ -96,6 +99,7 @@ const NAV_ITEMS = [
   { id: "metas", label: "Metas de Venda", icon: Target },
   { id: "permissoes", label: "Permissões", icon: ShieldCheck },
   { id: "alertas-compras", label: "Alertas de Compras", icon: Bell },
+  { id: "tv", label: "Configuração de TV", icon: Tv },
 ];
 
 const ALL_MODULES = [
@@ -161,6 +165,144 @@ function buildGoalInitials(
 
 function fmtBRL(v: number | undefined | null) {
   return (v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: TV
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface TVVendorSetting {
+  vendorId: string;
+  displayName: string;
+  displayCode: string;
+  showOnTv: boolean;
+}
+
+function TVSection() {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+
+  const { data: vendors = [], isLoading } = useQuery<TVVendorSetting[]>({
+    queryKey: ["/api/admin/vendor-tv-visibility"],
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ vendorId, showOnTv }: { vendorId: string; showOnTv: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/vendor-tv-visibility/${vendorId}`, { showOnTv });
+      if (!res.ok) throw new Error("Erro ao salvar");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/vendor-tv-visibility"] });
+    },
+    onError: () => toast({ title: "Erro ao atualizar configuração de TV", variant: "destructive" }),
+  });
+
+  const filtered = vendors.filter(v =>
+    !search || v.displayName.toLowerCase().includes(search.toLowerCase()) || v.displayCode.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const visibleCount = vendors.filter(v => v.showOnTv).length;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+          <Tv className="h-5 w-5 text-primary" />
+          Configuração do Display de TV
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Selecione quais vendedores aparecem no painel de TV da loja. Vendedores ocultados aqui não aparecem no display, mas continuam no sistema.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border text-sm">
+        <Tv className="h-4 w-4 text-blue-500 shrink-0" />
+        <span className="text-muted-foreground">
+          {visibleCount} de {vendors.length} vendedores visíveis no TV
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            className="w-full h-8 pl-8 pr-3 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder="Buscar vendedor..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs gap-1"
+          onClick={() => {
+            vendors.forEach(v => {
+              if (!v.showOnTv) toggleMutation.mutate({ vendorId: v.vendorId, showOnTv: true });
+            });
+          }}
+        >
+          <Eye className="h-3.5 w-3.5" /> Mostrar todos
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs gap-1"
+          onClick={() => {
+            vendors.forEach(v => {
+              if (v.showOnTv) toggleMutation.mutate({ vendorId: v.vendorId, showOnTv: false });
+            });
+          }}
+        >
+          <EyeOff className="h-3.5 w-3.5" /> Ocultar todos
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1,2,3,4].map(i => <div key={i} className="h-12 rounded bg-muted/50 animate-pulse" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          {vendors.length === 0 ? "Nenhum vendedor encontrado no sistema." : "Nenhum vendedor encontrado para a busca."}
+        </div>
+      ) : (
+        <div className="border rounded-lg divide-y">
+          {filtered.map(v => (
+            <div key={v.vendorId} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${v.showOnTv ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" : "bg-muted text-muted-foreground"}`}>
+                  {v.displayCode.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className={`text-sm font-medium ${!v.showOnTv ? "text-muted-foreground line-through" : ""}`}>
+                    {v.displayName}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground font-mono">{v.displayCode} · ID {v.vendorId}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {v.showOnTv ? (
+                  <span className="text-[10px] text-blue-600 font-medium flex items-center gap-1">
+                    <Eye className="h-3 w-3" /> Visível no TV
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <EyeOff className="h-3 w-3" /> Oculto
+                  </span>
+                )}
+                <Switch
+                  checked={v.showOnTv}
+                  onCheckedChange={checked => toggleMutation.mutate({ vendorId: v.vendorId, showOnTv: checked })}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1090,6 +1232,9 @@ export default function Configuracoes() {
                 <PurchaseAlertPreferences />
                 <PurchaseAlertAdminSettings />
               </div>
+            )}
+            {activeSection === "tv" && (
+              <TVSection />
             )}
           </div>
         </main>

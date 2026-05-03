@@ -161,6 +161,7 @@ async function bootstrapVendorSettings(): Promise<void> {
       "displayCode" TEXT,
       "displayName" TEXT,
       "isHidden"    INTEGER NOT NULL DEFAULT 0,
+      "showOnTv"    INTEGER NOT NULL DEFAULT 1,
       "companyId"   TEXT NOT NULL DEFAULT 'all',
       created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -168,6 +169,7 @@ async function bootstrapVendorSettings(): Promise<void> {
   `);
   await exec(`CREATE INDEX IF NOT EXISTS idx_vendor_display_company
     ON vendor_display_settings ("companyId")`);
+  await exec(`ALTER TABLE vendor_display_settings ADD COLUMN IF NOT EXISTS "showOnTv" INTEGER NOT NULL DEFAULT 1`).catch(() => {});
 }
 
 async function bootstrapVendorGroups(): Promise<void> {
@@ -618,6 +620,9 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["campaigns", "supplier_name",  "TEXT"],
     ["campaigns", "logo_url",       "TEXT"],
     ["campaigns", "brand_color",    "TEXT"],
+    ["campaigns", "cycle_type",     "TEXT NOT NULL DEFAULT 'none'"],
+    ["campaigns", "auto_renew",     "INTEGER NOT NULL DEFAULT 0"],
+    ["campaigns", "cycle_count",    "INTEGER NOT NULL DEFAULT 0"],
     ["goals",     "created_at",     "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"],
     ["goals",     "updated_at",     "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"],
     // Users — extended profile & governance fields

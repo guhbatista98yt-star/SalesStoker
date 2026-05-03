@@ -35,6 +35,7 @@ interface RawCampaign {
   targets: string; bases: string; conditions: string; triggers: string;
   rewards: string; limits: string; exceptions: string;
   natural_language: string | null; internal_notes: string | null;
+  cycle_type: string | null; auto_renew: number; cycle_count: number;
   created_by: string; updated_by: string | null; change_reason: string | null;
   created_at: string; updated_at: string;
 }
@@ -44,6 +45,9 @@ function parseCampaign(row: RawCampaign) {
     ...row,
     is_cumulative: Boolean(row.is_cumulative),
     is_exclusive: Boolean(row.is_exclusive),
+    auto_renew: Boolean(row.auto_renew),
+    cycle_type: (row.cycle_type as any) || "none",
+    cycle_count: row.cycle_count ?? 0,
     campaign_mode: row.campaign_mode || "atingimento",
     targets: safeJson(row.targets, {}),
     bases: safeJson(row.bases, {}),
@@ -160,9 +164,10 @@ export async function createCampaign(data: any, actor: string) {
       status, priority, is_cumulative, is_exclusive, parent_id, current_version,
       starts_at, ends_at, time_start, time_end, valid_weekdays, recurrence,
       targets, bases, conditions, triggers, rewards, limits, exceptions,
-      natural_language, internal_notes, created_by, updated_by, change_reason
+      natural_language, internal_notes, cycle_type, auto_renew, cycle_count,
+      created_by, updated_by, change_reason
     ) VALUES (
-      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
     )
   `, [
     id, code, data.name, data.description || null, data.objective || null,
@@ -184,6 +189,7 @@ export async function createCampaign(data: any, actor: string) {
     JSON.stringify(data.limits || {}),
     JSON.stringify(data.exceptions || []),
     naturalLang, data.internal_notes || null,
+    data.cycle_type || "none", data.auto_renew ? 1 : 0, data.cycle_count ?? 0,
     actor, null, null,
   ]);
 
@@ -211,6 +217,7 @@ export async function updateCampaign(id: string, data: any, actor: string, reaso
       starts_at=?, ends_at=?, time_start=?, time_end=?, valid_weekdays=?, recurrence=?,
       targets=?, bases=?, conditions=?, triggers=?, rewards=?, limits=?, exceptions=?,
       natural_language=?, internal_notes=?,
+      cycle_type=?, auto_renew=?,
       current_version=?, updated_by=?, change_reason=?, updated_at=CURRENT_TIMESTAMP
     WHERE id=?
   `, [
@@ -235,6 +242,8 @@ export async function updateCampaign(id: string, data: any, actor: string, reaso
     JSON.stringify(data.limits || {}),
     JSON.stringify(data.exceptions || []),
     naturalLang, data.internal_notes || null,
+    data.cycle_type !== undefined ? (data.cycle_type || "none") : ((existing as any).cycle_type || "none"),
+    data.auto_renew !== undefined ? (data.auto_renew ? 1 : 0) : ((existing as any).auto_renew ? 1 : 0),
     newVersion, actor, reason || null,
     id,
   ]);
@@ -468,4 +477,78 @@ export async function restoreVersion(campaignId: string, version: number, actor:
 
   await audit(campaignId, "restaurado", actor, { version: existing.current_version }, { version }, reason);
   return restored;
+}
+
+// ─── Cycle renewal ────────────────────────────────────────────────────────────
+
+function advanceDateByCycle(dateStr: string, cycleType: string): string {
+  const d = new Date(dateStr);
+  if (cycleType === "monthly") {
+    d.setMonth(d.getMonth() + 1);
+  } else if (cycleType === "quarterly") {
+    d.setMonth(d.getMonth() + 3);
+  } else if (cycleType === "annual") {
+    d.setFullYear(d.getFullYear() + 1);
+  }
+  return d.toISOString().split("T")[0];
+}
+
+export async function renewCampaignCycle(campaignId: string, actor: string) {
+  const orig = await getCampaignById(campaignId);
+  if (!orig) throw new Error("Campanha não encontrada");
+
+  const cycleType = (orig as any).cycle_type;
+  if (!cycleType || cycleType === "none") throw new Error("Campanha sem ciclo definido");
+  if (!(orig as any).auto_renew) throw new Error("Renovação automática não habilitada");
+
+  const newStart = advanceDateByCycle(orig.starts_at, cycleType);
+  const newEnd = advanceDateByCycle(orig.ends_at, cycleType);
+
+  const cycleCount = ((orig as any).cycle_count ?? 0) + 1;
+
+  const cloneData = {
+    ...orig,
+    name: orig.name,
+    code: undefined,
+    parent_id: orig.id,
+    starts_at: newStart,
+    ends_at: newEnd,
+    status: "rascunho",
+    cycle_count: cycleCount,
+    cycle_type: cycleType,
+    auto_renew: true,
+    is_cumulative: orig.is_cumulative,
+    is_exclusive: orig.is_exclusive,
+  };
+
+  const renewed = await createCampaign(cloneData, actor);
+  await audit(renewed.id, "ciclo_renovado", actor, { source_id: orig.id }, { cycle: cycleCount, starts_at: newStart, ends_at: newEnd }, `Ciclo ${cycleCount} — renovação automática de ${orig.code}`);
+  return renewed;
+}
+
+export async function checkAndRenewCampaigns(actor = "sistema") {
+  const rows = await pgAll<RawCampaign>(`
+    SELECT * FROM campaigns
+    WHERE status = 'encerrada'
+      AND auto_renew = 1
+      AND (cycle_type IS NOT NULL AND cycle_type != 'none')
+      AND ends_at < CURRENT_DATE
+  `);
+
+  const renewed: string[] = [];
+  for (const row of rows) {
+    const orig = parseCampaign(row);
+    const childExists = await pgGet<{ id: string }>(
+      `SELECT id FROM campaigns WHERE parent_id = ? AND status != 'cancelada' ORDER BY created_at DESC LIMIT 1`,
+      [orig.id]
+    );
+    if (childExists) continue;
+    try {
+      const next = await renewCampaignCycle(orig.id, actor);
+      renewed.push(next.id);
+    } catch (e: any) {
+      console.error(`[cycle] Erro ao renovar campanha ${orig.id}:`, e.message);
+    }
+  }
+  return renewed;
 }

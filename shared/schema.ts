@@ -281,10 +281,11 @@ export interface AlertNotification {
 export interface VendorDisplaySettings {
   id: string;
   vendorId: string;
-  displayCode: string; // e.g., "1014938"
-  displayName: string; // e.g., "JANIO SOARES"
-  isHidden: boolean; // For "LAURA LETICIA" etc.
-  companyId?: string; // Optional
+  displayCode: string;
+  displayName: string;
+  isHidden: boolean;
+  showOnTv?: boolean;
+  companyId?: string;
 }
 
 export interface TVDashboardData {

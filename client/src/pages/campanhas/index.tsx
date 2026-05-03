@@ -23,7 +23,7 @@ import {
 import {
   Plus, Search, Filter, MoreVertical, Eye, Edit2, Copy, Play,
   Pause, StopCircle, XCircle, AlertTriangle, Layers, Zap,
-  Calendar, ArrowUpDown, ChevronLeft, Trophy, Clock, Check,
+  Calendar, ArrowUpDown, ChevronLeft, Trophy, Clock, Check, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -59,9 +59,10 @@ interface CampaignCardProps {
   onStatus: (id: string, status: CampaignStatus) => void;
   onView: (id: string) => void;
   onEdit: (id: string) => void;
+  onRenew: (id: string) => void;
 }
 
-function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit }: CampaignCardProps) {
+function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit, onRenew }: CampaignCardProps) {
   const actions = STATUS_ACTIONS[c.status] || [];
   const isActive = c.status === "ativa";
   const isPast = c.status === "encerrada" || c.status === "cancelada";
@@ -117,6 +118,13 @@ function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit 
                   <Zap className="h-2.5 w-2.5 mr-0.5" /> Avançada
                 </Badge>
               )}
+              {c.cycle_type && c.cycle_type !== "none" && (
+                <Badge variant="outline" className="text-[10px] py-0 h-4 text-cyan-600 border-cyan-300">
+                  <RefreshCw className="h-2.5 w-2.5 mr-0.5" />
+                  {c.cycle_type === "monthly" ? "Mensal" : c.cycle_type === "quarterly" ? "Trimestral" : "Anual"}
+                  {c.auto_renew && " · Auto"}
+                </Badge>
+              )}
             </div>
 
             {/* Natural language */}
@@ -153,8 +161,8 @@ function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit 
               </Button>
             )}
 
-            {/* More actions dropdown — admins only, non-past */}
-            {isAdmin && !isPast && (
+            {/* More actions dropdown — admins only */}
+            {isAdmin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="icon" variant="ghost" className="h-7 w-7">
@@ -165,23 +173,35 @@ function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit 
                   <DropdownMenuItem className="text-xs gap-2" onClick={() => onClone(c.id)}>
                     <Copy className="h-3.5 w-3.5" /> Clonar
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {actions.map(act => (
-                    <DropdownMenuItem
-                      key={act.nextStatus}
-                      className="text-xs gap-2"
-                      onClick={() => onStatus(c.id, act.nextStatus)}
-                    >
-                      <act.Icon className="h-3.5 w-3.5" /> {act.label}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-xs gap-2 text-red-600 focus:text-red-600"
-                    onClick={() => onStatus(c.id, "cancelada")}
-                  >
-                    <XCircle className="h-3.5 w-3.5" /> Cancelar
-                  </DropdownMenuItem>
+                  {c.status === "encerrada" && c.cycle_type && c.cycle_type !== "none" && c.auto_renew && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-xs gap-2 text-cyan-700 focus:text-cyan-700" onClick={() => onRenew(c.id)}>
+                        <RefreshCw className="h-3.5 w-3.5" /> Renovar Ciclo
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {!isPast && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {actions.map(act => (
+                        <DropdownMenuItem
+                          key={act.nextStatus}
+                          className="text-xs gap-2"
+                          onClick={() => onStatus(c.id, act.nextStatus)}
+                        >
+                          <act.Icon className="h-3.5 w-3.5" /> {act.label}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-xs gap-2 text-red-600 focus:text-red-600"
+                        onClick={() => onStatus(c.id, "cancelada")}
+                      >
+                        <XCircle className="h-3.5 w-3.5" /> Cancelar
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -274,6 +294,19 @@ export default function CampanhasList() {
       setStatusReason("");
     },
     onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+
+  const renewMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/campaigns/${id}/renovar`, {});
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Erro ao renovar"); }
+      return res.json();
+    },
+    onSuccess: (renewed: Campaign) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({ title: "Ciclo renovado!", description: `Próximo ciclo "${renewed.name}" criado como rascunho.` });
+    },
+    onError: (e: any) => toast({ title: "Erro ao renovar ciclo", description: e.message, variant: "destructive" }),
   });
 
   function handleStatus(id: string, targetStatus: CampaignStatus) {
@@ -395,6 +428,7 @@ export default function CampanhasList() {
                 onEdit={id => navigate(`/campanhas/${id}/editar`)}
                 onClone={id => cloneMutation.mutate(id)}
                 onStatus={handleStatus}
+                onRenew={id => renewMutation.mutate(id)}
               />
             ))}
             <p className="text-xs text-center text-muted-foreground pt-2">

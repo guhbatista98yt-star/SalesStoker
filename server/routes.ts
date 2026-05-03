@@ -492,6 +492,34 @@ export async function registerRoutes(
     }
   });
 
+  // TV visibility management
+  app.get("/api/admin/vendor-tv-visibility", isAuthenticated, async (req: AuthRequest, res) => {
+    try {
+      if (req.userRole !== "admin" && req.userRole !== "supervisor") {
+        return res.status(403).json({ error: "Sem permissão" });
+      }
+      const vendors = await storage.getVendorsTVSettings();
+      res.json(vendors);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar configuração de TV" });
+    }
+  });
+
+  app.patch("/api/admin/vendor-tv-visibility/:vendorId", isAuthenticated, async (req: AuthRequest, res) => {
+    try {
+      if (req.userRole !== "admin" && req.userRole !== "supervisor") {
+        return res.status(403).json({ error: "Sem permissão" });
+      }
+      const { vendorId } = req.params;
+      const { showOnTv } = req.body as { showOnTv: boolean };
+      if (typeof showOnTv !== "boolean") return res.status(400).json({ error: "showOnTv deve ser boolean" });
+      await storage.setVendorTVVisible(String(vendorId), showOnTv);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar visibilidade na TV" });
+    }
+  });
+
   app.get("/api/app-settings/:key", isAuthenticated, async (req, res) => {
     try {
       const value = await storage.getAppSetting(String(req.params.key));

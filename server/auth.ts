@@ -17,6 +17,7 @@ export interface AuthRequest extends Request {
   userRole?: string;
   userEmail?: string;
   userFirstName?: string;
+  userVendorCode?: string;
   teamMembers?: string[];
 }
 
@@ -308,6 +309,7 @@ export async function isAuthenticated(req: AuthRequest, res: Response, next: Nex
     req.userRole = user.role || "admin";
     req.userEmail = user.email;
     req.userFirstName = user.firstName ?? undefined;
+    req.userVendorCode = (user as any).vendorCode ?? undefined;
     if (user.teamMembers) {
       req.teamMembers = user.teamMembers.split(",").map(m => m.trim()).filter(Boolean);
     }
