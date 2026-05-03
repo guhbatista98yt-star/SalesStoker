@@ -1,4 +1,5 @@
 import { useLocation, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -6,10 +7,9 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp,
-  Store, PaintBucket, Calendar, Megaphone, LineChart, DollarSign, ShieldCheck, ShoppingCart,
+  Store, Megaphone, LineChart, DollarSign, ShieldCheck, ShoppingCart,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { cn } from "@/lib/utils";
 
 const coreItems = [
   { title: "Dashboard",     url: "/",          icon: LayoutDashboard },
@@ -28,14 +28,6 @@ const analysisItems = [
   { title: "Visão Mensal",  url: "/mensal",                     icon: TrendingUp },
   { title: "Visão em Loja", url: "/analises/visao-em-loja",     icon: Store },
   { title: "Comissões",     url: "/comissoes",                  icon: DollarSign },
-];
-
-const campaignVendedorItems = [
-  { title: "Acompanhamento", url: "/metas-vendedor/acompanhamento", icon: LayoutDashboard },
-  { title: "DTR Amanco",     url: "/metas-vendedor/dtr-amanco",     icon: TrendingUp },
-  { title: "TV Amanco",      url: "/metas-vendedor/tv-amanco",      icon: Calendar },
-  { title: "Tintas Elit",    url: "/metas-vendedor/tintas-elit",    icon: PaintBucket },
-  { title: "Comissões",      url: "/comissoes",                     icon: DollarSign },
 ];
 
 function NavItem({ item, active }: { item: { title: string; url: string; icon: any }; active: boolean }) {
@@ -68,6 +60,13 @@ export function AppSidebar() {
     if (!modPerms) return true;
     return modPerms[moduleName] !== false;
   }
+
+  // Dynamic active campaigns for vendor view
+  const { data: activeCampaigns = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/campaigns?status=ativa"],
+    enabled: isVendedor && isModuleEnabled("Campanhas"),
+    staleTime: 60_000,
+  });
 
   const filteredCore = isLoja || isVendedor
     ? []
@@ -106,7 +105,7 @@ export function AppSidebar() {
 
       <SidebarContent className="px-2 py-3">
 
-        {/* Campanhas do Vendedor */}
+        {/* Campanhas do Vendedor — dynamic, from database */}
         {isVendedor && isModuleEnabled("Campanhas") && (
           <SidebarGroup className="mb-2">
             <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 mb-1">
@@ -114,8 +113,24 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {campaignVendedorItems.map(item => (
-                  <NavItem key={item.title} item={item} active={location === item.url} />
+                {activeCampaigns.length === 0 && (
+                  <SidebarMenuItem>
+                    <p className="px-3 py-2 text-xs text-muted-foreground italic">Nenhuma campanha ativa</p>
+                  </SidebarMenuItem>
+                )}
+                {activeCampaigns.map(c => (
+                  <SidebarMenuItem key={c.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === `/campanhas/${c.id}`}
+                      className="h-9 rounded-lg text-sm font-medium"
+                    >
+                      <Link href={`/campanhas/${c.id}`}>
+                        <Megaphone className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{c.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>

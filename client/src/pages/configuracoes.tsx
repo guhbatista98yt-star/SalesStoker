@@ -1187,18 +1187,10 @@ function PermissoesSection() {
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
   const [localPerms, setLocalPerms] = useState<Record<number, Record<string, boolean>>>({});
 
-  const { data: settingAcomp }  = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showAcompanhamentoTab"],       staleTime: 0 });
-  const { data: settingDtr }    = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showDtrAmancoTab"],            staleTime: 0 });
-  const { data: settingTv }     = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTvAmancoTab"],             staleTime: 0 });
-  const { data: settingElit }   = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showTintasElitTab"],           staleTime: 0 });
-  const { data: settingMovimt } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showMovimentacoesButton"],     staleTime: 0 });
+  const { data: settingMovimt } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showMovimentacoesButton"], staleTime: 0 });
 
   const TAB_FLAGS = [
-    { key: "showAcompanhamentoTab",    label: 'Aba "Acompanhamento"',              description: "Visão geral de metas semanais e mensais.",                                              defaultVisible: false, setting: settingAcomp  },
-    { key: "showDtrAmancoTab",         label: 'Aba "DTR Amanco"',                  description: "Campanha trimestral de faturamento e mix Amanco.",                                      defaultVisible: false, setting: settingDtr    },
-    { key: "showTvAmancoTab",          label: 'Aba "TV Amanco"',                   description: "Campanha Amanco 15/02 a 15/04 — sorteio e crescimento.",                               defaultVisible: false, setting: settingTv     },
-    { key: "showTintasElitTab",        label: 'Aba "Tintas Elit"',                 description: "Campanha semanal de bonificação para produtos Tintas Elit.",                           defaultVisible: false, setting: settingElit   },
-    { key: "showMovimentacoesButton",  label: "Movimentações visíveis ao Supervisor", description: "Permite que o supervisor visualize as movimentações de vendas de cada vendedor.",  defaultVisible: true,  setting: settingMovimt },
+    { key: "showMovimentacoesButton", label: "Movimentações visíveis ao Supervisor", description: "Permite que o supervisor visualize as movimentações de vendas de cada vendedor.", defaultVisible: true, setting: settingMovimt },
   ] as const;
 
   function isTabVisible(flag: typeof TAB_FLAGS[number]): boolean {
@@ -1269,11 +1261,11 @@ function PermissoesSection() {
 
   return (
     <div className="space-y-6">
-      {/* ── Feature flags de vendedores ────────────────────── */}
+      {/* ── Feature flags gerais ────────────────────── */}
       <div>
-        <h2 className="text-lg font-semibold">Funcionalidades dos Vendedores</h2>
+        <h2 className="text-lg font-semibold">Configurações Gerais</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Controle quais recursos ficam visíveis para vendedores no portal deles.
+          Controle de funcionalidades e permissões do sistema.
         </p>
         <div className="border rounded-lg divide-y divide-border">
           {TAB_FLAGS.map(flag => (
