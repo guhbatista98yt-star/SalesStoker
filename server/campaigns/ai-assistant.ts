@@ -355,8 +355,21 @@ async function callGemini(
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini API error: ${err}`);
+    const raw = await res.text();
+    let msg = `Erro ${res.status} na API Gemini.`;
+    try {
+      const parsed = JSON.parse(raw);
+      const code = parsed?.error?.code ?? res.status;
+      const detail = parsed?.error?.message ?? "";
+      if (code === 429 || detail.includes("RESOURCE_EXHAUSTED") || detail.includes("quota")) {
+        msg = `Cota da API Gemini esgotada (429). Possíveis causas: limite gratuito atingido, projeto sem cota ativa, ou modelo "${model}" não disponível neste nível. Verifique em https://aistudio.google.com/app/apikey e tente o modelo "Gemini 1.5 Flash".`;
+      } else if (code === 401 || code === 403 || detail.includes("API_KEY_INVALID") || detail.includes("PERMISSION_DENIED")) {
+        msg = `Chave API inválida ou sem permissão (${code}). Verifique se a chave está correta e se o projeto Google tem a API Generative Language ativada.`;
+      } else if (detail) {
+        msg = `Gemini: ${detail.slice(0, 300)}`;
+      }
+    } catch { msg = `Gemini API erro ${res.status}: ${raw.slice(0, 200)}`; }
+    throw new Error(msg);
   }
   const data = await res.json() as any;
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
@@ -409,8 +422,21 @@ async function callOpenAI(
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenAI API error: ${err}`);
+    const raw = await res.text();
+    let msg = `Erro ${res.status} na API OpenAI.`;
+    try {
+      const parsed = JSON.parse(raw);
+      const code = parsed?.error?.code ?? "";
+      const detail = parsed?.error?.message ?? "";
+      if (res.status === 429 || code === "insufficient_quota" || detail.includes("quota")) {
+        msg = `Cota da API OpenAI esgotada (429). Verifique seu saldo em https://platform.openai.com/usage e adicione créditos se necessário.`;
+      } else if (res.status === 401 || code === "invalid_api_key") {
+        msg = `Chave API OpenAI inválida (401). Verifique se a chave começa com "sk-" e está correta em https://platform.openai.com/api-keys.`;
+      } else if (detail) {
+        msg = `OpenAI: ${detail.slice(0, 300)}`;
+      }
+    } catch { msg = `OpenAI API erro ${res.status}: ${raw.slice(0, 200)}`; }
+    throw new Error(msg);
   }
   const data = await res.json() as any;
   return data?.choices?.[0]?.message?.content ?? "";
