@@ -109,7 +109,7 @@ function RewardSummary({ rewards }: { rewards: Campaign["rewards"] }) {
       <InfoRow label="Tipo de premiação" value={typeLabel} />
       <InfoRow label="Escopo" value={rewards.scope === "individual" ? "Individual" : "Coletivo"} />
       {rewards.baseValue !== undefined && rewards.baseValue > 0 && (
-        <InfoRow label="Valor base" value={`R$ ${rewards.baseValue.toFixed(2)}`} />
+        <InfoRow label="Valor base" value={`R$ ${(rewards.baseValue ?? 0).toFixed(2)}`} />
       )}
       {rewards.basePercent !== undefined && rewards.basePercent > 0 && (
         <InfoRow label="Percentual base" value={`${rewards.basePercent}%`} />
@@ -128,7 +128,7 @@ function RewardSummary({ rewards }: { rewards: Campaign["rewards"] }) {
                     ? `≥ ${t.min}`
                     : ""}
                   {" → "}
-                  <strong>R$ {t.value.toFixed(2)}</strong>
+                  <strong>R$ {(t.value ?? 0).toFixed(2)}</strong>
                   {t.label && ` (${t.label})`}
                 </span>
               </div>
@@ -143,7 +143,7 @@ function RewardSummary({ rewards }: { rewards: Campaign["rewards"] }) {
             {rewards.posicoes.map(p => (
               <div key={p.id} className="text-xs flex gap-2">
                 <span className="text-muted-foreground">{p.posicao}º lugar:</span>
-                <strong>R$ {p.valor.toFixed(2)}</strong>
+                <strong>R$ {(p.valor ?? 0).toFixed(2)}</strong>
                 {p.label && <span className="text-muted-foreground">({p.label})</span>}
               </div>
             ))}
