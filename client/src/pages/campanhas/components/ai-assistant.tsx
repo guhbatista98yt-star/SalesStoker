@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sparkles, Send, Loader2, X, CheckCircle2,
   RotateCcw, ChevronRight, Bot, User, Paperclip,
-  FileText, ImageIcon, AlertCircle,
+  FileText, ImageIcon, AlertCircle, Rocket, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,9 @@ const MAX_FILE_MB = 10;
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantProps) {
+  const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -57,6 +61,7 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
   ]);
   const [input, setInput] = useState("");
   const [pendingDraft, setPendingDraft] = useState<Record<string, any> | null>(null);
+  const [createdCampaignId, setCreatedCampaignId] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -97,7 +102,7 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
         size: number;
       }>;
     },
-    onSuccess: (data, file) => {
+    onSuccess: (data) => {
       setUploadError(null);
       const att: Attachment = {
         type: data.type,
@@ -131,12 +136,43 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
     },
     onSuccess: (data) => {
       setMessages(prev => [...prev, { role: "assistant", content: data.message }]);
-      if (data.campaignDraft) setPendingDraft(data.campaignDraft);
+      if (data.campaignDraft) {
+        setPendingDraft(data.campaignDraft);
+        setCreatedCampaignId(null);
+      }
     },
     onError: (e: any) => {
       setMessages(prev => [...prev, {
         role: "assistant",
         content: `Ocorreu um erro: ${e.message}. Tente novamente.`,
+      }]);
+    },
+  });
+
+  // ─── Create campaign directly ──────────────────────────────────────────────
+
+  const createMutation = useMutation({
+    mutationFn: async (draft: Record<string, any>) => {
+      const res = await apiRequest("POST", "/api/campaigns", draft);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro ao criar campanha");
+      }
+      return res.json() as Promise<{ id: string; name: string; code: string }>;
+    },
+    onSuccess: (campaign) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      setCreatedCampaignId(campaign.id);
+      setPendingDraft(null);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `✅ Campanha "${campaign.name}" criada com sucesso! (${campaign.code})\n\nClique em "Abrir Campanha" para configurar os Gatilhos por Vendedor e acompanhar os resultados.`,
+      }]);
+    },
+    onError: (e: any) => {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Erro ao criar campanha: ${e.message}. Tente novamente ou use "Ver Formulário" para revisar os dados.`,
       }]);
     },
   });
@@ -195,12 +231,13 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
       content: "Conversa reiniciada. Descreva a nova campanha que você quer criar.",
     }]);
     setPendingDraft(null);
+    setCreatedCampaignId(null);
     setInput("");
     setAttachment(null);
     setUploadError(null);
   }
 
-  const isBusy = chatMutation.isPending || uploadMutation.isPending;
+  const isBusy = chatMutation.isPending || uploadMutation.isPending || createMutation.isPending;
   const canSend = (input.trim().length > 0 || attachment !== null) && !isBusy;
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -295,37 +332,85 @@ export function AICampaignAssistant({ onApply, onClose }: AICampaignAssistantPro
           ))}
 
           {/* Thinking indicator */}
-          {chatMutation.isPending && (
+          {(chatMutation.isPending || createMutation.isPending) && (
             <div className="flex gap-2.5 justify-start">
               <div className="h-7 w-7 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
                 <Bot className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               </div>
-              <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+              <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2 text-xs text-muted-foreground">
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Criando campanha...
+                  </>
+                ) : (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+                  </>
+                )}
               </div>
             </div>
           )}
 
-          {/* Draft ready */}
-          {pendingDraft && !chatMutation.isPending && (
-            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl p-3 flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+          {/* Draft ready — action card */}
+          {pendingDraft && !chatMutation.isPending && !createMutation.isPending && (
+            <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-xl p-3 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-200">
+                    Campanha pronta!
+                  </p>
+                  <p className="text-xs text-violet-700 dark:text-violet-400 mt-0.5 leading-snug">
+                    "{pendingDraft.name}"
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1 gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs h-8"
+                  onClick={() => createMutation.mutate(pendingDraft)}
+                >
+                  <Rocket className="h-3.5 w-3.5" />
+                  Criar Campanha
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 gap-1.5 text-xs h-8 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+                  onClick={() => onApply(pendingDraft)}
+                >
+                  Ver Formulário <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-[10px] text-violet-600/70 dark:text-violet-400/70 text-center">
+                "Criar" salva direto · "Ver Formulário" permite revisar antes
+              </p>
+            </div>
+          )}
+
+          {/* Created — open campaign */}
+          {createdCampaignId && !createMutation.isPending && (
+            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl p-3 flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-green-800 dark:text-green-300">
-                  Campanha pronta para configurar!
-                </p>
+                <p className="text-sm font-semibold text-green-800 dark:text-green-300">Campanha criada!</p>
                 <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                  "{pendingDraft.name}" — clique em Aplicar ao Formulário para preencher automaticamente.
+                  Configure os Gatilhos por Vendedor na edição da campanha.
                 </p>
               </div>
               <Button
                 size="sm"
-                className="shrink-0 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => onApply(pendingDraft)}
+                className="shrink-0 gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs"
+                onClick={() => {
+                  onClose();
+                  navigate(`/campanhas/${createdCampaignId}`);
+                }}
               >
-                Aplicar ao Formulário <ChevronRight className="h-3.5 w-3.5" />
+                Abrir <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             </div>
           )}
