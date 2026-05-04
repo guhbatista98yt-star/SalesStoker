@@ -85,8 +85,8 @@ export interface ApuracaoResult {
 function buildProductFilter(base: ProdutoBase | null | undefined): string {
   if (!base || base.mode === "all") return "";
   if (base.mode === "supplier" && base.suppliers?.length) {
-    const list = base.suppliers.map(s => `'${s.replace(/'/g, "''")}'`).join(",");
-    return `AND "FABRICANTE" IN (${list})`;
+    const list = base.suppliers.map(s => `'${s.replace(/'/g, "''").toUpperCase()}'`).join(",");
+    return `AND UPPER("FABRICANTE") IN (${list})`;
   }
   if (base.mode === "specific" && base.ids?.length) {
     const list = base.ids.map(i => `'${i.replace(/'/g, "''")}'`).join(",");
