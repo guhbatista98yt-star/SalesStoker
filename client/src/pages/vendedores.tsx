@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { getAuthToken } from "@/lib/auth-context";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,10 @@ export default function Vendedores() {
   const { data: hiddenVendors = [] } = useQuery<{ id: string; isHidden: boolean }[]>({
     queryKey: ["/api/admin/vendor-visibility"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/vendor-visibility", { credentials: "include" });
+      const token = getAuthToken();
+      const res = await fetch("/api/admin/vendor-visibility", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) return [];
       return res.json();
     },
@@ -66,8 +70,11 @@ export default function Vendedores() {
   const { data: salespersons = [], isLoading: salespersonsLoading } = useQuery<SalespersonWithStats[]>({
     queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate, showHidden],
     queryFn: async () => {
+      const token = getAuthToken();
       const url = `/api/salespersons/${encodeURIComponent(companyId)}/${period.startDate}/${period.endDate}${showHidden ? "?showHidden=true" : ""}`;
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error("Erro ao buscar vendedores");
       return res.json();
     },

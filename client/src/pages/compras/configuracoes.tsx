@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAuthToken } from "@/lib/auth-context";
 import { useComprasCompany } from "./use-company";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { useToast } from "@/hooks/use-toast";
@@ -988,7 +989,10 @@ export default function ComprasConfiguracoes() {
   const { data: fornecedores = [], isLoading: loadingF } = useQuery<FornecedorConfig[]>({
     queryKey: ["/api/compras/fornecedores-config", companyId],
     queryFn: async () => {
-      const res = await fetch(`/api/compras/fornecedores-config${cParam}`, { credentials: "include" });
+      const token = getAuthToken();
+      const res = await fetch(`/api/compras/fornecedores-config${cParam}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error("Erro ao carregar fornecedores");
       return res.json();
     },
@@ -998,7 +1002,10 @@ export default function ComprasConfiguracoes() {
   const { data: produtos = [], isLoading: loadingP } = useQuery<ProdutoConfig[]>({
     queryKey: ["/api/compras/produtos-config", companyId],
     queryFn: async () => {
-      const res = await fetch(`/api/compras/produtos-config${cParam}`, { credentials: "include" });
+      const token = getAuthToken();
+      const res = await fetch(`/api/compras/produtos-config${cParam}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error("Erro ao carregar produtos");
       return res.json();
     },
@@ -1008,9 +1015,10 @@ export default function ComprasConfiguracoes() {
   /* ── Sync ERP mutation ─────────────────────────────────────────── */
   const syncFornecedores = useMutation({
     mutationFn: async () => {
+      const token = getAuthToken();
       const res = await fetch(`/api/compras/fornecedores-config/sync${cParam}`, {
         method: "POST",
-        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Erro desconhecido" }));
@@ -1035,7 +1043,7 @@ export default function ComprasConfiguracoes() {
     mutationFn: async (data: FornecedorConfig) => {
       const res = await fetch(
         `/api/compras/fornecedores-config/${encodeURIComponent(data.fabricante_nome)}${cParam}`,
-        { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }
+        { method: "PUT", headers: { "Content-Type": "application/json", ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) }, body: JSON.stringify(data) }
       );
       if (!res.ok) throw new Error("Erro ao salvar fornecedor");
       return res.json();
@@ -1052,7 +1060,7 @@ export default function ComprasConfiguracoes() {
     mutationFn: async (data: ProdutoConfig) => {
       const res = await fetch(
         `/api/compras/produtos-config/${encodeURIComponent(data.produto_id)}/${encodeURIComponent(data.fornecedor_nome)}${cParam}`,
-        { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }
+        { method: "PUT", headers: { "Content-Type": "application/json", ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) }, body: JSON.stringify(data) }
       );
       if (!res.ok) throw new Error("Erro ao salvar produto");
       return res.json();
