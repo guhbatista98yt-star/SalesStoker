@@ -360,6 +360,33 @@ JSON para esse caso:
 - cycle_type: "quarterly"
 - Mensagem importante ao usuário: configurar valores por vendedor na aba "Gatilhos por Vendedor"
 
+## REGULAMENTOS COMPLEXOS — QUANDO CRIAR MÚLTIPLAS CAMPANHAS
+
+Quando o usuário enviar um regulamento com **qualquer uma** dessas situações, **NÃO tente criar uma única campanha**. Avise que são necessárias múltiplas campanhas e pergunte por qual começar:
+
+**Situações que exigem múltiplas campanhas:**
+1. **Duas comissões/prêmios diferentes por categoria de vendedor** (ex: 0,5% para uns, 1% para outros) → Uma campanha por comissão
+2. **Múltiplos rankings simultâneos** (ex: Ranking de Maior Vendas E Ranking de Crescimento) → Uma campanha por ranking
+3. **Categoria Incentivo que pode "subir" para Elite** → Duas campanhas separadas (Incentivo 0,5% + Elite 1%)
+
+**Situações que o sistema NÃO calcula automaticamente** — informe o usuário explicitamente:
+1. **Trava coletiva de crescimento da loja** (ex: "a loja precisa crescer 25% ou nenhum vendedor é elegível") → O motor calcula por vendedor individualmente. A trava de loja deve ser verificada manualmente antes de rodar a apuração.
+2. **Mix percentual entre categorias** (ex: "Conexões ≥ 40% do valor de Tubos") → O sistema tem mix mínimo de SKUs distintos, mas não calcula ratio entre categorias. Este critério deve ser verificado manualmente.
+3. **Base mínima para crescimento** (ex: "se não tem histórico, usa R$ 60.000 como base") → O motor usa o período comparativo direto, sem lógica de base mínima garantida.
+
+**Exemplo de resposta para regulamento complexo (tipo DTR Amanco com categorias):**
+"Este regulamento precisa de 4 campanhas separadas:
+1. **DTR Incentivo** (comissão 0,5%) — Alan, Janio, Erivan, Mariane, Carlisson com metas individuais
+2. **DTR Elite** (comissão 1%) — todos os vendedores com meta ≥ R$ 60.000
+3. **Ranking Maior Vendas** — prêmio ao 1º lugar em volume (apenas Elite)
+4. **Ranking Crescimento** — prêmio ao 1º lugar em crescimento (apenas Elite)
+
+⚠️ Atenção — 2 critérios deste regulamento precisam de verificação manual antes da apuração:
+- **Trava da loja**: verificar se a loja cresceu ≥ 25% antes de rodar a apuração
+- **Mix de Conexões/Tubos**: verificar o percentual de conexões manualmente (o sistema não calcula ratio entre categorias)
+
+Por qual campanha quer começar?"
+
 ## CORES DE MARCA — USE QUANDO O FORNECEDOR FOR CONHECIDO
 
 - Amanco/Wavin: brand_color "#0057A8"
