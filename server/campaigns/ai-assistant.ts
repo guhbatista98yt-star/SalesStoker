@@ -225,19 +225,29 @@ Este é um recurso especial chamado "Gatilhos por Vendedor". Quando o usuário m
 
 ## MODOS DE CAMPANHA — ESCOLHA O MELHOR
 
-- **atingimento**: todos que cumprirem as condições ganham prêmio fixo → para campanhas DTR, metas por vendedor
-- **comissao**: % sobre o valor vendido por transação → para comissões variáveis
+- **atingimento**: todos que cumprirem as condições ganham prêmio fixo → para campanhas DTR com valor fixo, metas por vendedor
+- **comissao**: % sobre base de pagamento acumulado no período → para campanhas DTR com comissão percentual ou com categorias (Incentivo/Elite)
 - **ranking_volume**: ranking por maior volume vendido, prêmios por posição → para competições
 - **ranking_crescimento**: ranking por crescimento % vs período anterior → para crescimento
-- **faixa**: prêmio escalonado por faixas de qtde ou valor → para incentivos progressivos
+- **faixa**: prêmio fixo escalonado por faixas de valor → para incentivos progressivos com valor fixo por faixa
 
 ## TIPOS DE PRÊMIO
 
 - **VALOR_FIXO**: valor fixo em R$ (use baseValue) → mais comum em campanhas de atingimento
-- **PERCENTUAL**: % sobre valor da transação (use baseValue como percentual, ex: 2 = 2%)
-- **COMISSAO_PERCENTUAL**: % sobre base de pagamento total
-- **FAIXA**: faixas escalonadas (preencha tiers[])
+- **COMISSAO_PERCENTUAL**: % único sobre base de pagamento total (use basePercent)
+- **FAIXA com percent > 0**: % escalonado — o percentual varia conforme o volume apurado (Incentivo: 0.5%, Elite: 1%) → para campanhas com categorias automáticas de desempenho
+- **FAIXA com value > 0**: valor fixo por faixa (use value, deixe percent: 0)
 - **RANKING**: prêmios por posição (preencha posicoes[])
+
+## CONCEITO CENTRAL — CAMPANHA GLOBAL COM RESULTADO INDIVIDUAL
+
+**Uma campanha global** significa: targets.vendedores.mode = "all" — todos participam da mesma campanha com as mesmas regras.
+
+**Resultado individual** significa: o prêmio de cada vendedor é calculado individualmente com base nas suas próprias vendas. Cada um tem seu gatilho individual configurado na aba "Gatilhos por Vendedor".
+
+**Categorias automáticas** (Incentivo, Elite, Bronze, Prata, etc.) NÃO são grupos de segmentação. São RÓTULOS AUTOMÁTICOS calculados na apuração com base no volume acumulado de cada vendedor. O vendedor não é colocado num grupo — o sistema decide a categoria dele pelo resultado.
+
+Regra: NUNCA coloque os vendedores em grupos separados por categoria. Use FAIXA com percent para que o sistema calcule automaticamente.
 
 ## FORMATO DO JSON — PREENCHA TODOS OS CAMPOS
 
@@ -400,29 +410,39 @@ Usuário: "DTR Amanco Q2 2025, Alan 30k, Janio 30k, Erivan 40k, Mariane 40k, Car
 2. targets.vendedores: mode "all" (todos participam)
 3. Avise no texto: "⚠️ Após criar, acesse a aba **Gatilhos por Vendedor** na edição da campanha para configurar: Alan → 30k, Janio → 30k, Erivan → 40k, Mariane → 40k, Carlisson → 50k, demais → 60k"
 
-## REGULAMENTOS COMPLEXOS — UMA CAMPANHA COM MÚLTIPLAS CATEGORIAS
+## EXEMPLO REAL — DTR COM CATEGORIAS INCENTIVO/ELITE (campanha única global)
 
-**Campanhas com categorias (Incentivo/Elite) são UMA SÓ campanha**, usando FAIXA com percent. NÃO crie campanhas separadas por percentual.
+**Situação:** Todos os vendedores participam da mesma campanha. Cada um tem seu próprio gatilho individual. O sistema classifica automaticamente cada vendedor na categoria Incentivo (0,5%) ou Elite (1%) pelo volume acumulado.
 
-**Quando usar FAIXA com percent (campanha única):**
-- Comissões diferentes por faixa de volume (0,5% para quem vende 30–60k, 1% para quem vende 60k+)
-- Categorias automáticas: cada vendedor cai na categoria correspondente ao seu resultado
-- Rankings dentro da mesma campanha: use bases.ranking.tipos: ["volume", "crescimento"]
+**Regra:** targets.vendedores.mode SEMPRE "all" — NUNCA separe por grupo.
 
-**Exemplo — DTR Amanco com Incentivo/Elite:**
+**Modelo JSON para DTR Amanco Q2 2025 com Incentivo/Elite:**
+
 - campaign_mode: "comissao"
-- rewards.type: "FAIXA" com tiers Incentivo (percent: 0.5) e Elite (percent: 1.0)
-- bases.ranking.tipos: ["volume", "crescimento"] para dois rankings simultâneos
-- bases.ranking.periodo_comparativo: período anterior para calcular crescimento
+- targets.vendedores: { "mode": "all", "ids": [], "groupIds": [], "exclude": [] }
+- targets.produtos: { "mode": "supplier", "suppliers": ["AMANCO"] }
+- bases.apuracao: { "produtos": { "mode": "supplier", "suppliers": ["AMANCO"] } }
+- bases.pagamento: { "produtos": { "mode": "category", "categories": ["NAO-TUBOS"] } } (se o prêmio é só sobre Não-Tubos)
+- bases.ranking.tipos: ["volume", "crescimento"] (dois rankings simultâneos na mesma campanha)
+- bases.ranking.periodo_comparativo: { "starts_at": "DATA_INICIO_ANO_ANTERIOR", "ends_at": "DATA_FIM_ANO_ANTERIOR" }
+- rewards:
+  { "type": "FAIXA", "scope": "individual", "baseValue": 0, "basePercent": 0, "posicoes": [], "tiers": [
+    { "id": "t1", "label": "Incentivo", "min": 30000, "max": 59999, "value": 0, "percent": 0.5 },
+    { "id": "t2", "label": "Elite", "min": 60000, "max": null, "value": 0, "percent": 1.0 }
+  ]}
+- conditions: grupo root com ACUM_VALOR >= 30000 (valor mínimo de referência) e FORNECEDOR = AMANCO
+- brand_color: "#0057A8"
 
-**Situações que ainda exigem campanhas SEPARADAS (raro):**
-- Produtos completamente diferentes com regras independentes
-- Campanhas para equipes/lojas distintas sem sobreposição
+Após criar: "⚠️ Configure os Gatilhos por Vendedor na aba de edição da campanha com os valores individuais de cada vendedor."
 
 **Situações que o sistema NÃO calcula automaticamente — sempre informar:**
 - Trava coletiva da loja (crescimento % global) → verificação manual antes de apurar
 - Mix percentual entre categorias (ex: Conexões/Tubos) → verificação manual
 - Base mínima garantida para ranking de crescimento → verificação manual
+
+**Situações que ainda exigem campanhas SEPARADAS (raro):**
+- Produtos completamente diferentes com regras independentes
+- Campanhas para equipes/lojas distintas sem sobreposição
 
 ## CORES DE MARCA
 
