@@ -199,7 +199,7 @@ function EligibilityCard({ vendor }: { vendor: VendedorApuracao }) {
   );
 }
 
-// ─── Generic compact KPI card ─────────────────────────────────────────────────
+// ─── Generic KPI card ─────────────────────────────────────────────────────────
 interface KpiProps {
   icon: React.ReactNode;
   label: string;
@@ -214,27 +214,27 @@ interface KpiProps {
 function KpiCard({ icon, label, value, sub, accentColor, progress, progressLabel, progressRight, statusIcon }: KpiProps) {
   return (
     <div className="rounded-2xl bg-white shadow-sm overflow-hidden border border-gray-100">
-      <div className="h-0.5" style={{ backgroundColor: accentColor }} />
-      <div className="p-3.5">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <div className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0"
-              style={{ backgroundColor: `${accentColor}18` }}>
+      <div className="h-1" style={{ backgroundColor: accentColor }} />
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: `${accentColor}15` }}>
               {icon}
             </div>
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">{label}</p>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{label}</p>
           </div>
           {statusIcon}
         </div>
-        <div className="mb-1">{value}</div>
-        {sub && <p className="text-[11px] text-gray-400 mb-2">{sub}</p>}
+        <div className="mb-1.5">{value}</div>
+        {sub && <p className="text-xs text-gray-400 mb-3">{sub}</p>}
         {progress !== undefined && (
           <>
             <ProgressBar value={progress} color={accentColor} />
             {(progressLabel || progressRight) && (
-              <div className="flex justify-between mt-1.5">
-                {progressLabel && <p className="text-[10px] font-semibold" style={{ color: accentColor }}>{progressLabel}</p>}
-                {progressRight && <p className="text-[10px] font-bold text-gray-500">{progressRight}</p>}
+              <div className="flex justify-between mt-2">
+                {progressLabel && <p className="text-xs font-semibold" style={{ color: accentColor }}>{progressLabel}</p>}
+                {progressRight && <p className="text-xs font-bold text-gray-400">{progressRight}</p>}
               </div>
             )}
           </>
@@ -253,33 +253,33 @@ function FaturamentoCard({ vendor }: { vendor: VendedorApuracao }) {
 
   return (
     <div className="rounded-2xl bg-white shadow-sm overflow-hidden border border-gray-100 col-span-2">
-      <div className="h-0.5" style={{ backgroundColor: color }} />
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <div className="h-6 w-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}18` }}>
-                <Target className="h-3.5 w-3.5" style={{ color }} />
-              </div>
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Gatilho Mínimo</p>
+      <div className="h-1" style={{ backgroundColor: color }} />
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+              <Target className="h-4 w-4" style={{ color }} />
             </div>
-            <p className="text-[11px] text-gray-400">Faturamento Amanco no trimestre</p>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Gatilho Mínimo</p>
+              <p className="text-xs text-gray-400">Faturamento Amanco no trimestre</p>
+            </div>
           </div>
           {reached
-            ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-1" />
-            : <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-1" />
+            ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+            : <XCircle className="h-5 w-5 text-red-400 shrink-0" />
           }
         </div>
-        <div className="flex items-end gap-3 mb-3">
-          <p className="text-3xl font-black leading-none" style={{ color: A.navy }}>{fmtBRL(vendor.valorApuracao)}</p>
-          <p className="text-xs text-gray-400 mb-0.5">de {fmtBRL(vendor.gatilhoValor)}</p>
+        <div className="flex items-end gap-3 mb-4">
+          <p className="text-4xl font-black leading-none" style={{ color: A.navy }}>{fmtBRL(vendor.valorApuracao)}</p>
+          <p className="text-sm text-gray-400 mb-1">de {fmtBRL(vendor.gatilhoValor)}</p>
         </div>
         <ProgressBar value={progress} color={color} bg="rgba(0,0,0,0.06)" />
-        <div className="flex justify-between mt-2">
-          <p className={cn("text-xs font-semibold", reached ? "text-green-600" : "text-red-500")}>
+        <div className="flex justify-between mt-2.5">
+          <p className={cn("text-sm font-semibold", reached ? "text-green-600" : "text-red-500")}>
             {reached ? "✓ Meta atingida!" : `Falta ${fmtBRL(falta)}`}
           </p>
-          <p className="text-xs font-black" style={{ color }}>{progress.toFixed(0)}%</p>
+          <p className="text-sm font-black" style={{ color }}>{progress.toFixed(0)}%</p>
         </div>
       </div>
     </div>
@@ -298,7 +298,7 @@ function CrescimentoPessoalCard({ vendor }: { vendor: VendedorApuracao }) {
       label="Crescimento Pessoal"
       accentColor={color}
       value={
-        <p className="text-xl font-black" style={{ color }}>
+        <p className="text-2xl font-black" style={{ color }}>
           {positive ? "+" : ""}{perc.toFixed(1)}%
         </p>
       }
@@ -315,7 +315,7 @@ function CrescimentoLojaCard({ perc }: { perc: number | null | undefined }) {
   if (perc == null) {
     return (
       <KpiCard
-        icon={<Store className="h-3.5 w-3.5" style={{ color: A.navy }} />}
+        icon={<Store className="h-4 w-4" style={{ color: A.navy }} />}
         label="Crescimento Loja"
         accentColor={A.navy}
         value={<p className="text-sm font-semibold text-gray-400">Sem período comparativo</p>}
@@ -327,11 +327,11 @@ function CrescimentoLojaCard({ perc }: { perc: number | null | undefined }) {
   const color = positive ? A.green : A.orange;
   return (
     <KpiCard
-      icon={<Store className="h-3.5 w-3.5" style={{ color }} />}
+      icon={<Store className="h-4 w-4" style={{ color }} />}
       label="Crescimento Loja"
       accentColor={color}
       value={
-        <p className="text-xl font-black" style={{ color }}>
+        <p className="text-2xl font-black" style={{ color }}>
           {positive ? "+" : ""}{perc.toFixed(1)}%
         </p>
       }
@@ -358,12 +358,12 @@ function GaugeMeter({
   pending?: boolean;
 }) {
   // Half-circle gauge: arc from 180° to 0° (left → right)
-  const W = 120;
-  const H = 70;
+  const W = 200;
+  const H = 114;
   const cx = W / 2;
-  const cy = H - 4;
-  const R = 48;
-  const strokeW = 9;
+  const cy = H - 6;
+  const R = 80;
+  const strokeW = 14;
 
   // Convert value (0-100) to angle (180° → 0°, i.e. left to right)
   const angleDeg = 180 - (Math.min(100, Math.max(0, value)) / 100) * 180;
@@ -437,53 +437,56 @@ function GaugeMeter({
             <line
               x1={cx} y1={cy}
               x2={needleX} y2={needleY}
-              stroke={color} strokeWidth={2.5} strokeLinecap="round"
+              stroke={color} strokeWidth={3.5} strokeLinecap="round"
             />
-            <circle cx={cx} cy={cy} r={5} fill={color} />
-            <circle cx={cx} cy={cy} r={2.5} fill="white" />
+            <circle cx={cx} cy={cy} r={8} fill={color} />
+            <circle cx={cx} cy={cy} r={4} fill="white" />
           </>
         )}
         {/* Centre value text */}
-        <text x={cx} y={cy - 10} textAnchor="middle" fontSize={pending ? 8 : 13}
+        <text x={cx} y={cy - 16} textAnchor="middle" fontSize={pending ? 11 : 20}
           fontWeight="800" fill={pending ? "#9CA3AF" : color}>
           {pending ? "—" : `${value.toFixed(0)}%`}
         </text>
         {/* Min/Max labels */}
-        <text x={4} y={H + 6} fontSize={7} fill="#9CA3AF">0%</text>
-        <text x={W - 4} y={H + 6} fontSize={7} fill="#9CA3AF" textAnchor="end">100%</text>
+        <text x={6} y={H + 8} fontSize={9} fill="#9CA3AF">0%</text>
+        <text x={W - 6} y={H + 8} fontSize={9} fill="#9CA3AF" textAnchor="end">100%</text>
       </svg>
-      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-0.5">{label}</p>
-      {sublabel && <p className="text-[10px] text-gray-400 text-center mt-0.5">{sublabel}</p>}
+      {label && <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">{label}</p>}
+      {sublabel && <p className="text-xs text-gray-400 text-center mt-1">{sublabel}</p>}
     </div>
   );
 }
 
-// ─── Conexões sobre Tubos card (velocímetro) ─────────────────────────────────
-function ConexoesTubosCard({ vendor }: { vendor: VendedorApuracao }) {
-  // Placeholder: indicator pending product classification data.
-  // When product categories are configured, replace `pending=true` with real ratio.
+// ─── Conexões sobre Tubos card (velocímetro — full width) ─────────────────────
+function ConexoesTubosCard({ vendor: _vendor }: { vendor: VendedorApuracao }) {
   const pending = true;
   const value = 0;
   const color = A.cyan;
 
   return (
-    <div className="rounded-2xl bg-white shadow-sm overflow-hidden border border-gray-100">
-      <div className="h-0.5" style={{ backgroundColor: color }} />
-      <div className="px-3 pt-3 pb-3 flex flex-col items-center">
-        <div className="flex items-center gap-1.5 self-start mb-2">
-          <div className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0"
-            style={{ backgroundColor: `${color}18` }}>
-            <Link2 className="h-3.5 w-3.5" style={{ color }} />
+    <div className="rounded-2xl bg-white shadow-sm overflow-hidden border border-gray-100 col-span-2">
+      <div className="h-1" style={{ backgroundColor: color }} />
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: `${color}15` }}>
+            <Link2 className="h-4 w-4" style={{ color }} />
           </div>
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Conexões / Tubos</p>
+          <div>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Conexões / Tubos</p>
+            <p className="text-xs text-gray-400">Proporção de conexões sobre tubos vendidos</p>
+          </div>
         </div>
-        <GaugeMeter
-          value={value}
-          label=""
-          sublabel={pending ? "Classificação de produtos pendente" : undefined}
-          color={color}
-          pending={pending}
-        />
+        <div className="flex flex-col items-center">
+          <GaugeMeter
+            value={value}
+            label=""
+            sublabel={pending ? "Classificação de produtos pendente" : undefined}
+            color={color}
+            pending={pending}
+          />
+        </div>
       </div>
     </div>
   );
@@ -646,20 +649,23 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
             <EligibilityCard vendor={myResult} />
 
             {/* KPI grid */}
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Faturamento — spans full width */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Faturamento — full width */}
               <FaturamentoCard vendor={myResult} />
 
-              {/* Row 2: Crescimento Pessoal + Crescimento Loja */}
+              {/* Crescimento Pessoal + Crescimento Loja */}
               {showCrescimento && <CrescimentoPessoalCard vendor={myResult} />}
               <CrescimentoLojaCard perc={results?.crescimentoLojaPerc} />
 
-              {/* Row 3: Conexões + Posição/Prêmio */}
+              {/* Conexões / Tubos — full width gauge */}
               <ConexoesTubosCard vendor={myResult} />
-              <PosicaoCard vendor={myResult} />
 
-              {/* Mix card — if configured */}
-              {showMix && <MixCard vendor={myResult} mixMinimo={mixMinimo} />}
+              {/* Mix — full width if configured */}
+              {showMix && (
+                <div className="col-span-2">
+                  <MixCard vendor={myResult} mixMinimo={mixMinimo} />
+                </div>
+              )}
             </div>
 
             {/* Refresh row */}
