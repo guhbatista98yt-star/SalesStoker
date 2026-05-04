@@ -1,0 +1,100 @@
+REGULAMENTO: CAMPANHA TRIMESTRAL DTR AMANCO
+
+Objetivo da campanha:
+Incentivar as vendas de produtos Não-Tubos e melhorar o mix de Conexões.
+
+Período:
+Trimestral.
+
+Regras obrigatórias para participação:
+
+1. Crescimento da loja:
+A loja precisa crescer no mínimo 25% em relação ao mesmo período do ano anterior.
+Caso a loja não atinja esse crescimento global, nenhum vendedor será elegível à premiação.
+
+2. Mix de Conexões:
+Cada vendedor precisa atingir no mínimo 40% de vendas de Conexões em relação ao valor total vendido de Tubos.
+Fórmula:
+Percentual de Conexões = Valor vendido de Conexões / Valor vendido de Tubos * 100
+
+Se o vendedor não atingir 40%, ele fica automaticamente fora da campanha.
+
+3. Gatilho mínimo de faturamento:
+Cada vendedor precisa atingir o faturamento mínimo definido para sua categoria.
+Se não atingir o faturamento mínimo, fica fora da campanha.
+
+A comissão extra será calculada exclusivamente sobre o faturamento de produtos Não-Tubos.
+
+Categorias da campanha:
+
+CATEGORIA INCENTIVO
+
+Vendedores e metas individuais:
+- Alan: R$ 30.000,00
+- Janio: R$ 30.000,00
+- Erivan: R$ 40.000,00
+- Mariane: R$ 40.000,00
+- Carlisson: R$ 50.000,00
+
+Regra de premiação:
+Se o vendedor da Categoria Incentivo atingir sua meta individual, cumprir o mix mínimo de 40% de Conexões e a loja atingir crescimento global de 25%, ele recebe 0,5% de comissão extra sobre o faturamento de Não-Tubos.
+
+CATEGORIA ELITE
+
+Participantes:
+- Todos os demais vendedores com meta mínima de R$ 60.000,00.
+- Vendedores da Categoria Incentivo que superarem R$ 60.000,00 no trimestre.
+
+Regra de premiação:
+Se o vendedor atingir faturamento mínimo de R$ 60.000,00, cumprir o mix mínimo de 40% de Conexões e a loja atingir crescimento global de 25%, ele recebe 1% de comissão extra sobre o faturamento de Não-Tubos.
+
+Importante:
+Caso um vendedor da Categoria Incentivo ultrapasse R$ 60.000,00, ele deve ser tratado como Categoria Elite para efeito de comissão, recebendo 1% sobre Não-Tubos, e não 0,5%.
+
+Ranking e premiações de 1º lugar:
+
+Somente vendedores que atingirem faturamento mínimo de R$ 60.000,00 podem participar do ranking.
+
+Criar dois rankings:
+
+1. 1º lugar em Maior Vendas:
+Vencedor será o vendedor com maior faturamento bruto no trimestre.
+
+2. 1º lugar em Crescimento:
+Vencedor será o vendedor com maior evolução percentual em relação ao mesmo período do ano anterior.
+
+Regra especial para cálculo de crescimento:
+Se o vendedor não tiver histórico de vendas no mesmo período do ano anterior, ou se tiver vendido abaixo de R$ 60.000,00, usar R$ 60.000,00 como base mínima de cálculo para o ranking de crescimento.
+
+Resumo de desclassificação:
+
+O vendedor estará fora da campanha se ocorrer qualquer uma das situações abaixo:
+- Não atingir o gatilho mínimo de faturamento da sua categoria.
+- Não atingir o percentual mínimo de 40% de Conexões.
+- A loja não atingir crescimento global mínimo de 25%.
+
+A configuração deve gerar os seguintes resultados por vendedor:
+
+- Nome do vendedor
+- Categoria
+- Faturamento bruto no trimestre
+- Faturamento de Não-Tubos
+- Valor vendido de Tubos
+- Valor vendido de Conexões
+- Percentual de Conexões
+- Meta/Gatilho exigido
+- Percentual de crescimento do vendedor
+- Status da loja: atingiu ou não crescimento de 25%
+- Status do vendedor: Classificado ou Desclassificado
+- Motivo da desclassificação, quando houver
+- Percentual de comissão extra
+- Valor da comissão extra
+- Posição no ranking de Maior Vendas
+- Posição no ranking de Crescimento
+
+Regras finais:
+- Não pagar comissão para vendedor desclassificado.
+- Não incluir vendedor desclassificado nos rankings.
+- Comissão deve ser sempre calculada apenas sobre produtos Não-Tubos.
+- O sistema deve deixar claro o motivo de cada desclassificação.
+- O relatório final deve ser simples, objetivo e fácil de conferir.

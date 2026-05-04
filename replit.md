@@ -20,6 +20,17 @@ The application uses in-memory storage with realistic demo data (3 companies, 12
 - Configuration page with tabbed interface for setting weekly/monthly value goals
 - All pages functional: Dashboard, Vendedores, Metas, Alertas, Configurações, Visão Semanal, Visão Mensal
 
+## Recent Changes (May 2026 — Campanhas: Dashboard Profissional para Vendedores + IA Melhorada)
+
+- **Novo componente `vendor-dashboard.tsx`** (`client/src/pages/campanhas/`) — Dashboard profissional com identidade visual do fornecedor para vendedores: hero com logo/cor da marca, countdown de dias restantes, cards de premiação (valor fixo, faixas, ranking), regras da campanha em linguagem clara, ranking de resultados quando a apuração está disponível.
+- **`view.tsx` atualizado** — Detecta role `vendedor` e renderiza `VendorCampaignDashboard` em vez da visão técnica admin. Admins continuam vendo a view original.
+- **`ai-assistant.ts` — prompt do sistema melhorado** (`server/campaigns/`):
+  - Agora pergunta antes de gerar quando faltam: período, valor do prêmio, ou gatilhos por vendedor
+  - Seção "GATILHOS POR VENDEDOR" explica a diferença entre gatilho único (conditions ACUM_VALOR) e gatilhos individuais (aba "Gatilhos por Vendedor" pós-criação)
+  - Cores de marca por fornecedor conhecido (Amanco, Tigre, Krona, etc.)
+  - Exemplo real da campanha DTR com valores diferenciados por vendedor
+  - Campos `logo_url` e `brand_color` agora incluídos no template JSON padrão
+
 ## Recent Changes (April 2026 — Copiloto: Integração com Estoque Real do ERP)
 
 - **Nova query DB2 `SQL_ESTOQUE_SUGESTAO`** em `sync/erp_queries.py` — snapshot sem parâmetros de data, agregado por (IDPRODUTO, FABRICANTE) para combinar com cache_campanhas. Captura: `SALDO_ATUAL` (ESTOQUE_SALDO_ATUAL), `QTDRESERVA` (ESTOQUE_ANALITICO_TMP), `SALDO_DISPONIVEL` = saldo − reserva, `QTDREPOSICAO` (PRODUTO_COMPRAS.QTDESTMINIMO), `DTULT_COMPRA`/`VAL_UNITARIO` (última compra via ESTOQUE_ANALITICO), `QTDPENDENTE` (PEDIDO_COMPRA_PROD pedidos abertos não atendidos).

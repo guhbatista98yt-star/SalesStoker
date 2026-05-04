@@ -17,6 +17,7 @@ import {
   REWARD_TYPE_LABEL,
 } from "./types";
 import { Loader2, AlertCircle } from "lucide-react";
+import VendorCampaignDashboard from "./vendor-dashboard";
 
 function fmtDate(d?: string) {
   if (!d) return "—";
@@ -186,6 +187,11 @@ export default function CampaignView({ campaignId }: { campaignId: string }) {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isVendedor = user?.role === "vendedor";
+
+  if (isVendedor) {
+    return <VendorCampaignDashboard campaignId={campaignId} />;
+  }
 
   const { data: campaign, isLoading, isError } = useQuery<Campaign>({
     queryKey: [`/api/campaigns/${campaignId}`],
