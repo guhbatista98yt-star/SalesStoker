@@ -349,6 +349,10 @@ async function bootstrapCampaigns(): Promise<void> {
     ON campaign_result_details (result_id)`);
   await exec(`CREATE INDEX IF NOT EXISTS idx_crd_campaign_vendor
     ON campaign_result_details (campaign_id, vendedor_id)`);
+  for (const col of [
+    `ALTER TABLE campaign_result_details ADD COLUMN IF NOT EXISTS posicao_crescimento INTEGER`,
+    `ALTER TABLE campaign_result_details ADD COLUMN IF NOT EXISTS categoria TEXT`,
+  ]) { await exec(col).catch(() => {}); }
 
   await exec(`
     CREATE TABLE IF NOT EXISTS campaign_goals (

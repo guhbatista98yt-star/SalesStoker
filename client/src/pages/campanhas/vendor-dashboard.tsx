@@ -110,29 +110,39 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
         {/* Faixas */}
         {rewards.type === "FAIXA" && rewards.tiers.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Faixas de prêmio</p>
-            {rewards.tiers.map((tier, i) => (
-              <div key={tier.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/20">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-primary">{i + 1}</span>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              {rewards.tiers.some(t => t.percent && t.percent > 0) ? "Categorias de comissão" : "Faixas de prêmio"}
+            </p>
+            {rewards.tiers.map((tier, i) => {
+              const isPercent = tier.percent != null && tier.percent > 0;
+              return (
+                <div key={tier.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/20">
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${brandColor}18` }}>
+                      <span className="text-xs font-bold" style={{ color: brandColor }}>{i + 1}</span>
+                    </div>
+                    <div>
+                      {tier.label && <p className="text-sm font-semibold">{tier.label}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        {tier.min !== undefined && tier.max !== undefined && tier.max !== null
+                          ? `${fmtCurrency(tier.min)} – ${fmtCurrency(tier.max)}`
+                          : tier.min !== undefined
+                          ? `≥ ${fmtCurrency(tier.min)}`
+                          : ""}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    {tier.label && <p className="text-sm font-semibold">{tier.label}</p>}
-                    <p className="text-xs text-muted-foreground">
-                      {tier.min !== undefined && tier.max !== undefined && tier.max !== null
-                        ? `${tier.unit === "R$" ? fmtCurrency(tier.min) : tier.min} – ${tier.unit === "R$" ? fmtCurrency(tier.max) : tier.max}`
-                        : tier.min !== undefined
-                        ? `≥ ${tier.unit === "R$" ? fmtCurrency(tier.min) : tier.min}`
-                        : ""}
-                    </p>
-                  </div>
+                  <span className="text-sm font-bold" style={{ color: brandColor }}>
+                    {isPercent ? `${tier.percent}%` : fmtCurrency(tier.value)}
+                  </span>
                 </div>
-                <span className="text-sm font-bold" style={{ color: brandColor }}>
-                  {fmtCurrency(tier.value)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
+            {rewards.tiers.some(t => t.percent && t.percent > 0) && (
+              <p className="text-[11px] text-muted-foreground px-1">
+                A categoria é calculada automaticamente pelo volume de vendas apurado no período.
+              </p>
+            )}
           </div>
         )}
 
@@ -176,43 +186,87 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
 
 // ─── Ranking result card ───────────────────────────────────────────────────────
 
-function RankingCard({ results, campaign }: { results: ApuracaoResult; campaign: Campaign }) {
-  const brandColor = campaign.brand_color || "#0057A8";
-  const top = [...results.detalhes]
-    .filter(d => d.posicao && d.posicao <= 10)
-    .sort((a, b) => (a.posicao ?? 999) - (b.posicao ?? 999))
-    .slice(0, 5);
-
-  if (top.length === 0) return null;
-
+function RankingList({
+  title, icon: Icon, rows, brandColor, valueKey,
+}: {
+  title: string;
+  icon: React.ElementType;
+  rows: { vendedorId: string; vendedorNome: string; pos: number; valor: number; categoria?: string }[];
+  brandColor: string;
+  valueKey: "volume" | "crescimento";
+}) {
+  if (rows.length === 0) return null;
+  const podiumColors = ["bg-amber-400", "bg-slate-300", "bg-orange-500"];
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
       <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
         <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${brandColor}20` }}>
-          <Trophy className="h-3.5 w-3.5" style={{ color: brandColor }} />
+          <Icon className="h-3.5 w-3.5" style={{ color: brandColor }} />
         </div>
         <div>
-          <p className="text-sm font-bold text-foreground">Ranking atual</p>
-          <p className="text-xs text-muted-foreground">Top colocações até o momento</p>
+          <p className="text-sm font-bold text-foreground">{title}</p>
+          <p className="text-xs text-muted-foreground">Top colocações</p>
         </div>
       </div>
       <div className="divide-y divide-border">
-        {top.map(d => {
-          const podiumColors = ["bg-amber-400", "bg-slate-300", "bg-orange-500"];
-          const podiumColor = (d.posicao && d.posicao <= 3) ? podiumColors[d.posicao - 1] : "bg-muted-foreground/20";
+        {rows.map(d => {
+          const podiumColor = d.pos <= 3 ? podiumColors[d.pos - 1] : "bg-muted-foreground/20";
           return (
             <div key={d.vendedorId} className="flex items-center gap-3 px-5 py-3">
               <div className={cn("h-6 w-6 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold", podiumColor)}>
-                {d.posicao}
+                {d.pos}
               </div>
-              <span className="flex-1 text-sm font-medium">{d.vendedorNome}</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium">{d.vendedorNome}</span>
+                {d.categoria && (
+                  <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: `${brandColor}18`, color: brandColor }}>
+                    {d.categoria}
+                  </span>
+                )}
+              </div>
               <span className="text-sm font-bold tabular-nums" style={{ color: brandColor }}>
-                {fmtCurrency(d.valorApuracao)}
+                {valueKey === "crescimento"
+                  ? `${d.valor >= 0 ? "+" : ""}${d.valor.toFixed(1)}%`
+                  : fmtCurrency(d.valor)
+                }
               </span>
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function RankingCard({ results, campaign }: { results: ApuracaoResult; campaign: Campaign }) {
+  const brandColor = campaign.brand_color || "#0057A8";
+  const hasDualRanking = results.detalhes.some(d => d.posicaoCrescimento != null);
+
+  const topVolume = [...results.detalhes]
+    .filter(d => d.posicao != null && d.posicao <= 10)
+    .sort((a, b) => (a.posicao ?? 999) - (b.posicao ?? 999))
+    .slice(0, 5)
+    .map(d => ({ vendedorId: d.vendedorId, vendedorNome: d.vendedorNome, pos: d.posicao!, valor: d.valorApuracao, categoria: d.categoria }));
+
+  const topCrescimento = hasDualRanking
+    ? [...results.detalhes]
+        .filter(d => d.posicaoCrescimento != null && d.posicaoCrescimento <= 10)
+        .sort((a, b) => (a.posicaoCrescimento ?? 999) - (b.posicaoCrescimento ?? 999))
+        .slice(0, 5)
+        .map(d => ({ vendedorId: d.vendedorId, vendedorNome: d.vendedorNome, pos: d.posicaoCrescimento!, valor: d.crescimentoPerc ?? 0, categoria: d.categoria }))
+    : [];
+
+  if (topVolume.length === 0 && topCrescimento.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {topVolume.length > 0 && (
+        <RankingList title={hasDualRanking ? "Ranking por Volume" : "Ranking atual"} icon={Trophy} rows={topVolume} brandColor={brandColor} valueKey="volume" />
+      )}
+      {topCrescimento.length > 0 && (
+        <RankingList title="Ranking por Crescimento" icon={TrendingUp} rows={topCrescimento} brandColor={brandColor} valueKey="crescimento" />
+      )}
     </div>
   );
 }

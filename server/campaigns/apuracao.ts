@@ -22,6 +22,7 @@ export interface Bases {
   apuracao?: { produtos?: ProdutoBase | null };
   ranking?: {
     tipo?: "volume" | "crescimento" | "mix";
+    tipos?: string[];
     criterio_desempate?: "valor" | "quantidade" | "data";
     periodo_comparativo?: { starts_at: string; ends_at: string } | null;
   };
@@ -37,6 +38,8 @@ export interface VendedorApuracao {
   atingiu: boolean;
   premiado: boolean;
   posicao?: number;
+  posicaoCrescimento?: number;
+  categoria?: string;
   valorApuracao: number;
   valorPagamento: number;
   qtdTotal: number;
@@ -153,7 +156,7 @@ function calcularPremio(
   rewards: any,
   vendedor: Partial<VendedorApuracao>,
   mode: string,
-): { valor: number; formula: string } {
+): { valor: number; formula: string; categoria?: string } {
   if (!rewards?.type) return { valor: 0, formula: "Sem premiação configurada" };
 
   switch (rewards.type) {
@@ -200,9 +203,20 @@ function calcularPremio(
         const max = tier.max !== null && tier.max !== undefined ? tier.max : Infinity;
         if (ref >= min && ref <= max) {
           const label = tier.label || `${min} – ${max === Infinity ? "∞" : max}`;
+          if (tier.percent != null && tier.percent > 0) {
+            const pct = tier.percent;
+            const base = vendedor.valorPagamento || 0;
+            const val = (base * pct) / 100;
+            return {
+              valor: val,
+              formula: `Categoria "${label}" — ${pct}% sobre base de pagamento R$ ${formatBRL(base)} = R$ ${formatBRL(val)}`,
+              categoria: label,
+            };
+          }
           return {
             valor: tier.value,
             formula: `Faixa "${label}" (ref: ${ref.toFixed(2)}): R$ ${formatBRL(tier.value)}`,
+            categoria: label,
           };
         }
       }
@@ -239,6 +253,8 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   const basePagamento: ProdutoBase | null = bases.pagamento?.produtos ?? baseApuracao;
   const mixMinimo: number = bases.elegibilidade?.mix_minimo ?? 0;
   const rankingTipo: string = bases.ranking?.tipo || "volume";
+  const rankingTipos: string[] = bases.ranking?.tipos || [rankingTipo];
+  const isDualRanking = rankingTipos.length > 1;
   const periodoComparativo = bases.ranking?.periodo_comparativo || null;
 
   // ── Fetch sales data ────────────────────────────────────────────────────
@@ -254,7 +270,7 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
 
   // For growth ranking: fetch comparative period
   let salesComparativo: Map<string, { valor: number; qtd: number; mix: number; nome: string }> | null = null;
-  if (rankingTipo === "crescimento" && periodoComparativo) {
+  if ((rankingTipo === "crescimento" || isDualRanking) && periodoComparativo) {
     salesComparativo = await querySalesByVendedor(
       periodoComparativo.starts_at,
       periodoComparativo.ends_at,
@@ -355,7 +371,7 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
     }
 
     let crescimentoPerc: number | undefined;
-    if (rankingTipo === "crescimento" && salesComparativo) {
+    if ((rankingTipo === "crescimento" || isDualRanking) && salesComparativo) {
       const prevData = salesComparativo.get(vid) || { valor: 0, qtd: 0, mix: 0, nome };
       const prev = prevData.valor;
       if (prev > 0) {
@@ -378,6 +394,8 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
       atingiu,
       premiado: false,
       posicao: undefined,
+      posicaoCrescimento: undefined,
+      categoria: undefined,
       valorApuracao,
       valorPagamento,
       qtdTotal,
@@ -403,40 +421,42 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   // ── Ranking ──────────────────────────────────────────────────────────────
   const isRankingMode = mode === "ranking_volume" || mode === "ranking_crescimento" || mode === "ranking";
 
-  if (isRankingMode) {
-    const eligible = detalhes.filter(d => d.atingiu || (mode !== "ranking" && d.participou));
-
+  function assignRanking(
+    rows: (VendedorApuracao & { crescimentoPerc?: number })[],
+    tipo: string,
+    field: "posicao" | "posicaoCrescimento",
+  ) {
+    const eligible = rows.filter(d => d.atingiu || (mode !== "ranking" && d.participou));
     eligible.sort((a, b) => {
-      if (rankingTipo === "crescimento") {
-        return (b.crescimentoPerc ?? 0) - (a.crescimentoPerc ?? 0);
-      }
-      if (rankingTipo === "mix") {
-        return b.mixCount - a.mixCount;
-      }
+      if (tipo === "crescimento") return (b.crescimentoPerc ?? 0) - (a.crescimentoPerc ?? 0);
+      if (tipo === "mix") return b.mixCount - a.mixCount;
       return b.valorApuracao - a.valorApuracao;
     });
-
     let pos = 1;
     for (let i = 0; i < eligible.length; i++) {
       const cur = eligible[i];
       if (i > 0) {
         const prev = eligible[i - 1];
-        const prevMetric =
-          rankingTipo === "crescimento"
-            ? (prev.crescimentoPerc ?? 0)
-            : rankingTipo === "mix"
-              ? prev.mixCount
-              : prev.valorApuracao;
-        const curMetric =
-          rankingTipo === "crescimento"
-            ? (cur.crescimentoPerc ?? 0)
-            : rankingTipo === "mix"
-              ? cur.mixCount
-              : cur.valorApuracao;
+        const prevMetric = tipo === "crescimento" ? (prev.crescimentoPerc ?? 0) : tipo === "mix" ? prev.mixCount : prev.valorApuracao;
+        const curMetric  = tipo === "crescimento" ? (cur.crescimentoPerc  ?? 0) : tipo === "mix" ? cur.mixCount  : cur.valorApuracao;
         if (prevMetric !== curMetric) pos = i + 1;
       }
-      cur.posicao = pos;
+      (cur as any)[field] = pos;
     }
+  }
+
+  if (isRankingMode) {
+    assignRanking(detalhes, rankingTipo, "posicao");
+    if (isDualRanking) {
+      const secondTipo = rankingTipos.find(t => t !== rankingTipo) || "crescimento";
+      assignRanking(detalhes, secondTipo, "posicaoCrescimento");
+    }
+  }
+
+  // For comissao/faixa mode with dual ranking (e.g. DTR com Volume + Crescimento)
+  if (!isRankingMode && isDualRanking) {
+    if (rankingTipos.includes("volume")) assignRanking(detalhes, "volume", "posicao");
+    if (rankingTipos.includes("crescimento")) assignRanking(detalhes, "crescimento", "posicaoCrescimento");
   }
 
   // ── Calculate prizes ──────────────────────────────────────────────────────
@@ -458,7 +478,8 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
       continue;
     }
 
-    const { valor, formula } = calcularPremio(rewards, d, mode);
+    const { valor, formula, categoria } = calcularPremio(rewards, d, mode);
+    if (categoria) d.categoria = categoria;
     let premioFinal = valor;
 
     if (limits.maxPerVendedor && premioFinal > limits.maxPerVendedor) {
@@ -516,14 +537,17 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
         INSERT INTO campaign_result_details (
           id, result_id, campaign_id, vendedor_id, vendedor_nome,
           elegivel, participou, gatilho_atingido, atingiu, premiado, posicao,
+          posicao_crescimento, categoria,
           valor_apuracao, valor_pagamento, qtd_total, mix_count, gatilho_valor,
           premio_calculado, premio_final, motivos_nao_participacao, memoria_calculo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `), [
         randomUUID(), resultId, campaignId, d.vendedorId, d.vendedorNome,
         d.elegivel ? 1 : 0, d.participou ? 1 : 0,
         d.gatilhoAtingido ? 1 : 0, d.atingiu ? 1 : 0, d.premiado ? 1 : 0,
         d.posicao ?? null,
+        d.posicaoCrescimento ?? null,
+        d.categoria ?? null,
         d.valorApuracao, d.valorPagamento, d.qtdTotal, d.mixCount, d.gatilhoValor,
         d.premioCalculado, d.premioFinal,
         JSON.stringify(d.motivosNaoParticipacao),
@@ -566,6 +590,8 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
       atingiu: d.atingiu,
       premiado: d.premiado,
       posicao: d.posicao,
+      posicaoCrescimento: d.posicaoCrescimento,
+      categoria: d.categoria,
       valorApuracao: d.valorApuracao,
       valorPagamento: d.valorPagamento,
       qtdTotal: d.qtdTotal,

@@ -91,6 +91,7 @@ export interface Bases {
   };
   ranking?: {
     tipo?: "volume" | "crescimento" | "mix";
+    tipos?: string[];
     criterio_desempate?: "valor" | "quantidade" | "data";
     periodo_comparativo?: { starts_at: string; ends_at: string } | null;
   };
@@ -107,6 +108,7 @@ export interface RewardTier {
   min?: number;
   max?: number | null;
   value: number;
+  percent?: number;
   unit?: string;
 }
 
@@ -248,6 +250,8 @@ export interface VendedorApuracao {
   atingiu: boolean;
   premiado: boolean;
   posicao?: number;
+  posicaoCrescimento?: number;
+  categoria?: string;
   valorApuracao: number;
   valorPagamento: number;
   qtdTotal: number;

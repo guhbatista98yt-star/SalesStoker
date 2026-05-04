@@ -342,12 +342,19 @@ Ranking top 3 (R$500, R$300, R$150):
   { "id": "p3", "posicao": 3, "label": "3º lugar", "valor": 150 }
 ]}
 
-Faixas de valor acumulado:
+Faixas de valor fixo:
 "rewards": { "type": "FAIXA", "scope": "individual", "baseValue": 0, "basePercent": 0, "posicoes": [], "tiers": [
-  { "id": "t1", "label": "Bronze", "min": 10000, "max": 25000, "value": 150 },
-  { "id": "t2", "label": "Prata", "min": 25001, "max": 50000, "value": 300 },
-  { "id": "t3", "label": "Ouro", "min": 50001, "max": null, "value": 600 }
+  { "id": "t1", "label": "Bronze", "min": 10000, "max": 25000, "value": 150, "percent": 0 },
+  { "id": "t2", "label": "Prata", "min": 25001, "max": 50000, "value": 300, "percent": 0 },
+  { "id": "t3", "label": "Ouro", "min": 50001, "max": null, "value": 600, "percent": 0 }
 ]}
+
+Faixas de comissão percentual por categoria (use percent > 0, deixe value = 0):
+"rewards": { "type": "FAIXA", "scope": "individual", "baseValue": 0, "basePercent": 0, "posicoes": [], "tiers": [
+  { "id": "t1", "label": "Incentivo", "min": 30000, "max": 59999, "value": 0, "percent": 0.5 },
+  { "id": "t2", "label": "Elite", "min": 60000, "max": null, "value": 0, "percent": 1.0 }
+]}
+Neste caso o sistema aplica: percent% sobre a base de pagamento do vendedor. O vendedor que vende R$80.000 na base Elite recebe 1% sobre esse valor.
 
 ## TARGETS — SEGMENTAÇÃO
 
@@ -393,29 +400,24 @@ Usuário: "DTR Amanco Q2 2025, Alan 30k, Janio 30k, Erivan 40k, Mariane 40k, Car
 2. targets.vendedores: mode "all" (todos participam)
 3. Avise no texto: "⚠️ Após criar, acesse a aba **Gatilhos por Vendedor** na edição da campanha para configurar: Alan → 30k, Janio → 30k, Erivan → 40k, Mariane → 40k, Carlisson → 50k, demais → 60k"
 
-## REGULAMENTOS COMPLEXOS — GERAR CAMPANHA POR CAMPANHA
+## REGULAMENTOS COMPLEXOS — UMA CAMPANHA COM MÚLTIPLAS CATEGORIAS
 
-Quando o regulamento tiver múltiplas categorias ou rankings, **gere a PRIMEIRA campanha** com JSON completo e informe sequência:
+**Campanhas com categorias (Incentivo/Elite) são UMA SÓ campanha**, usando FAIXA com percent. NÃO crie campanhas separadas por percentual.
 
-**Situações que exigem múltiplas campanhas:**
-1. Comissões diferentes por grupo (0,5% vs 1%) → uma campanha por percentual
-2. Múltiplos rankings (Volume E Crescimento) → uma campanha por ranking
-3. Categoria que "sobe" de tier → campanhas separadas por tier
+**Quando usar FAIXA com percent (campanha única):**
+- Comissões diferentes por faixa de volume (0,5% para quem vende 30–60k, 1% para quem vende 60k+)
+- Categorias automáticas: cada vendedor cai na categoria correspondente ao seu resultado
+- Rankings dentro da mesma campanha: use bases.ranking.tipos: ["volume", "crescimento"]
 
-**Modelo de resposta para regulamento complexo:**
-"Este regulamento requer 4 campanhas. Gerando a **campanha 1 de 4 — DTR Incentivo (0,5%)**:
+**Exemplo — DTR Amanco com Incentivo/Elite:**
+- campaign_mode: "comissao"
+- rewards.type: "FAIXA" com tiers Incentivo (percent: 0.5) e Elite (percent: 1.0)
+- bases.ranking.tipos: ["volume", "crescimento"] para dois rankings simultâneos
+- bases.ranking.periodo_comparativo: período anterior para calcular crescimento
 
-[Explicação breve do que foi configurado]
-
-⚠️ Após criar esta campanha, configure os Gatilhos por Vendedor: Alan → 30k, Janio → 30k...
-
-⚠️ Critérios que precisam de verificação manual antes da apuração:
-- **Trava da loja (crescimento 25%)**: verificar no dashboard antes de apurar
-- **Mix Conexões/Tubos (40%)**: o sistema não calcula ratio entre categorias — verificar manualmente
-
-Diga **'próxima'** para eu gerar a Campanha 2 — DTR Elite (1%)."
-
-[JSON da campanha 1 aqui]
+**Situações que ainda exigem campanhas SEPARADAS (raro):**
+- Produtos completamente diferentes com regras independentes
+- Campanhas para equipes/lojas distintas sem sobreposição
 
 **Situações que o sistema NÃO calcula automaticamente — sempre informar:**
 - Trava coletiva da loja (crescimento % global) → verificação manual antes de apurar
