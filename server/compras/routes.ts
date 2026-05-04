@@ -808,7 +808,7 @@ router.get("/produtos-config", isAuthenticated, async (req: AuthRequest, res) =>
     const [produtos, configs, ultimasCompras] = await Promise.all([
       pgAll<{ IDPRODUTO: string; FABRICANTE: string; nome_produto: string; total_vendido: number }>(
         `SELECT "IDPRODUTO", "FABRICANTE",
-                COALESCE("NOMEVENDEDOR", "IDPRODUTO") as nome_produto,
+                "IDPRODUTO" as nome_produto,
                 COALESCE(SUM("QTD"), 0) as total_vendido
          FROM cache_campanhas ${where}
          GROUP BY "IDPRODUTO", "FABRICANTE"
