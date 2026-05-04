@@ -95,24 +95,8 @@ function CampaignHero({
       </div>
 
       <div className="relative z-10 px-4 pt-5 pb-6 max-w-2xl mx-auto">
-        {/* Logo row */}
-        <div className="flex items-center justify-between mb-4">
-          {campaign.logo_url ? (
-            <div className="bg-white rounded-xl px-3 py-1.5 shadow-md flex items-center">
-              <img
-                src={campaign.logo_url}
-                alt={campaign.supplier_name || "Logo"}
-                className="h-7 w-auto object-contain max-w-[110px]"
-              />
-            </div>
-          ) : (
-            <div
-              className="h-9 w-9 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-md"
-              style={{ backgroundColor: A.cyan }}
-            >
-              {(campaign.supplier_name || "A").slice(0, 2).toUpperCase()}
-            </div>
-          )}
+        {/* Status pill — top right */}
+        <div className="flex justify-end mb-3">
           <span
             className="text-xs font-bold px-2.5 py-1 rounded-full text-white"
             style={{ backgroundColor: statusColors[campaign.status] || "#6B7280" }}
@@ -121,19 +105,47 @@ function CampaignHero({
           </span>
         </div>
 
+        {/* Logo — centred, prominent */}
+        {campaign.logo_url ? (
+          <div className="flex justify-center mb-5">
+            <div
+              className="bg-white rounded-2xl shadow-xl flex items-center justify-center"
+              style={{ padding: "10px 24px", border: "2px solid rgba(255,255,255,0.9)" }}
+            >
+              <img
+                src={campaign.logo_url}
+                alt={campaign.supplier_name || "Logo"}
+                className="h-12 w-auto object-contain"
+                style={{ maxWidth: 180 }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center mb-5">
+            <div
+              className="h-14 w-14 rounded-2xl flex items-center justify-center text-white text-lg font-black shadow-xl"
+              style={{ backgroundColor: A.cyan }}
+            >
+              {(campaign.supplier_name || "A").slice(0, 2).toUpperCase()}
+            </div>
+          </div>
+        )}
+
         {/* Campaign name */}
-        <h1 className="text-2xl font-black text-white leading-tight mb-1">
+        <h1 className="text-2xl font-black text-white leading-tight mb-1 text-center">
           {campaign.name}
         </h1>
-        <p className="text-sm text-white/55 mb-4">
+        <p className="text-sm text-white/55 mb-4 text-center">
           {fmtDate(campaign.starts_at)} – {fmtDate(campaign.ends_at)}
         </p>
 
         {/* Countdown chip */}
         {isActive && dl > 0 && (
-          <div className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-            style={{ backgroundColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)", border: "1px solid rgba(255,255,255,0.18)" }}>
-            {dl === 1 ? "Último dia!" : `${dl} dias restantes`}
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+              style={{ backgroundColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)", border: "1px solid rgba(255,255,255,0.18)" }}>
+              {dl === 1 ? "Último dia!" : `${dl} dias restantes`}
+            </div>
           </div>
         )}
       </div>
@@ -331,30 +343,149 @@ function CrescimentoLojaCard({ perc }: { perc: number | null | undefined }) {
   );
 }
 
-// ─── Conexões sobre Tubos card ────────────────────────────────────────────────
-function ConexoesTubosCard({ vendor }: { vendor: VendedorApuracao }) {
-  const hasData = vendor.qtdTotal > 0;
+// ─── Gauge / Velocímetro SVG ──────────────────────────────────────────────────
+function GaugeMeter({
+  value,        // 0‒100
+  label,
+  sublabel,
+  color,
+  pending = false,
+}: {
+  value: number;
+  label: string;
+  sublabel?: string;
+  color: string;
+  pending?: boolean;
+}) {
+  // Half-circle gauge: arc from 180° to 0° (left → right)
+  const W = 120;
+  const H = 70;
+  const cx = W / 2;
+  const cy = H - 4;
+  const R = 48;
+  const strokeW = 9;
 
-  if (!hasData) {
-    return (
-      <KpiCard
-        icon={<Link2 className="h-3.5 w-3.5" style={{ color: A.cyan }} />}
-        label="Conexões sobre Tubos"
-        accentColor={A.cyan}
-        value={<p className="text-sm font-semibold text-gray-400">Sem vendas</p>}
-        sub="Nenhuma venda registrada no período"
-      />
-    );
+  // Convert value (0-100) to angle (180° → 0°, i.e. left to right)
+  const angleDeg = 180 - (Math.min(100, Math.max(0, value)) / 100) * 180;
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const needleX = cx + (R - strokeW / 2 - 2) * Math.cos(angleRad);
+  const needleY = cy - (R - strokeW / 2 - 2) * Math.sin(angleRad);
+
+  // Arc path helper: full half-circle from left to right
+  function arcPath(r: number, fromDeg: number, toDeg: number) {
+    const f = (d: number) => ({
+      x: cx + r * Math.cos((d * Math.PI) / 180),
+      y: cy - r * Math.sin((d * Math.PI) / 180),
+    });
+    const start = f(fromDeg);
+    const end = f(toDeg);
+    const sweep = toDeg > fromDeg ? 0 : 1;
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 0 ${sweep} ${end.x} ${end.y}`;
   }
 
+  // Zone colors for the track (red→orange→green)
+  const zones = [
+    { from: 180, to: 120, color: "#EF4444" },
+    { from: 120, to: 60,  color: A.orange },
+    { from: 60,  to: 0,   color: A.green },
+  ];
+
   return (
-    <KpiCard
-      icon={<Link2 className="h-3.5 w-3.5" style={{ color: A.cyan }} />}
-      label="Conexões sobre Tubos"
-      accentColor={A.cyan}
-      value={<p className="text-sm font-semibold text-gray-400">Em configuração</p>}
-      sub="Requer classificação de produtos"
-    />
+    <div className="flex flex-col items-center">
+      <svg width={W} height={H + 8} viewBox={`0 0 ${W} ${H + 8}`} className="overflow-visible">
+        {/* Track zones */}
+        {zones.map((z, i) => (
+          <path
+            key={i}
+            d={arcPath(R, z.from, z.to)}
+            fill="none"
+            stroke={z.color}
+            strokeWidth={strokeW}
+            strokeLinecap="butt"
+            opacity={0.18}
+          />
+        ))}
+        {/* Value arc (from 180° down to current angle) */}
+        {!pending && value > 0 && (
+          <path
+            d={arcPath(R, 180, angleDeg)}
+            fill="none"
+            stroke={color}
+            strokeWidth={strokeW}
+            strokeLinecap="round"
+            style={{ transition: "stroke-dashoffset 1s ease" }}
+          />
+        )}
+        {/* Tick marks */}
+        {[0, 25, 50, 75, 100].map((t) => {
+          const tDeg = 180 - (t / 100) * 180;
+          const tRad = (tDeg * Math.PI) / 180;
+          const inner = R - strokeW / 2 - 2;
+          const outer = R + strokeW / 2 + 1;
+          return (
+            <line
+              key={t}
+              x1={cx + inner * Math.cos(tRad)} y1={cy - inner * Math.sin(tRad)}
+              x2={cx + outer * Math.cos(tRad)} y2={cy - outer * Math.sin(tRad)}
+              stroke="rgba(0,0,0,0.2)" strokeWidth={1.5}
+            />
+          );
+        })}
+        {/* Needle */}
+        {!pending && (
+          <>
+            <line
+              x1={cx} y1={cy}
+              x2={needleX} y2={needleY}
+              stroke={color} strokeWidth={2.5} strokeLinecap="round"
+            />
+            <circle cx={cx} cy={cy} r={5} fill={color} />
+            <circle cx={cx} cy={cy} r={2.5} fill="white" />
+          </>
+        )}
+        {/* Centre value text */}
+        <text x={cx} y={cy - 10} textAnchor="middle" fontSize={pending ? 8 : 13}
+          fontWeight="800" fill={pending ? "#9CA3AF" : color}>
+          {pending ? "—" : `${value.toFixed(0)}%`}
+        </text>
+        {/* Min/Max labels */}
+        <text x={4} y={H + 6} fontSize={7} fill="#9CA3AF">0%</text>
+        <text x={W - 4} y={H + 6} fontSize={7} fill="#9CA3AF" textAnchor="end">100%</text>
+      </svg>
+      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-0.5">{label}</p>
+      {sublabel && <p className="text-[10px] text-gray-400 text-center mt-0.5">{sublabel}</p>}
+    </div>
+  );
+}
+
+// ─── Conexões sobre Tubos card (velocímetro) ─────────────────────────────────
+function ConexoesTubosCard({ vendor }: { vendor: VendedorApuracao }) {
+  // Placeholder: indicator pending product classification data.
+  // When product categories are configured, replace `pending=true` with real ratio.
+  const pending = true;
+  const value = 0;
+  const color = A.cyan;
+
+  return (
+    <div className="rounded-2xl bg-white shadow-sm overflow-hidden border border-gray-100">
+      <div className="h-0.5" style={{ backgroundColor: color }} />
+      <div className="px-3 pt-3 pb-3 flex flex-col items-center">
+        <div className="flex items-center gap-1.5 self-start mb-2">
+          <div className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: `${color}18` }}>
+            <Link2 className="h-3.5 w-3.5" style={{ color }} />
+          </div>
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Conexões / Tubos</p>
+        </div>
+        <GaugeMeter
+          value={value}
+          label=""
+          sublabel={pending ? "Classificação de produtos pendente" : undefined}
+          color={color}
+          pending={pending}
+        />
+      </div>
+    </div>
   );
 }
 
