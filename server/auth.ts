@@ -55,57 +55,23 @@ const VENDOR_MODULE_CODES: Record<string, string> = {
 
 async function seedSalespersonUsers() {
   try {
-    const rows = await pgAll<{ id: string; name: string }>(`
-      SELECT
-        CAST("IDVENDEDOR" AS TEXT) as id,
-        MAX("NOME_VENDEDOR") as name
-      FROM cache_vendas
-      WHERE "IDVENDEDOR" IS NOT NULL
-        AND "NOME_VENDEDOR" IS NOT NULL
-        AND "NOME_VENDEDOR" NOT LIKE '%SEM VENDEDOR%'
-      GROUP BY "IDVENDEDOR"
-    `);
-
-    const existingUsers = await pgAll<{ email: string }>("SELECT email FROM users");
-    const existingEmails = new Set(existingUsers.map(u => String(u.email)));
-
-    let addedCount = 0;
     const hashedPass = await bcrypt.hash("1234", 10);
+    let addedCount = 0;
 
-    for (const row of rows) {
-      if (!row.name) continue;
-
-      const moduleCode = VENDOR_MODULE_CODES[row.id];
-
-      if (moduleCode) {
-        if (!existingEmails.has(moduleCode)) {
-          await pgRun(
-            "INSERT INTO users (email, password, first_name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING",
-            [moduleCode, hashedPass, row.name, "vendedor"]
-          );
-          existingEmails.add(moduleCode);
-          addedCount++;
-        }
-        continue;
-      }
-
-      let baseUsername = row.name.split(" ")[0];
-      baseUsername = baseUsername.charAt(0).toUpperCase() + baseUsername.slice(1).toLowerCase();
-
-      let finalUsername = baseUsername;
-      let counter = 1;
-
-      while (existingEmails.has(finalUsername)) {
-        finalUsername = `${baseUsername}${counter}`;
-        counter++;
-      }
-
-      await pgRun(
-        "INSERT INTO users (email, password, first_name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING",
-        [finalUsername, hashedPass, row.name, "vendedor"]
+    // Only create users for vendors explicitly listed in VENDOR_MODULE_CODES.
+    // Never create name-based users — they accumulate duplicates on every restart.
+    for (const [vendorId, moduleCode] of Object.entries(VENDOR_MODULE_CODES)) {
+      const nameRow = await pgGet<{ name: string }>(
+        `SELECT MAX("NOME_VENDEDOR") as name FROM cache_vendas WHERE CAST("IDVENDEDOR" AS TEXT) = $1`,
+        [vendorId]
       );
-      existingEmails.add(finalUsername);
-      addedCount++;
+      if (!nameRow?.name) continue;
+
+      const inserted = await pgRun(
+        "INSERT INTO users (email, password, first_name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING",
+        [moduleCode, hashedPass, nameRow.name, "vendedor"]
+      );
+      if ((inserted as any).rowCount > 0) addedCount++;
     }
 
     if (addedCount > 0) {
