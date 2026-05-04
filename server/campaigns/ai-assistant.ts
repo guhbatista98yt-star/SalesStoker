@@ -454,6 +454,7 @@ Após criar: "⚠️ Configure os Gatilhos por Vendedor na aba de edição da ca
 
 ## REGRAS FINAIS
 
+- **FORMATO OBRIGATÓRIO DO JSON**: Sempre coloque o JSON entre os marcadores <<<CAMPAIGN_JSON>>> e <<<END_CAMPAIGN_JSON>>>. NUNCA use blocos de código markdown com json para o JSON da campanha. O sistema só reconhece os marcadores — blocos markdown serão ignorados e o usuário não conseguirá criar a campanha.
 - NUNCA use nomes de vendedores como IDs. Use sempre o ID numérico da lista de vendedores.
 - NUNCA envie "conditions" como array plano. Sempre use o objeto root com "id": "root".
 - NUNCA use baseValue para percentuais — use basePercent para COMISSAO_PERCENTUAL.
@@ -812,6 +813,7 @@ router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
       text = await callGemini(cfg.apiKey, cfg.model, messages, systemPrompt);
     }
 
+    // Try official markers first, then fall back to ```json blocks
     const jsonMatch = text.match(/<<<CAMPAIGN_JSON>>>([\s\S]*?)<<<END_CAMPAIGN_JSON>>>/);
     let campaignDraft = null;
     let message = text;
@@ -821,7 +823,24 @@ router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
         campaignDraft = JSON.parse(jsonMatch[1].trim());
         message = text.replace(/<<<CAMPAIGN_JSON>>>[\s\S]*?<<<END_CAMPAIGN_JSON>>>/, "").trim();
       } catch (e) {
-        console.error("[AI Assistant] JSON parse error:", e);
+        console.error("[AI Assistant] JSON parse error (markers):", e);
+      }
+    }
+
+    // Fallback: extract from ```json ... ``` blocks when model ignores markers
+    if (!campaignDraft) {
+      const mdRe = /```json\s*([\s\S]*?)```/g;
+      let mdMatch: RegExpExecArray | null;
+      while ((mdMatch = mdRe.exec(text)) !== null) {
+        try {
+          const parsed = JSON.parse(mdMatch[1].trim());
+          // Only treat as campaign draft if it has the essential campaign fields
+          if (parsed && typeof parsed === "object" && parsed.name && parsed.campaign_mode && parsed.starts_at) {
+            campaignDraft = parsed;
+            message = text.replace(mdMatch[0], "").trim();
+            break;
+          }
+        } catch { /* not valid JSON, skip */ }
       }
     }
 
