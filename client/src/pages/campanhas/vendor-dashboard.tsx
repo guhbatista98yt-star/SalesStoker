@@ -383,10 +383,10 @@ function GaugeMeter({
     return `M ${start.x} ${start.y} A ${r} ${r} 0 0 ${sweep} ${end.x} ${end.y}`;
   }
 
-  // Zone colors for the track (red→orange→green)
+  // Zone colors — Amanco theme: navy → cyan → green
   const zones = [
-    { from: 180, to: 120, color: "#EF4444" },
-    { from: 120, to: 60,  color: A.orange },
+    { from: 180, to: 120, color: A.navy },
+    { from: 120, to: 60,  color: A.cyan },
     { from: 60,  to: 0,   color: A.green },
   ];
 
@@ -482,7 +482,6 @@ function ConexoesTubosCard({ vendor: _vendor }: { vendor: VendedorApuracao }) {
           <GaugeMeter
             value={value}
             label=""
-            sublabel={pending ? "Classificação de produtos pendente" : undefined}
             color={color}
             pending={pending}
           />
