@@ -1,0 +1,693 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+[1G[0K[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...
+Usuário 'loja' criado automaticamente.
+[schema-bootstrap] Colunas adicionadas: campaigns.cycle_type, campaigns.auto_renew, campaigns.cycle_count, cache_estoque_sugestao.DESCRICAO, cache_campanhas.IDEMPRESA
+[schema-bootstrap] Schema OK — 38 tabelas verificadas em 604ms
+[Campanhas] Módulo inicializado.
+[Comissões] Módulo inicializado.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+[ComprasAlertEngine] Iniciado. Avaliando a cada 30 minutos.
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+6:11:02 PM [express] serving on http://localhost:5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:13:42 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/form.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:13:44 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/form.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:14:08 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/form.tsx, /src/index.css[22m [33m(x3)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:14:18 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/form.tsx, /src/index.css[22m [33m(x4)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:14:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/form.tsx, /src/index.css[22m [33m(x5)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:16:43 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:16:58 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:16:59 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x3)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:17:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x4)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:18:00 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x5)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:18:38 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x6)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:18:49 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x7)[39m
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:25:00 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/components/ai-assistant.tsx[22m
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Running evaluation cycle...
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:09:44 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/vendedores.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:09:49 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/vendedores.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:09:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/alertas.tsx, /src/index.css[22m
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:26:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/vendedores.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:26:54 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/alertas.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:27:07 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/alertas.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:27:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/semanal.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:27:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/mensal.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:27:29 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/semanal.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:27:36 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/mensal.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:27:50 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/semanal.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:27:58 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/mensal.tsx, /src/index.css[22m
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m8:43:05 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.

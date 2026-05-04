@@ -1,0 +1,234 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+[1G[0K[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...
+[schema-bootstrap] Schema OK — 30 tabelas verificadas em 125ms
+[Campanhas] Módulo inicializado.
+[Comissões] Módulo inicializado.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+[AlertEngine] Evaluation cycle complete.
+6:45:56 PM [express] serving on http://localhost:5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:46:25 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/components/relatorio-tab.tsx[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:46:36 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/components/relatorio-tab.tsx[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:46:58 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/components/relatorio-tab.tsx[22m [33m(x3)[39m
+[replit-cartographer] Error processing /home/runner/workspace/client/src/pages/campanhas/components/relatorio-tab.tsx: SyntaxError: Adjacent JSX elements must be wrapped in an enclosing tag. Did you want a JSX fragment <>...</>? (484:6)
+    at toParseError [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parse-error.ts:95:45[90m)[39m
+    at raise [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/tokenizer/index.ts:1503:19[90m)[39m
+    at jsxParseElementAt [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:543:20[90m)[39m
+    at jsxParseElement [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:559:19[90m)[39m
+    at parseExprAtom [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:573:21[90m)[39m
+    at parseExprSubscripts [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:734:23[90m)[39m
+    at parseUpdate [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:713:21[90m)[39m
+    at parseMaybeUnary [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:675:23[90m)[39m
+    at parseMaybeUnary [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3855:20[90m)[39m
+    at parseMaybeUnaryOrPrivate [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:409:14[90m)[39m
+    at parseExprOpBaseRightExpr [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:589:12[90m)[39m
+    at parseExprOpRightExpr [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:574:21[90m)[39m
+    at parseExprOp [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:505:27[90m)[39m
+    at parseExprOp [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:2913:20[90m)[39m
+    at parseExprOp [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:526:21[90m)[39m
+    at parseExprOp [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:2913:20[90m)[39m
+    at parseExprOps [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:427:17[90m)[39m
+    at parseMaybeConditional [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:376:23[90m)[39m
+    at parseMaybeAssign [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:301:21[90m)[39m
+    at parseMaybeAssign [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3727:22[90m)[39m
+    at parseExpressionBase [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:226:23[90m)[39m
+    at callback [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:217:39[90m)[39m
+    at allowInAnd [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:3192:12[90m)[39m
+    at parseExpression [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:217:17[90m)[39m
+    at jsxParseExpressionContainer [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:376:33[90m)[39m
+    at jsxParseElementAt [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:500:24[90m)[39m
+    at jsxParseElement [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:559:19[90m)[39m
+    at parseExprAtom [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:573:21[90m)[39m
+    at parseExprSubscripts [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:734:23[90m)[39m
+    at parseUpdate [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:713:21[90m)[39m
+    at parseMaybeUnary [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:675:23[90m)[39m
+    at parseMaybeUnary [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3855:20[90m)[39m
+    at parseMaybeUnaryOrPrivate [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:409:14[90m)[39m
+    at parseExprOps [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:421:23[90m)[39m
+    at parseMaybeConditional [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:376:23[90m)[39m
+    at parseMaybeAssign [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:301:21[90m)[39m
+    at fn [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3708:23[90m)[39m
+    at tryParse [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/util.ts:174:20[90m)[39m
+    at parseMaybeAssign [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3707:20[90m)[39m
+    at callback [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:257:12[90m)[39m
+    at allowInAnd [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:3192:12[90m)[39m
+    at parseMaybeAssignAllowIn [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:256:17[90m)[39m
+    at parseMaybeAssignAllowInOrVoidPattern [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:3306:17[90m)[39m
+    at parseParenAndDistinguishExpression [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:1813:16[90m)[39m
+    at parseExprAtom [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:1162:21[90m)[39m
+    at parseExprAtom [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/jsx/index.ts:583:22[90m)[39m
+    at parseExprSubscripts [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:734:23[90m)[39m
+    at parseUpdate [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:713:21[90m)[39m
+    at parseMaybeUnary [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/parser/expression.ts:675:23[90m)[39m
+    at parseMaybeUnary [90m(/home/runner/workspace/[39mnode_modules/[4m@babel/parser[24m/src/plugins/typescript/index.ts:3855:20[90m)[39m {
+  code: [32m'BABEL_PARSER_SYNTAX_ERROR'[39m,
+  reasonCode: [32m'UnwrappedAdjacentJSXElements'[39m,
+  loc: Position { line: [33m484[39m, column: [33m6[39m, index: [33m18660[39m },
+  pos: [33m18660[39m,
+  syntaxPlugin: [32m'jsx'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m6:46:58 PM[22m [31m[1m[vite][22m[39m [31mInternal server error: /home/runner/workspace/client/src/pages/campanhas/components/relatorio-tab.tsx: Adjacent JSX elements must be wrapped in an enclosing tag. Did you want a JSX fragment <>...</>? (484:6)
+
+[0m [90m 482 |[31m       [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+ [90m 483 |[31m
+[31m[1m>[22m[31m[90m 484 |[31m       [33m<[31m[33mp[31m className[33m=[31m[32m"text-[10px] text-muted-foreground"[31m[33m>[31m
+ [90m     |[31m       [31m[1m^[22m[31m
+ [90m 485 |[31m         [33mMostrando[31m {filtered[33m.[31mlength} de {data[33m?[31m[33m.[31mresults[33m.[31mlength} vendedores ·{[32m" "[31m}
+ [90m 486 |[31m         {data[33m?[31m[33m.[31msummary[33m.[31msuppliers[33m.[31mlength [33m?[31m [32m`Fabricantes: ${data.summary.suppliers.join(", ")}`[31m [33m:[31m [32m"Todos os fabricantes"[31m}
+ [90m 487 |[31m       [33m<[31m[33m/[31m[33mp[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36m/home/runner/workspace/client/src/pages/campanhas/components/relatorio-tab.tsx[39m:484:6
+[33m  482 |        </div>
+  483 |  
+  484 |        <p className="text-[10px] text-muted-foreground">
+      |        ^
+  485 |          Mostrando {filtered.length} de {data?.results.length} vendedores ·{" "}
+  486 |          {data?.summary.suppliers.length ? `Fabricantes: ${data.summary.suppliers.join(", ")}` : "Todos os fabricantes"}[39m
+      at toParseError (/home/runner/workspace/node_modules/@babel/parser/src/parse-error.ts:95:45)
+      at raise (/home/runner/workspace/node_modules/@babel/parser/src/tokenizer/index.ts:1503:19)
+      at jsxParseElementAt (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:543:20)
+      at jsxParseElement (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:559:19)
+      at parseExprAtom (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:573:21)
+      at parseExprSubscripts (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:734:23)
+      at parseUpdate (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:713:21)
+      at parseMaybeUnary (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:675:23)
+      at parseMaybeUnary (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3855:20)
+      at parseMaybeUnaryOrPrivate (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:409:14)
+      at parseExprOpBaseRightExpr (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:589:12)
+      at parseExprOpRightExpr (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:574:21)
+      at parseExprOp (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:505:27)
+      at parseExprOp (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:2913:20)
+      at parseExprOp (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:526:21)
+      at parseExprOp (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:2913:20)
+      at parseExprOps (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:427:17)
+      at parseMaybeConditional (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:376:23)
+      at parseMaybeAssign (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:301:21)
+      at parseMaybeAssign (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3727:22)
+      at parseExpressionBase (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:226:23)
+      at callback (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:217:39)
+      at allowInAnd (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:3192:12)
+      at parseExpression (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:217:17)
+      at jsxParseExpressionContainer (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:376:33)
+      at jsxParseElementAt (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:500:24)
+      at jsxParseElement (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:559:19)
+      at parseExprAtom (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:573:21)
+      at parseExprSubscripts (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:734:23)
+      at parseUpdate (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:713:21)
+      at parseMaybeUnary (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:675:23)
+      at parseMaybeUnary (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3855:20)
+      at parseMaybeUnaryOrPrivate (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:409:14)
+      at parseExprOps (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:421:23)
+      at parseMaybeConditional (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:376:23)
+      at parseMaybeAssign (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:301:21)
+      at fn (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3708:23)
+      at tryParse (/home/runner/workspace/node_modules/@babel/parser/src/parser/util.ts:174:20)
+      at parseMaybeAssign (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3707:20)
+      at callback (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:257:12)
+      at allowInAnd (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:3192:12)
+      at parseMaybeAssignAllowIn (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:256:17)
+      at parseMaybeAssignAllowInOrVoidPattern (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:3306:17)
+      at parseParenAndDistinguishExpression (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:1813:16)
+      at parseExprAtom (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:1162:21)
+      at parseExprAtom (/home/runner/workspace/node_modules/@babel/parser/src/plugins/jsx/index.ts:583:22)
+      at parseExprSubscripts (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:734:23)
+      at parseUpdate (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:713:21)
+      at parseMaybeUnary (/home/runner/workspace/node_modules/@babel/parser/src/parser/expression.ts:675:23)
+      at parseMaybeUnary (/home/runner/workspace/node_modules/@babel/parser/src/plugins/typescript/index.ts:3855:20)
+[1G[0K⠙[1G[0K

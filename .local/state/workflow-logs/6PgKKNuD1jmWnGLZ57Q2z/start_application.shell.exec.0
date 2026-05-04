@@ -1,0 +1,399 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+[1G[0K[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...
+Erro ao criar usuário loja: error: relation "users" does not exist
+    at [90m/home/runner/workspace/[39mnode_modules/[4mpg-pool[24m/index.js:45:11
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async pgGet [90m(/home/runner/workspace/[39mserver/pg-client.ts:56:13[90m)[39m
+    at async seedDefaultUsers [90m(/home/runner/workspace/[39mserver/auth.ts:25:22[90m)[39m {
+  length: [33m104[39m,
+  severity: [32m'ERROR'[39m,
+  code: [32m'42P01'[39m,
+  detail: [90mundefined[39m,
+  hint: [90mundefined[39m,
+  position: [32m'16'[39m,
+  internalPosition: [90mundefined[39m,
+  internalQuery: [90mundefined[39m,
+  where: [90mundefined[39m,
+  schema: [90mundefined[39m,
+  table: [90mundefined[39m,
+  column: [90mundefined[39m,
+  dataType: [90mundefined[39m,
+  constraint: [90mundefined[39m,
+  file: [32m'parse_relation.c'[39m,
+  line: [32m'1452'[39m,
+  routine: [32m'parserOpenTable'[39m
+}
+[schema-bootstrap] Colunas adicionadas: users.display_name, users.vendor_code, users.phone, users.cargo, users.company_id, users.supervisor_id, users.status, users.last_login_at, users.notes, users.created_by, vendor_display_settings.allowed_roles, cache_estoque_sugestao.DESCRICAO, cache_campanhas.IDEMPRESA, compras_fornecedores_config.company_id, compras_produtos_config.company_id
+[schema-bootstrap] Tabelas criadas: users, goals, goal_settings, alert_configs, alert_notifications, vendor_display_settings, vendor_groups, vendor_group_members, app_settings, campaigns, campaign_audit_logs, campaign_versions, campaign_simulations, campaign_results, campaign_result_details, campaign_goals, commission_rules, commission_records, sync_state, sync_logs, job_locks, bootstrap_historico, bootstrap_status, cache_vendas, cache_vendas_pendentes, cache_campanhas, cache_tubos_conexoes, cache_estoque_sugestao, roles, role_permissions, access_audit, purchase_alerts, purchase_alert_events, purchase_settings, user_alert_preferences, alert_delivery_state, compras_fornecedores_config, compras_produtos_config
+[schema-bootstrap] Schema OK — 38 tabelas verificadas em 1065ms
+[Campanhas] Módulo inicializado.
+[Comissões] Regras padrão criadas.
+[Comissões] Módulo inicializado.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+[ComprasAlertEngine] Iniciado. Avaliando a cada 30 minutos.
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+4:50:57 PM [express] serving on http://localhost:5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:48:50 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/view.tsx, /src/pages/campanhas/index.tsx, /src/pages/campanhas/form.tsx, /src/pages/campanhas/components/rule-builder.tsx, /src/pages/campanhas/components/reward-form.tsx[22m
+[AlertEngine] Running evaluation cycle...
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Sem dados de produtos para avaliar.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:51:03 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/form.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:51:05 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/index.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:51:09 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:51:26 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/form.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:51:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/index.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:52:00 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/index.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:52:05 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/index.tsx, /src/index.css[22m [33m(x3)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:52:20 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/index.tsx, /src/index.css[22m [33m(x4)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:52:48 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/index.tsx, /src/index.css[22m [33m(x5)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:52:50 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/campanhas/index.tsx, /src/index.css[22m [33m(x6)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:52:59 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:53:21 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m5:53:29 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/configuracoes.tsx, /src/index.css[22m [33m(x3)[39m
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
