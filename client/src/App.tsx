@@ -93,7 +93,7 @@ function ComprasGuard({ children }: { children: React.ReactNode }) {
 function getInitialRoute(role?: string): string {
   switch (role) {
     case "loja":     return "/analises/visao-em-loja";
-    case "vendedor": return "/metas-vendedor";
+    case "vendedor": return "/campanhas";
     default:         return "/";
   }
 }

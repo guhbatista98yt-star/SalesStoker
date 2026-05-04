@@ -255,6 +255,7 @@ interface StatusDialogState {
 export default function CampanhasList() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isVendedor = user?.role === "vendedor";
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -316,8 +317,13 @@ export default function CampanhasList() {
     setStatusReason("");
   }
 
+  // Vendors only see active and paused campaigns
+  const visibleCampaigns = isVendedor
+    ? campaigns.filter(c => c.status === "ativa" || c.status === "pausada")
+    : campaigns;
+
   // Filter
-  const filtered = campaigns.filter(c => {
+  const filtered = visibleCampaigns.filter(c => {
     if (filterStatus !== "all" && c.status !== filterStatus) return false;
     if (filterType !== "all" && c.campaign_type !== filterType) return false;
     if (search) {
@@ -334,16 +340,18 @@ export default function CampanhasList() {
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
-              <Link href="/configuracoes"><ChevronLeft className="h-4 w-4" /></Link>
-            </Button>
+            {!isVendedor && (
+              <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
+                <Link href="/configuracoes"><ChevronLeft className="h-4 w-4" /></Link>
+              </Button>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold">Campanhas Comerciais</h1>
                 <HelpButton onClick={() => setHelpOpen(true)} />
               </div>
               <p className="text-xs text-muted-foreground">
-                Gerencie e monitore campanhas de incentivo de vendas
+                {isVendedor ? "Campanhas disponíveis para você" : "Gerencie e monitore campanhas de incentivo de vendas"}
               </p>
             </div>
           </div>
@@ -356,7 +364,7 @@ export default function CampanhasList() {
         </div>
 
         {/* Stats */}
-        {campaigns.length > 0 && <StatsBar campaigns={campaigns} />}
+        {!isVendedor && campaigns.length > 0 && <StatsBar campaigns={campaigns} />}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
@@ -369,18 +377,20 @@ export default function CampanhasList() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="h-8 text-xs w-36">
-              <Filter className="h-3 w-3 mr-1" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">Todos os status</SelectItem>
-              {(["rascunho", "ativa", "pausada", "encerrada", "cancelada"] as CampaignStatus[]).map(s => (
-                <SelectItem key={s} value={s} className="text-xs">{STATUS_LABEL[s]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isVendedor && (
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="h-8 text-xs w-36">
+                <Filter className="h-3 w-3 mr-1" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">Todos os status</SelectItem>
+                {(["rascunho", "ativa", "pausada", "encerrada", "cancelada"] as CampaignStatus[]).map(s => (
+                  <SelectItem key={s} value={s} className="text-xs">{STATUS_LABEL[s]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={filterType} onValueChange={setFilterType}>
             <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
