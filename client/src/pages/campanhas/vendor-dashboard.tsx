@@ -1,13 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   ChevronLeft, Trophy, Gift, Calendar, Target, CheckCircle2,
   Zap, ShieldCheck, AlertCircle, Loader2, TrendingUp, DollarSign,
-  Layers, Star, Award, Users,
+  Layers, Star, Award, Users, XCircle, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -18,6 +18,7 @@ import { CollapsibleSection } from "@/components/campanhas/collapsible-section";
 import {
   type Campaign,
   type ApuracaoResult,
+  type VendedorApuracao,
   STATUS_LABEL, CAMPAIGN_MODE_LABEL,
   REWARD_TYPE_LABEL,
 } from "./types";
@@ -35,8 +36,7 @@ function fmtCurrency(v: number) {
 }
 
 function daysLeft(endsAt: string) {
-  const diff = Math.ceil((new Date(endsAt).getTime() - Date.now()) / 86400000);
-  return diff;
+  return Math.ceil((new Date(endsAt).getTime() - Date.now()) / 86400000);
 }
 
 function darkenHex(hex: string, amount = 30): string {
@@ -62,6 +62,133 @@ function Skeleton() {
   );
 }
 
+// ─── Personal result card ─────────────────────────────────────────────────────
+
+function PersonalResultCard({
+  vendor,
+  brandColor,
+}: {
+  vendor: VendedorApuracao;
+  brandColor: string;
+}) {
+  const isClassified = vendor.premiado;
+  const isDisqualified = !vendor.participou || !vendor.atingiu;
+
+  return (
+    <div className={cn(
+      "rounded-2xl border overflow-hidden shadow-sm",
+      isClassified
+        ? "border-green-200 dark:border-green-800"
+        : isDisqualified
+        ? "border-red-200 dark:border-red-700"
+        : "border-amber-200 dark:border-amber-800"
+    )}>
+      {/* Header */}
+      <div className={cn(
+        "px-5 py-3 flex items-center gap-3",
+        isClassified
+          ? "bg-green-50 dark:bg-green-950/40"
+          : isDisqualified
+          ? "bg-red-50 dark:bg-red-950/30"
+          : "bg-amber-50 dark:bg-amber-950/30"
+      )}>
+        {isClassified
+          ? <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+          : isDisqualified
+          ? <XCircle className="h-5 w-5 text-red-500 dark:text-red-400 shrink-0" />
+          : <Zap className="h-5 w-5 text-amber-500 shrink-0" />
+        }
+        <div className="flex-1 min-w-0">
+          <p className={cn(
+            "text-sm font-bold",
+            isClassified ? "text-green-800 dark:text-green-200"
+            : isDisqualified ? "text-red-700 dark:text-red-300"
+            : "text-amber-800 dark:text-amber-200"
+          )}>
+            {isClassified
+              ? `Premiado${vendor.categoria ? ` — Categoria ${vendor.categoria}` : ""}`
+              : isDisqualified
+              ? "Fora da campanha"
+              : "Participando — aguardando encerramento"}
+          </p>
+          {vendor.categoria && !isClassified && (
+            <p className="text-xs text-muted-foreground mt-0.5">{vendor.categoria}</p>
+          )}
+        </div>
+        {vendor.premioFinal != null && vendor.premioFinal > 0 && (
+          <div className="text-right shrink-0">
+            <p className="text-xs text-muted-foreground">Comissão</p>
+            <p className="text-lg font-black" style={{ color: brandColor }}>
+              {fmtCurrency(vendor.premioFinal)}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Stats grid */}
+      <div className="p-4 grid grid-cols-2 gap-3">
+        {vendor.valorApuracao != null && (
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Faturamento</p>
+            <p className="text-base font-bold mt-0.5" style={{ color: brandColor }}>
+              {fmtCurrency(vendor.valorApuracao)}
+            </p>
+          </div>
+        )}
+        {vendor.valorPagamento != null && vendor.valorPagamento !== vendor.valorApuracao && (
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Base da comissão</p>
+            <p className="text-base font-bold mt-0.5" style={{ color: brandColor }}>
+              {fmtCurrency(vendor.valorPagamento)}
+            </p>
+          </div>
+        )}
+        {vendor.gatilhoValor != null && (
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Meta individual</p>
+            <p className="text-base font-bold mt-0.5">{fmtCurrency(vendor.gatilhoValor)}</p>
+            <p className={cn(
+              "text-[10px] font-semibold mt-0.5",
+              vendor.gatilhoAtingido ? "text-green-600" : "text-red-500"
+            )}>
+              {vendor.gatilhoAtingido ? "✓ Atingida" : "✗ Não atingida"}
+            </p>
+          </div>
+        )}
+        {vendor.posicao != null && (
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Ranking volume</p>
+            <p className="text-base font-bold mt-0.5">#{vendor.posicao}º lugar</p>
+          </div>
+        )}
+        {vendor.posicaoCrescimento != null && (
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Ranking crescimento</p>
+            <p className="text-base font-bold mt-0.5">#{vendor.posicaoCrescimento}º lugar</p>
+            {vendor.crescimentoPerc != null && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {vendor.crescimentoPerc >= 0 ? "+" : ""}{vendor.crescimentoPerc.toFixed(1)}% vs período anterior
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Disqualification reasons */}
+      {vendor.motivosNaoParticipacao && vendor.motivosNaoParticipacao.length > 0 && (
+        <div className="px-4 pb-4">
+          <div className="rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 p-3 space-y-1">
+            <p className="text-xs font-semibold text-red-700 dark:text-red-400">Motivo(s) de desclassificação:</p>
+            {vendor.motivosNaoParticipacao.map((m, i) => (
+              <p key={i} className="text-xs text-red-600 dark:text-red-400">• {m}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Rewards Display ──────────────────────────────────────────────────────────
 
 function RewardsCard({ campaign }: { campaign: Campaign }) {
@@ -81,7 +208,6 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
       </div>
 
       <div className="p-5 space-y-4">
-        {/* Valor fixo / comissão */}
         {(rewards.type === "VALOR_FIXO" || rewards.type === "COMISSAO_PERCENTUAL" || rewards.type === "PERCENTUAL") && rewards.baseValue != null && rewards.baseValue > 0 && (
           <div className="flex items-center gap-4 p-4 rounded-xl border" style={{ borderColor: `${brandColor}30`, backgroundColor: `${brandColor}08` }}>
             <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${brandColor}15` }}>
@@ -92,13 +218,10 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
             </div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">
-                {rewards.type === "VALOR_FIXO" ? "Prêmio fixo por atingimento" : `Comissão percentual`}
+                {rewards.type === "VALOR_FIXO" ? "Prêmio fixo por atingimento" : "Comissão percentual"}
               </p>
               <p className="text-2xl font-black" style={{ color: brandColor }}>
-                {rewards.type === "VALOR_FIXO"
-                  ? fmtCurrency(rewards.baseValue)
-                  : `${rewards.baseValue}%`
-                }
+                {rewards.type === "VALOR_FIXO" ? fmtCurrency(rewards.baseValue) : `${rewards.baseValue}%`}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {rewards.scope === "individual" ? "Por vendedor" : "Prêmio coletivo"}
@@ -107,7 +230,6 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
           </div>
         )}
 
-        {/* Faixas */}
         {rewards.type === "FAIXA" && rewards.tiers.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -126,9 +248,7 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
                       <p className="text-xs text-muted-foreground">
                         {tier.min !== undefined && tier.max !== undefined && tier.max !== null
                           ? `${fmtCurrency(tier.min)} – ${fmtCurrency(tier.max)}`
-                          : tier.min !== undefined
-                          ? `≥ ${fmtCurrency(tier.min)}`
-                          : ""}
+                          : tier.min !== undefined ? `≥ ${fmtCurrency(tier.min)}` : ""}
                       </p>
                     </div>
                   </div>
@@ -146,7 +266,6 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
           </div>
         )}
 
-        {/* Ranking */}
         {rewards.type === "RANKING" && rewards.posicoes && rewards.posicoes.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prêmios por posição</p>
@@ -164,9 +283,7 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
                       {pos.label && <p className="text-xs text-muted-foreground">{pos.label}</p>}
                     </div>
                   </div>
-                  <span className="text-sm font-bold" style={{ color: brandColor }}>
-                    {fmtCurrency(pos.valor)}
-                  </span>
+                  <span className="text-sm font-bold" style={{ color: brandColor }}>{fmtCurrency(pos.valor)}</span>
                 </div>
               );
             })}
@@ -184,7 +301,7 @@ function RewardsCard({ campaign }: { campaign: Campaign }) {
   );
 }
 
-// ─── Ranking result card ───────────────────────────────────────────────────────
+// ─── Ranking list ─────────────────────────────────────────────────────────────
 
 function RankingList({
   title, icon: Icon, rows, brandColor, valueKey,
@@ -203,37 +320,31 @@ function RankingList({
         <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${brandColor}20` }}>
           <Icon className="h-3.5 w-3.5" style={{ color: brandColor }} />
         </div>
-        <div>
-          <p className="text-sm font-bold text-foreground">{title}</p>
-          <p className="text-xs text-muted-foreground">Top colocações</p>
-        </div>
+        <p className="text-sm font-bold">{title}</p>
       </div>
       <div className="divide-y divide-border">
-        {rows.map(d => {
-          const podiumColor = d.pos <= 3 ? podiumColors[d.pos - 1] : "bg-muted-foreground/20";
-          return (
-            <div key={d.vendedorId} className="flex items-center gap-3 px-5 py-3">
-              <div className={cn("h-6 w-6 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold", podiumColor)}>
-                {d.pos}
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-medium">{d.vendedorNome}</span>
-                {d.categoria && (
-                  <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                    style={{ backgroundColor: `${brandColor}18`, color: brandColor }}>
-                    {d.categoria}
-                  </span>
-                )}
-              </div>
-              <span className="text-sm font-bold tabular-nums" style={{ color: brandColor }}>
-                {valueKey === "crescimento"
-                  ? `${d.valor >= 0 ? "+" : ""}${d.valor.toFixed(1)}%`
-                  : fmtCurrency(d.valor)
-                }
-              </span>
+        {rows.map(d => (
+          <div key={d.vendedorId} className="flex items-center gap-3 px-5 py-3">
+            <div className={cn("h-6 w-6 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold",
+              d.pos <= 3 ? podiumColors[d.pos - 1] : "bg-muted-foreground/20")}>
+              {d.pos}
             </div>
-          );
-        })}
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium">{d.vendedorNome}</span>
+              {d.categoria && (
+                <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: `${brandColor}18`, color: brandColor }}>
+                  {d.categoria}
+                </span>
+              )}
+            </div>
+            <span className="text-sm font-bold tabular-nums" style={{ color: brandColor }}>
+              {valueKey === "crescimento"
+                ? `${d.valor >= 0 ? "+" : ""}${d.valor.toFixed(1)}%`
+                : fmtCurrency(d.valor)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -274,17 +385,15 @@ function RankingCard({ results, campaign }: { results: ApuracaoResult; campaign:
 // ─── Summary stats ────────────────────────────────────────────────────────────
 
 function SummaryStats({ results, brandColor }: { results: ApuracaoResult; brandColor: string }) {
-  const stats = [
-    { label: "Participantes", value: results.totalParticipantes, icon: Users },
-    { label: "Atingiram meta", value: results.totalAtingidos, icon: Target },
-    { label: "Premiados", value: results.totalPremiados, icon: Gift },
-  ];
-
   return (
     <div className="grid grid-cols-3 gap-3">
-      {stats.map(s => (
+      {[
+        { label: "Participantes", value: results.totalParticipantes, Icon: Users },
+        { label: "Atingiram meta", value: results.totalAtingidos, Icon: Target },
+        { label: "Premiados", value: results.totalPremiados, Icon: Gift },
+      ].map(s => (
         <div key={s.label} className="rounded-xl border border-border bg-card p-3 text-center">
-          <s.icon className="h-4 w-4 mx-auto mb-1" style={{ color: brandColor }} />
+          <s.Icon className="h-4 w-4 mx-auto mb-1" style={{ color: brandColor }} />
           <p className="text-xl font-black" style={{ color: brandColor }}>{s.value}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
         </div>
@@ -298,6 +407,7 @@ function SummaryStats({ results, brandColor }: { results: ApuracaoResult; brandC
 export default function VendorCampaignDashboard({ campaignId }: { campaignId: string }) {
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const qc = useQueryClient();
 
   const { data: campaign, isLoading: loadingCampaign, isError: errorCampaign } = useQuery<Campaign>({
     queryKey: [`/api/campaigns/${campaignId}`],
@@ -315,6 +425,24 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
     },
     retry: false,
   });
+
+  // Auto-apuração ao vivo: dispara sempre que o vendedor abre o dashboard
+  const liveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/campaigns/${campaignId}/resultados/live`, {});
+      if (!res.ok) throw new Error("Erro ao calcular resultados");
+      return res.json() as Promise<ApuracaoResult>;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData([`/api/campaigns/${campaignId}/resultados`], data);
+    },
+  });
+
+  // Dispara a apuração automática ao montar o componente
+  useEffect(() => {
+    liveMutation.mutate();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId]);
 
   if (loadingCampaign) return <Skeleton />;
 
@@ -351,11 +479,15 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
     : campaign.campaign_mode === "ranking_volume" || campaign.campaign_mode === "ranking_crescimento" ? "ranking"
     : "atingimento";
 
-  const hasRanking = campaign.campaign_mode === "ranking_volume" || campaign.campaign_mode === "ranking_crescimento";
+  const hasRanking =
+    campaign.campaign_mode === "ranking_volume" ||
+    campaign.campaign_mode === "ranking_crescimento" ||
+    (results?.detalhes?.some(d => d.posicao != null));
 
-  // Build campaign rules from natural language + mode
+  // Find personal vendor result
+  const myResult = results?.detalhes?.find(d => d.vendedorId === user?.vendorId) ?? null;
+
   const ruleGroups: any[] = [];
-
   if (campaign.natural_language) {
     ruleGroups.push({
       title: "Sobre esta campanha",
@@ -364,7 +496,6 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
       items: [campaign.natural_language],
     });
   }
-
   ruleGroups.push({
     title: "Modalidade",
     icon: Target,
@@ -375,16 +506,14 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
       campaign.is_cumulative ? "Acumulável com outras campanhas" : "Não acumulável com outras campanhas",
     ],
   });
-
   if (campaign.targets.produtos.suppliers.length > 0) {
     ruleGroups.push({
       title: "Produtos válidos",
       icon: CheckCircle2,
       iconColor: "text-emerald-500",
-      items: campaign.targets.produtos.suppliers.map(s => `Produtos do fornecedor: ${s}`),
+      items: campaign.targets.produtos.suppliers.map((s: string) => `Produtos do fornecedor: ${s}`),
     });
   }
-
   ruleGroups.push({
     title: "Regras gerais",
     icon: ShieldCheck,
@@ -393,18 +522,17 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
       `Campanha válida de ${fmtDate(campaign.starts_at)} a ${fmtDate(campaign.ends_at)}`,
       ...(campaign.is_exclusive ? ["Campanha exclusiva — não acumulável"] : []),
       ...(campaign.limits.maxPerVendedor != null ? [`Limite máximo por vendedor: ${fmtCurrency(campaign.limits.maxPerVendedor)}`] : []),
-      ...(campaign.bases.elegibilidade?.mix_minimo && campaign.bases.elegibilidade.mix_minimo > 0
-        ? [`Mix mínimo de ${campaign.bases.elegibilidade.mix_minimo} produto(s) para elegibilidade`]
-        : []),
       "Dados apurados com base nas notas fiscais do período",
     ].filter(Boolean),
   });
+
+  const isCalculating = liveMutation.isPending;
 
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
-        {/* ── Back button ── */}
+        {/* Back */}
         <div className="flex items-center gap-3">
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => navigate("/campanhas")}>
             <ChevronLeft className="h-4 w-4" />
@@ -415,7 +543,7 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
           </div>
         </div>
 
-        {/* ── Hero ── */}
+        {/* Hero */}
         <CampaignHero
           supplierName={supplierName}
           supplierInitials={initials}
@@ -431,17 +559,14 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
           typeLabel={CAMPAIGN_MODE_LABEL[campaign.campaign_mode]?.split(" ")[0] || campaign.campaign_mode}
           eligible={false}
           eligibleLabel={
-            isEnded
-              ? "Campanha encerrada — aguarde a apuração final"
-              : isPaused
-              ? "Campanha pausada temporariamente"
-              : isActive && remaining > 0
-              ? `Ainda ${remaining} ${remaining === 1 ? "dia" : "dias"} para o encerramento`
-              : "Campanha em andamento"
+            isEnded ? "Campanha encerrada"
+            : isPaused ? "Campanha pausada temporariamente"
+            : isActive && remaining > 0 ? `Ainda ${remaining} ${remaining === 1 ? "dia" : "dias"} para o encerramento`
+            : "Campanha em andamento"
           }
         />
 
-        {/* ── Period countdown (active only) ── */}
+        {/* Countdown (≤30 days) */}
         {isActive && remaining > 0 && remaining <= 30 && (
           <div className="flex items-center gap-3 px-4 py-3 rounded-xl border"
             style={{ borderColor: `${brandColor}40`, backgroundColor: `${brandColor}0a` }}>
@@ -458,14 +583,39 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
           </div>
         )}
 
-        {/* ── Results summary (when apuração exists) ── */}
+        {/* ── Meu resultado pessoal ── */}
+        {isCalculating && !results && (
+          <div className="flex items-center gap-3 px-4 py-4 rounded-xl bg-muted/40 border border-border text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            <p>Calculando seus resultados em tempo real...</p>
+          </div>
+        )}
+
+        {myResult && !isCalculating && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Meu resultado</p>
+              <button
+                onClick={() => liveMutation.mutate()}
+                disabled={isCalculating}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded"
+              >
+                <RefreshCw className={cn("h-3 w-3", isCalculating && "animate-spin")} />
+                Atualizar
+              </button>
+            </div>
+            <PersonalResultCard vendor={myResult} brandColor={brandColor} />
+          </div>
+        )}
+
+        {/* ── Resumo geral ── */}
         {results && (
-          <CollapsibleSection id={`camp-results-${campaignId}`} title="Resultado da Apuração">
+          <CollapsibleSection id={`camp-results-${campaignId}`} title="Resumo da campanha">
             <div className="space-y-4">
               <SummaryStats results={results} brandColor={brandColor} />
               {hasRanking && <RankingCard results={results} campaign={campaign} />}
               <p className="text-xs text-center text-muted-foreground">
-                Apurado em {fmtDate(results.apuradoEm)} · Período {fmtDate(results.periodoInicio)} a {fmtDate(results.periodoFim)}
+                Atualizado {fmtDate(results.apuradoEm)} · Período {fmtDate(results.periodoInicio)} a {fmtDate(results.periodoFim)}
               </p>
             </div>
           </CollapsibleSection>
@@ -481,15 +631,7 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
           <CampaignRules groups={ruleGroups} />
         </CollapsibleSection>
 
-        {/* ── No results yet notice ── */}
-        {!results && !isEnded && (
-          <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-muted/40 border border-border text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 mt-0.5 shrink-0 opacity-60" />
-            <p>Os resultados individuais serão exibidos após a apuração da campanha. Continue vendendo!</p>
-          </div>
-        )}
-
-        {/* ── Footer ── */}
+        {/* Footer */}
         <p className="text-center text-xs text-muted-foreground pt-1 pb-4">
           {campaign.code} · {STATUS_LABEL[campaign.status]} · v{campaign.current_version}
         </p>

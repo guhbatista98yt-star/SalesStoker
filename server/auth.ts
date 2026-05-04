@@ -86,7 +86,13 @@ seedDefaultUsers()
   .then(() => seedSalespersonUsers())
   .catch(console.error);
 
+// Reverse map: moduleCode (C4821) → vendorId (1014115)
+const REVERSE_MODULE_CODES: Record<string, string> = Object.fromEntries(
+  Object.entries(VENDOR_MODULE_CODES).map(([vid, code]) => [code, vid])
+);
+
 function buildUserResponse(user: any, modulePermissions: Record<string, boolean>) {
+  const vendorId = REVERSE_MODULE_CODES[user.email] ?? null;
   return {
     id: user.id,
     email: user.email,
@@ -95,6 +101,7 @@ function buildUserResponse(user: any, modulePermissions: Record<string, boolean>
     role: user.role || "admin",
     teamMembers: user.teamMembers ? user.teamMembers.split(",").map((m: string) => m.trim()) : null,
     modulePermissions,
+    vendorId,
   };
 }
 

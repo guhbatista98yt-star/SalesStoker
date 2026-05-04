@@ -9,6 +9,7 @@ interface User {
   role?: string;
   teamMembers?: string[] | null;
   modulePermissions?: Record<string, boolean> | null;
+  vendorId?: string | null;
 }
 
 interface AuthContextType {

@@ -361,6 +361,17 @@ router.post("/:id/apurar", isAuthenticated, isAdmin, async (req: AuthRequest, re
   }
 });
 
+// ─── Resultados ao vivo: compute fresh apuração (no admin required) ──────────
+router.post("/:id/resultados/live", isAuthenticated, async (req: AuthRequest, res) => {
+  try {
+    const actor = req.userEmail || "auto";
+    const result = await apuracao.apurarCampanha(String(req.params.id), actor);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Resultados: get latest apuração result ───────────────────────────────────
 router.get("/:id/resultados", isAuthenticated, async (req, res) => {
   try {
