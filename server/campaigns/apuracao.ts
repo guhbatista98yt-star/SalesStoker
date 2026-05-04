@@ -510,6 +510,24 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   const valorTotalPagamento = detalhes.reduce((s, d) => s + d.valorPagamento, 0);
   const valorTotalPremio = detalhes.filter(d => d.premiado).reduce((s, d) => s + d.premioFinal, 0);
 
+  // ── Crescimento da Loja (YoY, mesma janela de dias) ───────────────────────
+  let crescimentoLojaPerc: number | null = null;
+  if (periodoComparativo) {
+    const curStart = new Date(periodoInicio).getTime();
+    const curEnd   = new Date(periodoFim).getTime();
+    const daysDuration = Math.ceil((curEnd - curStart) / 86_400_000);
+    const compStart = periodoComparativo.starts_at.slice(0, 10);
+    const compEndDate = new Date(new Date(compStart).getTime() + daysDuration * 86_400_000);
+    const compEnd = compEndDate.toISOString().slice(0, 10);
+    const compSalesLoja = await querySalesByVendedor(compStart, compEnd, baseApuracao);
+    const totalComp = Array.from(compSalesLoja.values()).reduce((s, v) => s + v.valor, 0);
+    if (totalComp > 0) {
+      crescimentoLojaPerc = ((valorTotalApuracao - totalComp) / totalComp) * 100;
+    } else if (valorTotalApuracao > 0) {
+      crescimentoLojaPerc = 100;
+    }
+  }
+
   // ── Persist results (atomic — rollback everything if any insert fails) ────
   const resultId = randomUUID();
   const agora = new Date().toISOString();
@@ -581,6 +599,7 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
     valorTotalApuracao,
     valorTotalPagamento,
     valorTotalPremio,
+    crescimentoLojaPerc,
     detalhes: detalhes.map(d => ({
       vendedorId: d.vendedorId,
       vendedorNome: d.vendedorNome,

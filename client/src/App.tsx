@@ -90,10 +90,12 @@ function ComprasGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const DTR_AMANCO_ID = "ec8a2ee4-2668-4785-9885-a4b7c12a99c9";
+
 function getInitialRoute(role?: string): string {
   switch (role) {
     case "loja":     return "/analises/visao-em-loja";
-    case "vendedor": return "/campanhas";
+    case "vendedor": return `/campanhas/${DTR_AMANCO_ID}`;
     default:         return "/";
   }
 }
