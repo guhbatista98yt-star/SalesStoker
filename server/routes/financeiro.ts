@@ -365,6 +365,47 @@ router.get("/duplicatas", isAuthenticated, async (req: AuthRequest, res: Respons
   }
 });
 
+// ── GET /duplicatas/all — sem paginação, usado pela impressão ───────────────
+
+router.get("/duplicatas/all", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  try {
+    const q = req.query as Record<string, string | undefined>;
+    const sort = (q.sort ?? "nomecliente") as string;
+    const dir = q.dir === "desc" ? "DESC" : "ASC";
+
+    const SAFE_SORTS: Record<string, string> = {
+      dtvencimento: "dtvencimento",
+      dias_atraso: "dias_atraso",
+      valor_aberto: "valor_aberto",
+      nomecliente: "nomecliente",
+      nomevendedor: "nomevendedor",
+      idclifor: "idclifor",
+      status: "status",
+    };
+    const orderBy = SAFE_SORTS[sort] ?? "nomecliente";
+
+    const { where, params } = buildWhereClause(q);
+
+    const totalRows = await pgGet<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM cache_contas_receber WHERE ${where}`, params
+    );
+
+    const rows = await pgAll(
+      `SELECT * FROM cache_contas_receber WHERE ${where}
+       ORDER BY ${orderBy} ${dir}, idclifor ASC, dtvencimento ASC`,
+      params
+    );
+
+    res.json({
+      data: rows,
+      total: Number(totalRows?.cnt ?? 0),
+    });
+  } catch (err) {
+    console.error("[financeiro] /duplicatas/all:", err);
+    res.status(500).json({ error: "Erro ao buscar duplicatas para impressão" });
+  }
+});
+
 // ── GET /vendedores ─────────────────────────────────────────────────────────
 // Accepts the same filter params to stay consistent with cards and other tabs
 
