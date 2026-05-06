@@ -1,9 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar, RotateCcw, AlertCircle, SlidersHorizontal, Users } from "lucide-react";
-import { Calendar as CalendarPicker } from "@/components/ui/calendar";
-import type { DateRange } from "react-day-picker";
+import { RefreshCw, Download, DollarSign, Receipt, Package, GripVertical, RotateCcw, AlertCircle, SlidersHorizontal, Users } from "lucide-react";
+import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { useToast } from "@/hooks/use-toast";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
@@ -43,8 +42,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -159,30 +156,22 @@ export default function Dashboard() {
   const [companyId, setCompanyId] = useState<string>(() => normalizeSavedCompanyId(savedFilters.companyId));
   const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>(() => normalizeRankingCriteria(savedFilters.rankingCriteria));
   const [isScrolled, setIsScrolled] = useState(false);
-  const [periodMode, setPeriodMode] = useState<DashboardPeriodMode>(() => normalizePeriodMode(savedFilters.periodMode));
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(savedFilters.selectedGroupId ?? null);
-  const [periodOpen, setPeriodOpen] = useState(false);
 
-  // Custom date range state
-  const [customStart, setCustomStart] = useState<string>(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7);
-    return isDateString(savedFilters.customStart) ? savedFilters.customStart : d.toISOString().slice(0, 10);
+  // Single DatePeriod state — replaces periodMode/customStart/customEnd
+  const [period, setPeriod] = useState<DatePeriod>(() => {
+    const mode = normalizePeriodMode(savedFilters.periodMode);
+    const todayD = new Date();
+    const cw = getCurrentWeekPeriod();
+    const mp = getCurrentMonthPeriod();
+    const cm = getClosedMonthPeriod(todayD.getFullYear(), todayD.getMonth() + 1);
+    if (mode === "fechado") return { startDate: cm.periodStart, endDate: cm.periodEnd, mode: { type: "fechado_semanas" } };
+    if (mode === "mes") return { startDate: mp.startDate, endDate: mp.endDate, mode: { type: "livre" } };
+    if (mode === "custom" && isDateString(savedFilters.customStart) && isDateString(savedFilters.customEnd)) {
+      return { startDate: savedFilters.customStart, endDate: savedFilters.customEnd, mode: { type: "livre" } };
+    }
+    return { startDate: cw.startDate, endDate: cw.endDate, mode: { type: "livre" } };
   });
-  const [customEnd, setCustomEnd] = useState<string>(() => isDateString(savedFilters.customEnd) ? savedFilters.customEnd : new Date().toISOString().slice(0, 10));
-  const [customDraft, setCustomDraft] = useState<DateRange | undefined>(undefined);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(DASHBOARD_FILTERS_KEY, JSON.stringify({
-        companyId,
-        rankingCriteria,
-        periodMode,
-        selectedGroupId,
-        customStart,
-        customEnd,
-      }));
-    } catch {}
-  }, [companyId, rankingCriteria, periodMode, selectedGroupId, customStart, customEnd]);
 
   const currentWeek = getCurrentWeekPeriod();
   const monthPeriod = useMemo(() => getCurrentMonthPeriod(), [today.getMonth(), today.getFullYear()]);
@@ -191,34 +180,23 @@ export default function Dashboard() {
     return getClosedMonthPeriod(today.getFullYear(), today.getMonth() + 1);
   }, [today.getFullYear(), today.getMonth()]);
 
-  const period: DatePeriod = useMemo(() => {
-    if (periodMode === "fechado") {
-      return {
-        startDate: closedMonth.periodStart,
-        endDate: closedMonth.periodEnd,
-        mode: { type: "fechado_semanas" as const },
-      };
-    }
-    if (periodMode === "mes") {
-      return {
-        startDate: monthPeriod.startDate,
-        endDate: monthPeriod.endDate,
-        mode: { type: "livre" as const },
-      };
-    }
-    if (periodMode === "custom") {
-      return {
-        startDate: customStart,
-        endDate: customEnd,
-        mode: { type: "livre" as const },
-      };
-    }
-    return {
-      startDate: currentWeek.startDate,
-      endDate: currentWeek.endDate,
-      mode: { type: "livre" as const },
-    };
-  }, [periodMode, closedMonth, currentWeek, monthPeriod, customStart, customEnd]);
+  // Derive active preset from period (same logic as PeriodSelector internals)
+  const activePreset: DashboardPeriodMode = useMemo(() =>
+    period.mode?.type === "fechado_semanas" ? "fechado" :
+    period.startDate === currentWeek.startDate && period.endDate === currentWeek.endDate ? "semana" :
+    period.startDate === monthPeriod.startDate && period.endDate === monthPeriod.endDate ? "mes" :
+    "custom",
+  [period, currentWeek, monthPeriod]);
+
+  // Persist filters to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(DASHBOARD_FILTERS_KEY, JSON.stringify({
+        companyId, rankingCriteria, periodMode: activePreset, selectedGroupId,
+        customStart: period.startDate, customEnd: period.endDate,
+      }));
+    } catch {}
+  }, [companyId, rankingCriteria, period, selectedGroupId, activePreset]);
 
   function gUrl(base: string): string {
     return selectedGroupId ? `${base}?groupId=${encodeURIComponent(selectedGroupId)}` : base;
@@ -297,9 +275,9 @@ export default function Dashboard() {
   function handleExport() {
     const now = new Date();
     const periodLabel =
-      periodMode === "semana" ? "Semana Atual" :
-      periodMode === "mes" ? "Mês Atual" :
-      periodMode === "fechado" ? "Semanas Fechadas" : "Período Personalizado";
+      activePreset === "semana" ? "Semana Atual" :
+      activePreset === "mes" ? "Mês Atual" :
+      activePreset === "fechado" ? "Semanas Fechadas" : "Período Personalizado";
 
     const fmt = (v: number) =>
       v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
@@ -460,19 +438,19 @@ export default function Dashboard() {
     return last != null ? last.variacao : null;
   }, [salesData?.monthly]);
 
-  const periodoCardTitle = periodMode === "semana"
+  const periodoCardTitle = activePreset === "semana"
     ? "Vendas da Semana"
-    : periodMode === "mes"
+    : activePreset === "mes"
     ? "Vendas do Mês"
-    : periodMode === "fechado"
+    : activePreset === "fechado"
     ? "Período Fechado"
     : "Vendas do Período";
 
-  const periodoCardSubtitle = periodMode === "semana"
+  const periodoCardSubtitle = activePreset === "semana"
     ? "semana selecionada"
-    : periodMode === "mes"
+    : activePreset === "mes"
     ? "mês selecionado"
-    : periodMode === "fechado"
+    : activePreset === "fechado"
     ? "semanas fechadas"
     : `${period.startDate} — ${period.endDate}`;
 
@@ -578,7 +556,7 @@ export default function Dashboard() {
   const activeFiltersCount = [
     companyId !== "1" && companyId !== "all",
     selectedGroupId !== null,
-    periodMode !== "semana",
+    activePreset !== "semana",
   ].filter(Boolean).length;
 
   return (
@@ -641,121 +619,7 @@ export default function Dashboard() {
               />
             </div>
 
-            <Popover open={periodOpen} onOpenChange={open => {
-              setPeriodOpen(open);
-              if (open) {
-                setCustomDraft({
-                  from: customStart ? new Date(customStart + "T00:00:00") : undefined,
-                  to: customEnd ? new Date(customEnd + "T00:00:00") : undefined,
-                });
-              }
-            }}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={periodMode !== "semana" ? "secondary" : "outline"}
-                  size="sm"
-                  className="h-8 gap-1.5 px-2.5 text-xs font-medium rounded-lg"
-                  data-testid="period-selector"
-                >
-                  <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    {periodMode === "semana"  && `Semana · ${formatDateBR(currentWeek.startDate).slice(0, 5)}–${formatDateBR(currentWeek.endDate).slice(0, 5)}`}
-                    {periodMode === "mes"     && `Mês · ${monthPeriod.label}`}
-                    {periodMode === "fechado" && `Fechado · ${formatDateBR(closedMonth.periodStart).slice(0, 5)}–${formatDateBR(closedMonth.periodEnd).slice(0, 5)}`}
-                    {periodMode === "custom"  && `${formatDateBR(customStart).slice(0, 5)}–${formatDateBR(customEnd).slice(0, 5)}`}
-                  </span>
-                  <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 p-0" sideOffset={6}>
-                {/* ── Presets ── */}
-                <div className="p-2 space-y-0.5">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">Períodos rápidos</p>
-                  {([
-                    {
-                      key: "semana" as const,
-                      label: "Semana Atual",
-                      sub: `${formatDateBR(currentWeek.startDate)} – ${formatDateBR(currentWeek.endDate)}`,
-                    },
-                    {
-                      key: "mes" as const,
-                      label: "Mês Atual",
-                      sub: `${formatDateBR(monthPeriod.startDate)} – ${formatDateBR(monthPeriod.endDate)}`,
-                    },
-                    {
-                      key: "fechado" as const,
-                      label: "Semanas Fechadas",
-                      sub: `${formatDateBR(closedMonth.periodStart)} – ${formatDateBR(closedMonth.periodEnd)}`,
-                    },
-                  ] as const).map(opt => (
-                    <button
-                      key={opt.key}
-                      className={cn(
-                        "w-full flex items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted transition-colors",
-                        periodMode === opt.key && "bg-primary/8 text-primary"
-                      )}
-                      onClick={() => {
-                        setPeriodMode(opt.key);
-                        setPeriodOpen(false);
-                      }}
-                    >
-                      <Check className={cn("h-3.5 w-3.5 shrink-0", periodMode === opt.key ? "opacity-100 text-primary" : "opacity-0")} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-none">{opt.label}</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{opt.sub}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <Separator />
-
-                {/* ── Custom Range ── */}
-                <div className="p-2 space-y-2">
-                  <div className="flex items-center gap-2 px-1">
-                    <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Período personalizado</p>
-                  </div>
-                  {customDraft?.from && (
-                    <p className="text-[11px] text-center text-muted-foreground px-1">
-                      {customDraft.from.toLocaleDateString("pt-BR")}
-                      {customDraft.to ? ` – ${customDraft.to.toLocaleDateString("pt-BR")}` : " → selecione o fim"}
-                    </p>
-                  )}
-                  <CalendarPicker
-                    mode="range"
-                    selected={customDraft}
-                    onSelect={setCustomDraft}
-                    locale={ptBR}
-                    className="rounded-md"
-                    numberOfMonths={1}
-                    disabled={{ after: new Date() }}
-                  />
-                  <Button
-                    size="sm"
-                    className="w-full h-8 text-xs"
-                    disabled={!customDraft?.from || !customDraft?.to}
-                    onClick={() => {
-                      if (!customDraft?.from || !customDraft?.to) return;
-                      const from = customDraft.from <= customDraft.to ? customDraft.from : customDraft.to;
-                      const to = customDraft.from <= customDraft.to ? customDraft.to : customDraft.from;
-                      const start = from.toISOString().slice(0, 10);
-                      const end = to.toISOString().slice(0, 10);
-                      setCustomStart(start);
-                      setCustomEnd(end);
-                      setPeriodMode("custom");
-                      setPeriodOpen(false);
-                      toast({
-                        title: "Período personalizado aplicado",
-                        description: `${formatDateBR(start)} até ${formatDateBR(end)}`,
-                      });
-                    }}
-                  >
-                    Aplicar período
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <PeriodSelector value={period} onChange={setPeriod} />
 
           </div>
         </div>
@@ -807,75 +671,11 @@ export default function Dashboard() {
             {/* Período */}
             <div className="space-y-1.5">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Período</p>
-              <div className="space-y-1.5">
-                {([
-                  { key: "semana" as const, label: "Semana Atual", sub: `${formatDateBR(currentWeek.startDate)} – ${formatDateBR(currentWeek.endDate)}` },
-                  { key: "mes" as const, label: "Mês Atual", sub: `${formatDateBR(monthPeriod.startDate)} – ${formatDateBR(monthPeriod.endDate)}` },
-                  { key: "fechado" as const, label: "Semanas Fechadas", sub: `${formatDateBR(closedMonth.periodStart)} – ${formatDateBR(closedMonth.periodEnd)}` },
-                ] as const).map(opt => (
-                  <button
-                    key={opt.key}
-                    className={cn(
-                      "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left border transition-colors",
-                      periodMode === opt.key
-                        ? "bg-primary/8 border-primary/30 text-primary"
-                        : "border-border hover:bg-muted"
-                    )}
-                    onClick={() => { setPeriodMode(opt.key); setFiltersOpen(false); }}
-                  >
-                    <Check className={cn("h-4 w-4 shrink-0", periodMode === opt.key ? "opacity-100 text-primary" : "opacity-0")} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{opt.label}</p>
-                      <p className="text-xs text-muted-foreground">{opt.sub}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom date range */}
-              <div className="pt-2 space-y-2 border-t mt-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5" />
-                  Período personalizado
-                </p>
-                {customDraft?.from && (
-                  <p className="text-xs text-center text-muted-foreground">
-                    {customDraft.from.toLocaleDateString("pt-BR")}
-                    {customDraft.to ? ` – ${customDraft.to.toLocaleDateString("pt-BR")}` : " → selecione o fim"}
-                  </p>
-                )}
-                <CalendarPicker
-                  mode="range"
-                  selected={customDraft}
-                  onSelect={setCustomDraft}
-                  locale={ptBR}
-                  className="rounded-md w-full"
-                  numberOfMonths={1}
-                  disabled={{ after: new Date() }}
-                />
-                <Button
-                  size="sm"
-                  className="w-full h-9 text-sm"
-                  disabled={!customDraft?.from || !customDraft?.to}
-                  onClick={() => {
-                    if (!customDraft?.from || !customDraft?.to) return;
-                    const from = customDraft.from <= customDraft.to ? customDraft.from : customDraft.to;
-                    const to = customDraft.from <= customDraft.to ? customDraft.to : customDraft.from;
-                    const start = from.toISOString().slice(0, 10);
-                    const end = to.toISOString().slice(0, 10);
-                    setCustomStart(start);
-                    setCustomEnd(end);
-                    setPeriodMode("custom");
-                    setFiltersOpen(false);
-                    toast({
-                      title: "Período personalizado aplicado",
-                      description: `${formatDateBR(start)} até ${formatDateBR(end)}`,
-                    });
-                  }}
-                >
-                  Aplicar período personalizado
-                </Button>
-              </div>
+              <PeriodSelector
+                value={period}
+                onChange={p => { setPeriod(p); setFiltersOpen(false); }}
+                inline
+              />
             </div>
           </div>
         </SheetContent>

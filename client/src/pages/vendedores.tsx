@@ -291,7 +291,11 @@ export default function Vendedores() {
 
             <div className="space-y-1.5">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Período</p>
-              <PeriodSelector value={period} onChange={p => { setPeriod(p); }} />
+              <PeriodSelector
+                value={period}
+                onChange={p => { setPeriod(p); setFiltersOpen(false); }}
+                inline
+              />
             </div>
 
             <Button
