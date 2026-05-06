@@ -1,0 +1,1527 @@
+Quero que você desenvolva um módulo completo de FINANCEIRO > CONTAS A RECEBER dentro do meu sistema de gestão comercial já existente no Replit.
+
+Contexto do sistema:
+Já tenho um sistema web com dashboard comercial, vendedores, campanhas, painel de TV e integrações com dados vindos do ERP/DB2 e/ou cache SQLite local.
+
+O ERP possui uma tela financeira confusa, desorganizada e pouco gerencial. Por isso quero criar um módulo próprio, moderno, organizado, interativo e muito claro para gestão de Contas a Receber.
+
+IMPORTANTE:
+O SQL abaixo é de CONTAS A RECEBER, não de Contas a Pagar.
+Nesta etapa implementar somente Contas a Receber.
+A arquitetura deve ficar preparada para futuramente receber:
+- Contas a Pagar
+- Fluxo de Caixa
+- Conciliação
+- Relatórios Financeiros
+- Configurações Financeiras
+
+Regras essenciais:
+- Não quebrar módulos existentes.
+- Não remover funcionalidades atuais.
+- Não alterar regras de campanhas, vendedores, dashboard ou painel de TV sem necessidade.
+- Criar o módulo de forma isolada e organizada.
+- Reaproveitar autenticação, layout, menu lateral, componentes e padrão visual existente.
+- Não usar dados mockados se houver dados reais/cache real.
+- Se algum campo do SQL vier nulo, tratar corretamente.
+- Se alguma coluna esperada não existir, criar fallback claro no código e indicar onde ajustar.
+- A interface precisa ser rápida, responsiva, limpa e objetiva.
+- O módulo inicialmente será consultivo/gerencial, ou seja, não deve alterar dados no ERP.
+
+====================================================
+1. OBJETIVO DO MÓDULO
+====================================================
+
+Criar uma tela chamada:
+
+Financeiro > Contas a Receber
+
+O módulo deve responder rapidamente perguntas de gestão:
+
+- Quanto tenho para receber?
+- Quanto está vencido?
+- Quanto vence hoje?
+- Quanto ainda vai vencer?
+- Quais clientes estão inadimplentes?
+- Quais clientes devo cobrar primeiro?
+- Qual vendedor possui mais clientes com pendência?
+- Qual título está vencido há mais tempo?
+- Qual cliente possui maior valor em aberto?
+- Quais promessas de pagamento estão vencidas?
+- Quem já foi cobrado?
+- Quem está sem acompanhamento?
+- O que preciso imprimir para reunião/cobrança?
+
+A tela principal deve ser gerencial.
+A tela de duplicatas deve ser analítica.
+A tela do cliente deve ser operacional.
+A tela do vendedor deve ser resumida.
+A impressão deve ser limpa e profissional.
+
+====================================================
+2. SQL REAL DE CONTAS A RECEBER
+====================================================
+
+Usar o SQL abaixo como fonte principal dos dados do módulo.
+
+Antes da consulta no DB2, executar:
+
+SET CURRENT SCHEMA DBA;
+
+SQL principal:
+
+SET CURRENT SCHEMA DBA; 
+
+SELECT
+    CRSV.IDEMPRESA,
+
+    CF.IDVENDEDOR AS IDVENDEDOR_CLIENTE,
+    VEND.NOME AS NOME_VENDEDOR,
+
+    CF.IDCLIFOR,
+    CF.NOME AS NOME_CLIENTE,
+
+    CRSV.IDTITULO,
+    CRSV.DIGITOTITULO,
+    CRSV.SERIENOTA,
+
+    CASE 
+        WHEN COALESCE(N.NUMCUPOMFISCAL, 0) = 0 THEN N.NUMNOTA
+        ELSE N.NUMCUPOMFISCAL
+    END AS NUMNOTA,
+
+    CRSV.IDPLANILHA,
+
+    CRSV.DTMOVIMENTO,
+    CRSV.DTVENCIMENTO,
+    CRSV.DTULTIMOPAGAMENTO,
+
+    CASE 
+        WHEN CRSV.DTVENCIMENTO < CURRENT DATE THEN
+            DAYS(CURRENT DATE) - DAYS(CRSV.DTVENCIMENTO)
+        ELSE 0
+    END AS DIAS_VENCIDO,
+
+    DECIMAL(COALESCE(CRSV.VALTITULO, 0), 15, 2) AS VALOR_TITULO,
+    DECIMAL(COALESCE(CRSV.VALSALDOTITULO, 0), 15, 2) AS VALOR_SALDO_TITULO,
+    DECIMAL(COALESCE(CRSV.VALLIQUIDOTITULO, 0), 15, 2) AS VALOR_LIQUIDO_TITULO,
+
+    DECIMAL(
+        COALESCE(CRSV.SUMVALJUROSMORA, 0) +
+        COALESCE(CRSV.SUMVALJUROSPOSTERGADO, 0),
+        15, 2
+    ) AS VALOR_JUROS_PENDENTE,
+
+    DECIMAL(COALESCE(CRSV.SUMVALDESCCONCEDIDOTITULO, 0), 15, 2) AS VALOR_DESCONTO_CONCEDIDO,
+    DECIMAL(COALESCE(CRSV.SUMVALPAGAMENTOTITULO, 0), 15, 2) AS VALOR_PAGO,
+
+    FPR.DESCRRECEBIMENTO AS FORMA_RECEBIMENTO,
+
+    CRSV.ORIGEMMOVIMENTO,
+    CRSV.OBSTITULO,
+
+    CF.ENDERCobranca AS ENDERECO_COBRANCA,
+    CF.BAIRROCOBRANCA AS BAIRRO_COBRANCA,
+    CI.DESCRCIDADE AS CIDADE_COBRANCA,
+    CI.UF AS UF_COBRANCA
+
+FROM
+    CONTAS_RECEBER_SALDOS_VIEW CRSV
+
+JOIN CONTAS_RECEBER CR ON
+    CR.IDEMPRESA = CRSV.IDEMPRESA
+    AND CR.IDCLIFOR = CRSV.IDCLIFOR
+    AND CR.IDTITULO = CRSV.IDTITULO
+    AND CR.DIGITOTITULO = CRSV.DIGITOTITULO
+    AND CR.SERIENOTA = CRSV.SERIENOTA
+
+JOIN CLIENTE_FORNECEDOR CF ON
+    CF.IDCLIFOR = CRSV.IDCLIFOR
+
+LEFT JOIN CLIENTE_FORNECEDOR VEND ON
+    VEND.IDCLIFOR = CF.IDVENDEDOR
+
+JOIN FORMA_PAGREC FPR ON
+    FPR.IDRECEBIMENTO = CRSV.IDRECEBIMENTO
+
+LEFT JOIN NOTAS N ON
+    N.IDEMPRESA = CRSV.IDEMPRESA
+    AND N.IDPLANILHA = CRSV.IDPLANILHA
+
+LEFT JOIN CIDADES_IBGE CI ON
+    CI.IDCIDADE = CF.IDCIDADECOBRANCA
+
+WHERE
+    COALESCE(CRSV.VALTITULO, 0) <> 0
+
+    AND (
+        COALESCE(CRSV.VALSALDOTITULO, 0) +
+        COALESCE(CRSV.VALLIQUIDOTITULO, 0)
+    ) > 0
+
+    AND COALESCE(FPR.FLAGCHEQUE, 'F') <> 'T'
+
+    AND CRSV.DTMOVIMENTO >= DATE('1900-01-01')
+    AND CRSV.DTMOVIMENTO <= CURRENT DATE
+
+    AND (
+        (
+            CRSV.FLAGCARTAOPROPRIO = 'T'
+            AND CRSV.ORIGEMMOVIMENTO <> 'CTP'
+            AND TRIM(COALESCE(CRSV.OBSTITULO, '')) <> 'Débito Fatura Anterior'
+            AND NOT EXISTS (
+                SELECT
+                    1
+                FROM
+                    CONTAS_RECEBER CR2
+                WHERE
+                    CR2.IDPLANILHA IN (
+                        SELECT
+                            CRB.IDPLANILHA
+                        FROM
+                            CONTAS_RECEBER_BAIXAS CRB
+                        WHERE
+                            CRB.IDTITULO = CRSV.IDTITULO
+                            AND CRB.IDEMPRESA = CRSV.IDEMPRESA
+                            AND CRB.DIGITOTITULO = CRSV.DIGITOTITULO
+                            AND CRB.IDCLIFOR = CRSV.IDCLIFOR
+                            AND CRB.SERIENOTA = CRSV.SERIENOTA
+                    )
+                    AND CR2.ORIGEMMOVIMENTO = 'CTP'
+            )
+        )
+
+        OR (
+            CRSV.FLAGCARTAOPROPRIO = 'T'
+            AND CRSV.ORIGEMMOVIMENTO = 'CTP'
+        )
+
+        OR (
+            CRSV.FLAGCARTAOPROPRIO = 'F'
+            AND (
+                NOT (
+                    COALESCE(CRSV.IDADMINISTRADORA, 0) > 0
+                    AND CRSV.ORIGEMMOVIMENTO = 'CAI'
+                )
+                OR CR.FLAGAGRUPADO = 'T'
+            )
+        )
+    )
+
+ORDER BY
+    VEND.NOME,
+    CF.NOME,
+    CRSV.DTVENCIMENTO,
+    CRSV.IDTITULO
+
+FOR READ ONLY;
+
+Observação:
+Se a coluna CF.ENDERCobranca gerar erro por causa do nome no DB2, ajustar para o nome real existente no banco, sem quebrar o restante da estrutura.
+
+====================================================
+3. MAPEAMENTO DOS CAMPOS
+====================================================
+
+Mapear os campos retornados pelo SQL para os nomes internos do sistema:
+
+IDEMPRESA -> idempresa
+
+IDVENDEDOR_CLIENTE -> idvendedor
+NOME_VENDEDOR -> nomevendedor
+
+IDCLIFOR -> idclifor
+NOME_CLIENTE -> nomecliente
+
+IDTITULO -> idtitulo
+DIGITOTITULO -> digitotitulo
+SERIENOTA -> serienota
+NUMNOTA -> numnota
+IDPLANILHA -> idplanilha
+
+DTMOVIMENTO -> dtmovimento
+DTVENCIMENTO -> dtvencimento
+DTULTIMOPAGAMENTO -> dtultimopagamento
+
+DIAS_VENCIDO -> dias_atraso
+
+VALOR_TITULO -> valor_original
+VALOR_SALDO_TITULO -> valor_aberto
+VALOR_LIQUIDO_TITULO -> valor_liquido
+VALOR_JUROS_PENDENTE -> valor_juros_pendente
+VALOR_DESCONTO_CONCEDIDO -> valor_desconto_concedido
+VALOR_PAGO -> valor_pago
+
+FORMA_RECEBIMENTO -> forma_recebimento
+ORIGEMMOVIMENTO -> origem_movimento
+OBSTITULO -> observacao_titulo
+
+ENDERECO_COBRANCA -> endereco_cobranca
+BAIRRO_COBRANCA -> bairro_cobranca
+CIDADE_COBRANCA -> cidade_cobranca
+UF_COBRANCA -> uf_cobranca
+
+====================================================
+4. REGRA PRINCIPAL DOS VALORES
+====================================================
+
+Usar como verdade principal do valor em aberto:
+
+VALOR_SALDO_TITULO = valor_aberto
+
+VALOR_TITULO é o valor original do título.
+VALOR_PAGO é o valor já pago.
+VALOR_LIQUIDO_TITULO deve ser exibido apenas como informação adicional.
+VALOR_LIQUIDO_TITULO não deve substituir VALOR_SALDO_TITULO nos cards, relatórios, rankings ou cobrança.
+
+Para cards, rankings, relatórios e gestão de cobrança, usar sempre:
+
+valor_aberto = VALOR_SALDO_TITULO
+
+Quando for necessário exibir valor com juros:
+
+valor_total_com_juros = valor_aberto + valor_juros_pendente
+
+A soma usada no WHERE da SQL:
+VALSALDOTITULO + VALLIQUIDOTITULO
+serve apenas como critério de filtro da própria consulta.
+Não usar essa soma como valor gerencial do contas a receber.
+
+====================================================
+5. CHAVE ÚNICA DA DUPLICATA
+====================================================
+
+Criar uma chave única lógica para cada título:
+
+idempresa
+idclifor
+idtitulo
+digitotitulo
+serienota
+
+Criar campo calculado:
+
+chave_titulo = idempresa + '-' + idclifor + '-' + idtitulo + '-' + digitotitulo + '-' + serienota
+
+Essa chave será usada para:
+
+- Evitar duplicidade no cache
+- Vincular histórico de cobrança
+- Vincular observações internas
+- Vincular promessa de pagamento
+- Abrir detalhe do título
+- Controlar status interno da cobrança
+- Controlar auditoria
+
+====================================================
+6. STATUS FINANCEIRO CALCULADO
+====================================================
+
+A SQL já traz DIAS_VENCIDO, mas o sistema deve calcular status visual com base em DTVENCIMENTO e valor_aberto.
+
+Regras:
+
+Se valor_aberto <= 0:
+STATUS = RECEBIDO
+
+Se valor_aberto > 0 e dtvencimento < hoje:
+STATUS = VENCIDO
+
+Se valor_aberto > 0 e dtvencimento = hoje:
+STATUS = VENCE_HOJE
+
+Se valor_aberto > 0 e dtvencimento > hoje:
+STATUS = A_VENCER
+
+Campo dias_atraso:
+Usar DIAS_VENCIDO vindo da SQL.
+Se vier nulo, recalcular no backend.
+
+Status financeiro do cliente:
+
+EM_DIA:
+Cliente não possui títulos vencidos.
+
+ATENCAO:
+Cliente possui título vencendo hoje ou atraso de até 7 dias.
+
+ATRASADO:
+Cliente possui atraso entre 8 e 30 dias.
+
+CRITICO:
+Cliente possui atraso acima de 30 dias ou valor vencido muito alto.
+
+Essas faixas devem ficar fáceis de ajustar futuramente em configuração.
+
+====================================================
+7. BANCO LOCAL / CACHE SQLITE
+====================================================
+
+Se o sistema já usa SQLite/cache local, criar a tabela:
+
+cache_contas_receber
+
+Estrutura:
+
+CREATE TABLE IF NOT EXISTS cache_contas_receber (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    chave_titulo TEXT UNIQUE,
+
+    idempresa INTEGER,
+
+    idvendedor INTEGER,
+    nomevendedor TEXT,
+
+    idclifor INTEGER,
+    nomecliente TEXT,
+
+    idtitulo INTEGER,
+    digitotitulo TEXT,
+    serienota TEXT,
+    numnota TEXT,
+    idplanilha INTEGER,
+
+    dtmovimento TEXT,
+    dtvencimento TEXT,
+    dtultimopagamento TEXT,
+
+    dias_atraso INTEGER,
+
+    valor_original REAL,
+    valor_aberto REAL,
+    valor_liquido REAL,
+    valor_juros_pendente REAL,
+    valor_desconto_concedido REAL,
+    valor_pago REAL,
+
+    forma_recebimento TEXT,
+
+    origem_movimento TEXT,
+    observacao_titulo TEXT,
+
+    endereco_cobranca TEXT,
+    bairro_cobranca TEXT,
+    cidade_cobranca TEXT,
+    uf_cobranca TEXT,
+
+    status TEXT,
+
+    atualizado_em TEXT
+);
+
+Criar índices:
+
+CREATE INDEX IF NOT EXISTS idx_cr_chave_titulo ON cache_contas_receber(chave_titulo);
+CREATE INDEX IF NOT EXISTS idx_cr_empresa ON cache_contas_receber(idempresa);
+CREATE INDEX IF NOT EXISTS idx_cr_cliente ON cache_contas_receber(idclifor);
+CREATE INDEX IF NOT EXISTS idx_cr_vendedor ON cache_contas_receber(idvendedor);
+CREATE INDEX IF NOT EXISTS idx_cr_vencimento ON cache_contas_receber(dtvencimento);
+CREATE INDEX IF NOT EXISTS idx_cr_status ON cache_contas_receber(status);
+CREATE INDEX IF NOT EXISTS idx_cr_valor_aberto ON cache_contas_receber(valor_aberto);
+CREATE INDEX IF NOT EXISTS idx_cr_nomecliente ON cache_contas_receber(nomecliente);
+CREATE INDEX IF NOT EXISTS idx_cr_nomevendedor ON cache_contas_receber(nomevendedor);
+
+====================================================
+8. SINCRONIZAÇÃO COM ERP
+====================================================
+
+Criar endpoint:
+
+POST /api/admin/sync/contas-receber
+
+Se o projeto já usa X-Admin-Token, proteger esse endpoint com o mesmo token.
+
+Fluxo:
+
+1. Conectar no DB2/ERP.
+2. Executar SET CURRENT SCHEMA DBA.
+3. Executar o SQL real de contas a receber.
+4. Receber os dados.
+5. Normalizar nomes dos campos.
+6. Criar chave_titulo.
+7. Calcular status.
+8. Validar datas e valores.
+9. Atualizar cache_contas_receber.
+10. Não duplicar títulos.
+11. Registrar data/hora da última sincronização.
+12. Retornar resumo da sincronização.
+
+Retorno esperado:
+
+{
+  "success": true,
+  "registros_importados": 0,
+  "clientes": 0,
+  "valor_total_aberto": 0.00,
+  "valor_total_vencido": 0.00,
+  "ultima_atualizacao": "DD/MM/YYYY HH:mm:ss"
+}
+
+Caso a SQL não retorne dados, não quebrar o sistema.
+Mostrar:
+
+“Nenhum título em aberto encontrado no contas a receber.”
+
+Caso falhe a conexão com ERP, mostrar:
+
+“Não foi possível atualizar agora. Verifique a conexão com o ERP.”
+
+====================================================
+9. ENDPOINTS NECESSÁRIOS
+====================================================
+
+Criar endpoints organizados:
+
+GET /api/financeiro/contas-receber/resumo
+
+Retorna cards principais:
+- Total em aberto
+- Total vencido
+- Vence hoje
+- A vencer
+- Juros pendente
+- Clientes com pendência
+- Clientes vencidos
+- Maior devedor
+- Maior atraso
+- Última atualização
+
+GET /api/financeiro/contas-receber/clientes
+
+Retorna lista agrupada por cliente com filtros e paginação.
+
+GET /api/financeiro/contas-receber/cliente/{idclifor}
+
+Retorna visão detalhada do cliente e suas duplicatas.
+
+GET /api/financeiro/contas-receber/duplicatas
+
+Retorna duplicatas detalhadas com filtros e paginação.
+
+GET /api/financeiro/contas-receber/vendedores
+
+Retorna resumo financeiro agrupado por vendedor.
+
+GET /api/financeiro/contas-receber/vendedor/{idvendedor}
+
+Retorna pendências dos clientes vinculados ao vendedor.
+
+GET /api/financeiro/contas-receber/aging
+
+Retorna análise por faixa de atraso.
+
+GET /api/financeiro/contas-receber/fila-cobranca
+
+Retorna fila inteligente de cobrança.
+
+POST /api/financeiro/contas-receber/cobranca
+
+Registra uma nova ação de cobrança interna.
+
+GET /api/financeiro/contas-receber/cobranca/{chave_titulo}
+
+Retorna histórico de cobrança do título.
+
+GET /api/financeiro/contas-receber/impressao
+
+Retorna dados formatados para impressão.
+
+GET /api/financeiro/contas-receber/exportar
+
+Prepara exportação CSV/Excel, se possível.
+
+====================================================
+10. TELA PRINCIPAL
+====================================================
+
+Criar uma tela moderna, clara e objetiva chamada:
+
+Contas a Receber
+
+Layout do topo:
+
+- Título: Contas a Receber
+- Data/hora da última atualização
+- Botão Atualizar/Sincronizar
+- Botão Imprimir
+- Botão Exportar
+- Botão Filtros Avançados
+- Botão Configurações, se aplicável
+
+Cards principais no topo:
+
+1. Total em Aberto
+- Quantidade de títulos
+- Valor total em aberto
+
+2. Vencido
+- Quantidade de títulos vencidos
+- Valor vencido
+- Percentual sobre o total
+
+3. Vence Hoje
+- Quantidade
+- Valor
+
+4. A Vencer
+- Quantidade
+- Valor futuro em aberto
+
+5. Juros Pendente
+- Soma valor_juros_pendente
+- Valor total com juros, se aplicável
+
+6. Clientes com Pendência
+- Quantidade de clientes com saldo em aberto
+- Quantidade de clientes vencidos
+
+7. Maior Risco
+- Cliente com maior valor vencido
+- Valor vencido
+- Dias do título mais antigo
+
+Os cards devem ser clicáveis.
+
+Exemplos:
+- Clicar em Vencido filtra somente vencidos.
+- Clicar em Vence Hoje filtra vencimentos de hoje.
+- Clicar em Total em Aberto volta para todos em aberto.
+- Clicar em Maior Risco abre o cliente correspondente.
+
+====================================================
+11. FILTROS
+====================================================
+
+Criar filtros rápidos:
+
+- Todos em aberto
+- Vencidos
+- Vence hoje
+- A vencer
+- Com juros pendente
+- Clientes críticos
+- Últimos 7 dias
+- Próximos 7 dias
+- Próximos 15 dias
+- Próximos 30 dias
+
+Criar filtros avançados:
+
+- Período de vencimento
+- Período de movimento
+- Empresa
+- Cliente
+- Vendedor
+- Documento/título
+- Número da nota/cupom
+- ID planilha
+- Série
+- Status
+- Faixa de atraso
+- Valor mínimo
+- Valor máximo
+- Cidade
+- UF
+- Forma de recebimento
+- Origem movimento
+- Somente clientes com vencido
+- Somente títulos com saldo aberto
+- Somente títulos com juros pendente
+- Ordenação por valor, vencimento, atraso, cliente ou vendedor
+
+Campo de busca global:
+
+Permitir buscar por:
+- Nome do cliente
+- Código do cliente
+- Documento/título
+- Número da nota/cupom
+- Vendedor
+- Cidade
+- UF
+
+Usar debounce na busca para não travar a interface.
+
+====================================================
+12. LISTA AGRUPADA POR CLIENTE
+====================================================
+
+A tela principal deve priorizar gestão por cliente, não por duplicata.
+
+Criar tabela/lista agrupada por cliente com colunas:
+
+- Cliente
+- Código
+- Vendedor
+- Cidade/UF
+- Quantidade de títulos
+- Total em aberto
+- Total vencido
+- Juros pendente
+- Título mais antigo
+- Dias maior atraso
+- Próximo vencimento
+- Status financeiro
+- Ações
+
+Status financeiro:
+- Em dia
+- Atenção
+- Atrasado
+- Crítico
+
+Ao clicar no cliente, abrir painel lateral, modal grande ou página de detalhes.
+
+A primeira tela deve ser resumida e limpa.
+Detalhes devem aparecer apenas ao clicar.
+
+====================================================
+13. DETALHE DO CLIENTE
+====================================================
+
+Ao clicar em um cliente, mostrar:
+
+Cabeçalho:
+- Nome do cliente
+- Código
+- Vendedor responsável
+- Cidade/UF cobrança
+- Endereço de cobrança
+- Bairro cobrança
+
+Cards do cliente:
+- Total em aberto
+- Total vencido
+- Juros pendente
+- Quantidade de títulos
+- Maior atraso
+- Próximo vencimento
+- Último pagamento, usando DTULTIMOPAGAMENTO quando existir
+
+Tabela de duplicatas:
+- Status
+- ID título
+- Dígito
+- Série
+- Nº nota/cupom
+- ID planilha
+- Movimento
+- Vencimento
+- Último pagamento
+- Dias vencido
+- Valor título
+- Valor pago
+- Valor aberto
+- Valor líquido
+- Juros pendente
+- Desconto concedido
+- Forma recebimento
+- Origem movimento
+- Observação
+
+Ações:
+- Imprimir cliente
+- Exportar cliente
+- Copiar resumo de cobrança
+- Registrar cobrança
+- Abrir detalhe do título
+
+====================================================
+14. VISÃO POR DUPLICATAS
+====================================================
+
+Criar aba/toggle chamada:
+
+Duplicatas
+
+Mostrar todos os títulos individualmente.
+
+Colunas:
+- Status
+- Empresa
+- Vendedor
+- Cliente
+- ID título
+- Dígito
+- Série
+- Nº nota/cupom
+- ID planilha
+- Movimento
+- Vencimento
+- Último pagamento
+- Dias atraso
+- Valor título
+- Valor pago
+- Valor aberto
+- Juros pendente
+- Forma recebimento
+- Origem movimento
+- Observação
+
+Recursos:
+- Ordenação por qualquer coluna
+- Paginação
+- Busca
+- Filtros
+- Destaque visual para vencidos
+- Destaque forte para atrasos críticos
+- Linha clicável para abrir detalhe
+
+====================================================
+15. ANÁLISE AGING
+====================================================
+
+Criar seção chamada:
+
+Aging Financeiro
+
+Faixas:
+
+- A vencer
+- Vence hoje
+- 1 a 7 dias
+- 8 a 15 dias
+- 16 a 30 dias
+- 31 a 60 dias
+- 61 a 90 dias
+- Acima de 90 dias
+
+Para cada faixa mostrar:
+
+- Quantidade de títulos
+- Quantidade de clientes
+- Valor total
+- Percentual sobre total vencido
+
+Se possível, criar gráfico simples de barras ou cards horizontais.
+
+Essa seção é importante porque mostra a gravidade do atraso, não apenas o valor total vencido.
+
+====================================================
+16. VISÃO POR VENDEDOR
+====================================================
+
+Criar aba/seção:
+
+Por Vendedor
+
+Mostrar resumo agrupado por vendedor:
+
+- Código do vendedor
+- Nome do vendedor
+- Total em aberto dos clientes dele
+- Total vencido dos clientes dele
+- Juros pendente
+- Quantidade de clientes com pendência
+- Quantidade de clientes vencidos
+- Quantidade de títulos vencidos
+- Maior atraso
+- Percentual vencido sobre aberto
+- Status de risco
+
+Ao clicar no vendedor:
+Abrir lista dos clientes dele com pendência.
+
+Essa visão deve ser resumida, pois será usada pelo gestor de vendas.
+
+====================================================
+17. INTEGRAÇÃO COM CARD DO VENDEDOR
+====================================================
+
+No módulo de vendedores já existente, adicionar um botão no card de cada vendedor:
+
+Financeiro
+
+ou
+
+Pendências
+
+Ao clicar:
+Abrir tela/modal/painel com resumo financeiro do vendedor.
+
+Resumo do vendedor:
+- Total em aberto dos clientes desse vendedor
+- Total vencido
+- Vence hoje
+- A vencer
+- Juros pendente
+- Quantidade de clientes com pendência
+- Quantidade de clientes críticos
+- Top 10 clientes com maior valor vencido
+- Top 10 títulos mais antigos
+- Lista resumida de duplicatas vencidas
+
+Se o sistema já tiver valor vendido por vendedor no período, mostrar também:
+- Valor vendido no período
+- Percentual vencido sobre vendido
+- Percentual vencido sobre aberto
+
+Objetivo:
+O gestor de vendas precisa saber não apenas quem vende mais, mas também quem possui clientes com maior pendência financeira.
+
+Não bloquear venda automaticamente.
+Apenas exibir informação gerencial.
+
+Não misturar essa tela com campanha de vendas.
+Ela deve ser uma consulta financeira vinculada ao vendedor.
+
+====================================================
+18. GESTÃO DE COBRANÇA INTERNA
+====================================================
+
+Além de visualizar contas a receber, o módulo precisa ajudar na gestão prática de cobrança.
+
+Criar uma camada interna de acompanhamento financeiro, sem alterar os dados do ERP.
+
+Permitir registrar:
+
+- Status interno da cobrança
+- Observação interna
+- Última cobrança realizada
+- Próxima data de cobrança
+- Responsável pela cobrança
+- Promessa de pagamento
+- Data prometida para pagamento
+- Motivo do atraso
+- Canal de contato usado
+- Histórico de interações
+
+Status interno sugerido:
+
+- A COBRAR
+- COBRADO
+- EM NEGOCIAÇÃO
+- PROMETEU PAGAR
+- AGUARDANDO RETORNO
+- PROBLEMA COMERCIAL
+- PROBLEMA DE ENTREGA
+- PROBLEMA DE NOTA FISCAL
+- ENVIAR PARA GESTOR
+- JURÍDICO
+- RESOLVIDO
+
+Esses status são internos do sistema e não devem alterar o ERP.
+
+Criar tabela:
+
+CREATE TABLE IF NOT EXISTS financeiro_cobrancas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chave_titulo TEXT,
+    idempresa INTEGER,
+    idclifor INTEGER,
+    idtitulo INTEGER,
+    digitotitulo TEXT,
+    serienota TEXT,
+    status_interno TEXT,
+    observacao TEXT,
+    motivo_atraso TEXT,
+    canal_contato TEXT,
+    responsavel TEXT,
+    data_cobranca TEXT,
+    proxima_acao TEXT,
+    data_proxima_acao TEXT,
+    promessa_pagamento TEXT,
+    data_promessa_pagamento TEXT,
+    criado_em TEXT,
+    atualizado_em TEXT,
+    usuario TEXT
+);
+
+Criar histórico:
+
+CREATE TABLE IF NOT EXISTS financeiro_cobrancas_historico (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_cobranca INTEGER,
+    chave_titulo TEXT,
+    idempresa INTEGER,
+    idclifor INTEGER,
+    idtitulo INTEGER,
+    digitotitulo TEXT,
+    serienota TEXT,
+    acao TEXT,
+    valor_anterior TEXT,
+    valor_novo TEXT,
+    usuario TEXT,
+    criado_em TEXT
+);
+
+====================================================
+19. FILA INTELIGENTE DE COBRANÇA
+====================================================
+
+Criar uma tela/seção chamada:
+
+Fila de Cobrança
+
+Ela deve listar automaticamente os clientes/títulos que precisam de atenção.
+
+Critérios de prioridade:
+
+1. Maior valor vencido
+2. Maior quantidade de dias em atraso
+3. Promessa de pagamento vencida
+4. Cliente sem cobrança registrada
+5. Cliente crítico acima de 30 dias
+6. Cliente com maior quantidade de títulos vencidos
+7. Cliente com juros pendente
+
+Cada item da fila deve mostrar:
+
+- Prioridade
+- Cliente
+- Vendedor
+- Total vencido
+- Juros pendente
+- Título mais antigo
+- Maior atraso
+- Última cobrança
+- Próxima ação
+- Status interno
+- Botão Registrar cobrança
+- Botão Ver cliente
+
+Prioridade sugerida:
+
+ALTA:
+- Valor vencido alto
+- Atraso acima de 30 dias
+- Promessa de pagamento vencida
+
+MÉDIA:
+- Atraso entre 8 e 30 dias
+
+BAIXA:
+- Vence hoje ou atraso até 7 dias
+
+====================================================
+20. DETALHE DE COBRANÇA DO CLIENTE
+====================================================
+
+No detalhe do cliente, adicionar aba/seção:
+
+Cobrança
+
+Mostrar:
+
+- Histórico de contatos
+- Observações internas
+- Status atual da cobrança
+- Próxima ação
+- Data da próxima ação
+- Promessa de pagamento
+- Responsável pelo acompanhamento
+
+Criar botão:
+
+Registrar nova cobrança
+
+Formulário:
+
+- Status interno
+- Canal de contato: Telefone, WhatsApp, E-mail, Presencial, Outro
+- Observação
+- Motivo do atraso
+- Promessa de pagamento: Sim/Não
+- Data prometida
+- Próxima ação
+- Data da próxima ação
+
+Exemplo de uso:
+Cliente está com R$ 8.500,00 vencido há 22 dias.
+Financeiro liga.
+Cliente promete pagar dia 15.
+Usuário registra:
+Status interno: PROMETEU PAGAR
+Canal: Telefone
+Promessa de pagamento: Sim
+Data prometida: 15/05/2026
+Próxima ação: Conferir pagamento
+Data próxima ação: 16/05/2026
+
+Se a data prometida passar e continuar em aberto, destacar esse cliente na fila de cobrança.
+
+====================================================
+21. INDICADORES GERENCIAIS
+====================================================
+
+Adicionar indicadores:
+
+- Total em aberto
+- Total vencido
+- Percentual inadimplente
+- Quantidade de clientes inadimplentes
+- Valor vencido por vendedor
+- Ranking de maiores devedores
+- Ranking de títulos mais antigos
+- Valor vencido por faixa de atraso
+- Valor com promessa de pagamento
+- Promessas de pagamento vencidas
+- Clientes sem cobrança registrada
+- Clientes cobrados nos últimos 7 dias
+- Clientes que precisam de nova ação hoje
+- Juros pendente total
+- Juros pendente por cliente
+- Juros pendente por vendedor
+
+Fórmulas:
+
+Total em aberto:
+Soma valor_aberto onde valor_aberto > 0.
+
+Total vencido:
+Soma valor_aberto onde status = VENCIDO.
+
+Vence hoje:
+Soma valor_aberto onde status = VENCE_HOJE.
+
+A vencer:
+Soma valor_aberto onde status = A_VENCER.
+
+Clientes com pendência:
+Quantidade distinta de idclifor com valor_aberto > 0.
+
+Clientes vencidos:
+Quantidade distinta de idclifor com status = VENCIDO.
+
+Maior atraso:
+Maior dias_atraso entre títulos abertos.
+
+Percentual inadimplente:
+total_vencido / total_em_aberto * 100.
+
+====================================================
+22. IMPRESSÃO DETALHADA
+====================================================
+
+Criar botão Imprimir na tela principal, detalhe do cliente e resumo do vendedor.
+
+A impressão deve permitir personalização por filtros:
+
+- Período de vencimento
+- Empresa
+- Cliente
+- Vendedor
+- Status
+- Cidade/UF
+- Forma de recebimento
+- Origem movimento
+- Somente vencidos
+- Somente a vencer
+- Somente com juros pendente
+- Incluir recebidos ou não
+- Agrupar por cliente
+- Agrupar por vendedor
+- Mostrar resumo no topo
+- Mostrar duplicatas detalhadas
+- Mostrar histórico de cobrança, se selecionado
+
+Layout da impressão:
+
+Cabeçalho:
+- Nome da empresa/sistema
+- Relatório: Contas a Receber
+- Período selecionado
+- Data/hora de emissão
+- Filtros aplicados
+
+Resumo:
+- Total em aberto
+- Total vencido
+- Vence hoje
+- A vencer
+- Juros pendente
+- Quantidade de clientes
+- Quantidade de títulos
+
+Detalhamento por cliente:
+- Cliente
+- Código
+- Vendedor
+- Cidade/UF
+- Endereço de cobrança
+- Título
+- Dígito
+- Série
+- Nº nota/cupom
+- Vencimento
+- Dias vencido
+- Valor título
+- Valor pago
+- Valor aberto
+- Juros pendente
+- Forma recebimento
+- Observação
+
+Detalhamento por vendedor:
+- Vendedor
+- Cliente
+- Títulos
+- Valor aberto
+- Valor vencido
+- Juros pendente
+- Maior atraso
+- Próximo vencimento
+
+Rodapé:
+- Total geral
+- Total vencido
+- Total juros pendente
+- Quantidade de registros
+
+A impressão deve usar CSS próprio:
+
+@media print
+
+Ao imprimir, ocultar:
+- Menu lateral
+- Botões
+- Filtros
+- Elementos interativos
+
+Manter:
+- Cabeçalho do relatório
+- Cards/resumo
+- Tabela formatada
+- Rodapé com totais
+
+====================================================
+23. EXPORTAÇÃO
+====================================================
+
+Criar exportação CSV e, se possível, Excel.
+
+Exportações desejadas:
+
+- Exportar visão por cliente
+- Exportar duplicatas detalhadas
+- Exportar pendências por vendedor
+- Exportar fila de cobrança
+- Exportar relatório filtrado
+
+Os valores devem sair em formato correto.
+Datas devem sair em DD/MM/YYYY.
+Valores monetários devem sair com duas casas decimais.
+
+====================================================
+24. UI/UX
+====================================================
+
+Interface desejada:
+
+- Moderna
+- Profissional
+- Limpa
+- Gerencial
+- Sem poluição visual
+- Sem excesso de cores
+- Sem layout infantil
+- Com boa hierarquia de informação
+
+Cores com função:
+
+- Total em aberto: azul ou roxo
+- Vencido: vermelho
+- Vence hoje: amarelo/laranja
+- A vencer: verde ou azul
+- Recebido: verde
+- Crítico: vermelho escuro
+- Atenção: laranja
+
+Tabelas:
+
+- Cabeçalho fixo, se possível
+- Linhas com espaçamento confortável
+- Valores monetários alinhados à direita
+- Datas no padrão brasileiro DD/MM/YYYY
+- Valores no padrão R$ 1.234,56
+- Status em badge colorido
+- Botões discretos
+- Paginação
+- Ordenação
+- Busca rápida
+
+No celular:
+- Adaptar tabela para cards/lista.
+- Priorizar cliente, valor vencido, vencimento e botão de detalhe.
+
+====================================================
+25. PERFORMANCE
+====================================================
+
+O módulo deve ser rápido.
+
+Regras:
+
+- Não carregar milhares de registros de uma vez sem paginação.
+- Usar paginação no backend.
+- Usar filtros server-side.
+- Criar índices no SQLite/cache.
+- Separar resumo agregado da listagem detalhada.
+- Evitar recalcular tudo no frontend.
+- Usar loading skeleton/spinner.
+- Evitar travar interface.
+- Debounce na busca global.
+- Não bloquear mouse/interface durante atualização.
+- Detalhes do cliente só devem carregar ao clicar.
+- Tela principal deve carregar primeiro cards e resumo.
+- Depois carregar lista agrupada por clientes.
+
+====================================================
+26. QUALIDADE E CONFERÊNCIA DOS DADOS
+====================================================
+
+Criar área simples de conferência dos dados sincronizados.
+
+Mostrar:
+
+- Data/hora da última sincronização
+- Quantidade de títulos importados
+- Quantidade de clientes
+- Valor total importado
+- Valor total em aberto
+- Valor total vencido
+- Juros pendente total
+- Possíveis inconsistências
+
+Detectar inconsistências:
+
+- Título sem cliente
+- Cliente sem vendedor
+- Valor aberto negativo
+- Vencimento vazio
+- Documento/título vazio
+- Valor original zerado
+- Data inválida
+- Duplicata repetida
+- Chave_titulo duplicada
+- Cliente sem cidade/UF
+
+Criar aviso:
+
+“Existem X registros com inconsistência. Ver detalhes.”
+
+====================================================
+27. PERMISSÕES FUTURAS
+====================================================
+
+Preparar o módulo para permissões futuras:
+
+ADMIN:
+- Acessa tudo
+- Configura módulo
+- Sincroniza dados
+- Exporta e imprime
+
+FINANCEIRO:
+- Acessa todas as contas
+- Registra cobranças
+- Imprime relatórios
+- Altera status interno
+
+GESTOR_VENDAS:
+- Visualiza resumo por vendedor
+- Visualiza clientes pendentes
+- Não altera configurações financeiras críticas
+
+VENDEDOR:
+- Visualiza apenas clientes vinculados a ele
+- Pode consultar pendências
+- Pode adicionar observação se permitido
+
+Mesmo que o sistema ainda não tenha todas essas permissões, deixar estrutura preparada.
+
+====================================================
+28. CONFIGURAÇÕES FUTURAS
+====================================================
+
+Criar estrutura inicial para configurações financeiras.
+
+Configurações possíveis:
+
+- Dias para considerar crítico
+- Valor mínimo para considerar alto risco
+- Mostrar ou ocultar recebidos
+- Agrupar por cliente ou vendedor por padrão
+- Período padrão da tela
+- Empresas disponíveis
+- Cor dos status
+- Faixas de aging
+- Nome da empresa para impressão
+- Permitir ou não vendedor adicionar observação
+
+Pode ser arquivo JSON, tabela SQLite ou configuração simples no código, mas deixar organizado.
+
+====================================================
+29. ORGANIZAÇÃO DO CÓDIGO
+====================================================
+
+Organizar o código em camadas.
+
+Backend sugerido:
+
+routes/financeiro_contas_receber.py
+services/contas_receber_service.py
+repositories/contas_receber_repository.py
+schemas/contas_receber_schema.py
+utils/financeiro_utils.py
+
+Frontend sugerido:
+
+pages/ContasReceber
+components/financeiro/ResumoCards
+components/financeiro/FiltrosContasReceber
+components/financeiro/TabelaClientesReceber
+components/financeiro/TabelaDuplicatas
+components/financeiro/DetalheClienteReceber
+components/financeiro/AgingReceber
+components/financeiro/ResumoVendedorFinanceiro
+components/financeiro/FilaCobranca
+components/financeiro/FormularioCobranca
+components/financeiro/RelatorioImpressao
+
+Se o projeto atual usa outra estrutura, adaptar ao padrão existente, mas manter organização.
+
+====================================================
+30. TRATAMENTO DE ERROS
+====================================================
+
+Tratar:
+
+- SQL sem retorno
+- Falha de conexão com DB2
+- Coluna ausente
+- Data inválida
+- Valor nulo
+- Cliente sem vendedor
+- Vendedor sem nome
+- Duplicata sem vencimento
+- Cache vazio
+- Falha ao sincronizar
+- Filtro sem resultado
+- Erro ao imprimir
+- Erro ao exportar
+
+Mensagens amigáveis:
+
+“Nenhum título encontrado para os filtros selecionados.”
+
+“Dados financeiros ainda não sincronizados.”
+
+“Não foi possível atualizar agora. Verifique a conexão com o ERP.”
+
+“Este cliente não possui pendências no período.”
+
+“Não foi possível gerar a impressão com os filtros selecionados.”
+
+====================================================
+31. TESTES E VALIDAÇÕES
+====================================================
+
+Criar testes ou validações básicas para:
+
+- Cálculo de valor aberto
+- Cálculo de dias de atraso
+- Classificação de status
+- Agrupamento por cliente
+- Agrupamento por vendedor
+- Filtros por período
+- Filtros por vencidos
+- Impressão
+- Exportação
+- Fila de cobrança
+- Promessa de pagamento vencida
+- Chave_titulo única
+
+Exemplo:
+Se hoje for 10/05/2026 e uma duplicata venceu em 01/05/2026, com valor_aberto maior que zero, ela deve ser classificada como VENCIDO com 9 dias de atraso.
+
+====================================================
+32. CAMPOS OPCIONAIS FUTUROS
+====================================================
+
+O SQL atual ainda não traz alguns campos que podem ser úteis para cobrança.
+
+Se existirem na tabela CLIENTE_FORNECEDOR, preparar o backend para aceitar futuramente:
+
+- CNPJCPF
+- FONE1
+- FONE2
+- FONECELULAR
+- EMAIL
+- NOMEFANTASIA
+- TIPOCLIENTE
+- FLAGINATIVO
+
+Não exigir esses campos agora.
+Eles são opcionais.
+
+Se forem adicionados depois no SQL, o sistema deve salvar e exibir sem quebrar.
+
+====================================================
+33. CRITÉRIO DE ACEITAÇÃO
+====================================================
+
+O módulo será considerado correto quando:
+
+- Eu conseguir abrir a tela Financeiro > Contas a Receber.
+- A tela carregar sem quebrar módulos existentes.
+- Os cards mostrarem total em aberto, vencido, vence hoje, a vencer e juros pendente.
+- Eu conseguir filtrar por período, cliente, vendedor, status, cidade, UF e forma de recebimento.
+- Eu conseguir clicar em um cliente e ver todas as duplicatas dele.
+- Eu conseguir ver clientes inadimplentes de forma clara.
+- Eu conseguir visualizar pendências financeiras por vendedor.
+- O card do vendedor tiver botão Financeiro/Pendências.
+- Eu conseguir abrir resumo financeiro de um vendedor.
+- Eu conseguir registrar cobrança interna sem alterar o ERP.
+- Eu conseguir visualizar fila inteligente de cobrança.
+- Eu conseguir imprimir relatório detalhado por período.
+- Eu conseguir exportar dados filtrados.
+- A interface não travar.
+- Os dados forem exibidos em formato brasileiro.
+- Os valores principais forem baseados em VALOR_SALDO_TITULO.
+- O código não quebrar dashboard, campanhas, vendedores ou painel de TV.
+- A estrutura ficar preparada para futuramente adicionar Contas a Pagar.
+
+====================================================
+34. NÃO IMPLEMENTAR AGORA
+====================================================
+
+Não implementar agora:
+
+- Contas a Pagar
+- Fluxo de Caixa
+- Baixa de título no ERP
+- Alteração de vencimento no ERP
+- Exclusão de título no ERP
+- Bloqueio automático de venda
+- Envio automático de WhatsApp
+- Envio automático de e-mail
+
+Nesta fase, o módulo é consultivo, gerencial e de acompanhamento interno de cobrança.
+
+====================================================
+35. ENTREGA FINAL ESPERADA
+====================================================
+
+Ao finalizar, entregar:
+
+1. Backend funcionando com endpoints de contas a receber.
+2. Estrutura de cache SQLite.
+3. Sincronização usando o SQL real do ERP/DB2.
+4. Tela principal de Contas a Receber.
+5. Cards de resumo.
+6. Filtros rápidos e avançados.
+7. Lista agrupada por cliente.
+8. Detalhe do cliente com duplicatas.
+9. Aba/lista de duplicatas.
+10. Análise Aging.
+11. Visão por vendedor.
+12. Botão Financeiro/Pendências no card do vendedor.
+13. Tela/modal resumido do financeiro do vendedor.
+14. Fila inteligente de cobrança.
+15. Registro interno de cobrança.
+16. Histórico de cobrança.
+17. Impressão detalhada com filtros.
+18. Exportação CSV/Excel se possível.
+19. Tratamento de erros.
+20. Código organizado, comentado e sem quebrar módulos existentes.
