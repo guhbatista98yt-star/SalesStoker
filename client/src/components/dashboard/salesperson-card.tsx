@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -106,7 +105,7 @@ function riskLabel(risco: string): string {
   }
 }
 
-// ── Movimentações Modal ───────────────────────────────────────────────────────
+// ── Movimentações Sheet ───────────────────────────────────────────────────────
 
 function MovimentacoesModal({
   salesperson,
@@ -132,59 +131,65 @@ function MovimentacoesModal({
   });
 
   const totalVendas = data?.filter(m => !m.isDevolucao).reduce((s, m) => s + m.valContabil, 0) ?? 0;
-  const totalDevol = data?.filter(m => m.isDevolucao).reduce((s, m) => s + m.valContabil, 0) ?? 0;
+  const totalDevol  = data?.filter(m => m.isDevolucao).reduce((s, m) => s + m.valContabil, 0) ?? 0;
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-4xl w-[95vw] sm:w-full">
-        <DialogHeader>
-          <DialogTitle className="text-base leading-tight">
-            Movimentações — {salesperson.name}
-            <span className="block sm:inline sm:ml-2 text-sm font-normal text-muted-foreground">
-              {period.startDate} a {period.endDate}
-            </span>
-          </DialogTitle>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={v => !v && onClose()}>
+      <SheetContent side="bottom" className="h-[85dvh] sm:h-auto sm:max-h-[90vh] sm:w-[560px] sm:right-0 sm:left-auto sm:rounded-l-xl rounded-t-xl overflow-y-auto">
+        <SheetHeader className="pb-2 border-b">
+          <SheetTitle className="flex items-center gap-2 text-base leading-tight">
+            <List className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="truncate">Movimentações — {salesperson.name}</span>
+          </SheetTitle>
+          <p className="text-xs text-muted-foreground">
+            {period.startDate} a {period.endDate}
+          </p>
+        </SheetHeader>
 
         {isLoading && (
-          <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+          <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Carregando movimentações...</span>
           </div>
         )}
         {error && (
-          <div className="flex items-center justify-center py-12 gap-2 text-destructive">
+          <div className="flex items-center justify-center py-16 gap-2 text-destructive">
             <AlertCircle className="h-5 w-5" />
             <span>Erro ao carregar movimentações</span>
           </div>
         )}
+
         {data && !isLoading && (
-          <>
-            <div className="flex gap-3 mb-2 text-sm flex-wrap">
-              <div className="bg-emerald-50 dark:bg-emerald-950 rounded px-3 py-1.5">
-                <span className="text-muted-foreground">Vendas: </span>
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatCurrency(totalVendas)}</span>
+          <div className="mt-4 pb-6 space-y-3">
+            {/* Totais */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border p-3 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Total Vendas</p>
+                <p className="text-base font-bold text-emerald-700 dark:text-emerald-400 truncate">{formatCurrency(totalVendas)}</p>
               </div>
-              <div className="bg-red-50 dark:bg-red-950 rounded px-3 py-1.5">
-                <span className="text-muted-foreground">Devoluções: </span>
-                <span className="font-semibold text-red-700 dark:text-red-400">{formatCurrency(totalDevol)}</span>
+              <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Devoluções</p>
+                <p className="text-base font-bold text-red-700 dark:text-red-400 truncate">{formatCurrency(totalDevol)}</p>
               </div>
             </div>
+
+            {/* Lista */}
             {data.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                Nenhuma movimentação encontrada neste período.
+              <div className="text-center py-16 text-muted-foreground">
+                <List className="h-8 w-8 mx-auto mb-3 opacity-40" />
+                <p className="font-medium">Nenhuma movimentação</p>
+                <p className="text-sm mt-1">Sem registros neste período.</p>
               </div>
             ) : (
-              <ScrollArea className="h-[50vh] sm:h-[420px]">
+              <div className="rounded-lg border overflow-hidden">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="whitespace-nowrap">Data</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead className="hidden sm:table-cell">Emp.</TableHead>
-                        <TableHead className="hidden sm:table-cell">Nota</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Valor</TableHead>
+                      <TableRow className="bg-muted/40">
+                        <TableHead className="whitespace-nowrap text-xs h-8">Data</TableHead>
+                        <TableHead className="text-xs h-8">Cliente</TableHead>
+                        <TableHead className="hidden sm:table-cell text-xs h-8">NF</TableHead>
+                        <TableHead className="text-right whitespace-nowrap text-xs h-8">Valor</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -193,11 +198,12 @@ function MovimentacoesModal({
                           key={i}
                           className={mov.isDevolucao ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400" : ""}
                         >
-                          <TableCell className="whitespace-nowrap text-xs">{formatDate(mov.dtMovimento)}</TableCell>
-                          <TableCell className="max-w-[140px] truncate text-xs">{mov.nomeCliente || "-"}</TableCell>
-                          <TableCell className="hidden sm:table-cell text-xs">{mov.idEmpresa}</TableCell>
-                          <TableCell className="hidden sm:table-cell font-mono text-xs">{mov.numNota}</TableCell>
-                          <TableCell className="text-right whitespace-nowrap text-xs font-semibold">
+                          <TableCell className="whitespace-nowrap text-xs py-2">{formatDate(mov.dtMovimento)}</TableCell>
+                          <TableCell className="text-xs py-2">
+                            <span className="block max-w-[120px] sm:max-w-[200px] truncate">{mov.nomeCliente || "—"}</span>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell font-mono text-xs py-2">{mov.numNota}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap text-xs font-semibold py-2">
                             {formatCurrency(mov.valContabil)}
                           </TableCell>
                         </TableRow>
@@ -205,12 +211,12 @@ function MovimentacoesModal({
                     </TableBody>
                   </Table>
                 </div>
-              </ScrollArea>
+              </div>
             )}
-          </>
+          </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 

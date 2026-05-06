@@ -1084,6 +1084,38 @@ async function validateSchema(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Demo seed — Contas a Receber (only when table is empty)
+// ---------------------------------------------------------------------------
+
+async function seedDemoContasReceber(): Promise<void> {
+  const { rows } = await pool.query(`SELECT COUNT(*) AS cnt FROM cache_contas_receber`);
+  if (Number(rows[0].cnt) > 0) return;
+
+  await pool.query(`
+    INSERT INTO cache_contas_receber (
+      chave_titulo, idempresa, idvendedor, nomevendedor,
+      idclifor, nomecliente, idtitulo, digitotitulo, serienota, numnota,
+      dtvencimento, valor_original, valor_aberto, valor_juros_pendente,
+      forma_recebimento, cidade_cobranca, uf_cobranca, status, atualizado_em
+    ) VALUES
+      ('DEMO-1-1001-1-001',1,1,'CARLOS SILVA',1001,'HIDROTUBOS COMERCIO LTDA',1,'0','001','NF-0001',(CURRENT_DATE-INTERVAL'45 days')::text,5800.50,5800.50,290.02,'BOLETO','São Paulo','SP','VENCIDO',NOW()),
+      ('DEMO-1-1001-2-001',1,1,'CARLOS SILVA',1001,'HIDROTUBOS COMERCIO LTDA',2,'0','001','NF-0002',(CURRENT_DATE-INTERVAL'15 days')::text,3200.00,3200.00,96.00,'BOLETO','São Paulo','SP','VENCIDO',NOW()),
+      ('DEMO-1-1002-3-001',1,1,'CARLOS SILVA',1002,'CONSTRUMAT MATERIAIS LTDA',3,'0','001','NF-0003',(CURRENT_DATE-INTERVAL'30 days')::text,12500.00,12500.00,750.00,'BOLETO','Campinas','SP','VENCIDO',NOW()),
+      ('DEMO-1-1003-4-001',1,1,'CARLOS SILVA',1003,'FERRAGENS BELO LTDA',4,'0','001','NF-0004',CURRENT_DATE::text,1850.00,1850.00,0,'BOLETO','Santo André','SP','VENCE_HOJE',NOW()),
+      ('DEMO-1-1004-5-001',1,1,'CARLOS SILVA',1004,'TUBOS E CONEXOES NORTE LTDA',5,'0','001','NF-0005',(CURRENT_DATE+INTERVAL'15 days')::text,7200.00,7200.00,0,'BOLETO','Guarulhos','SP','A_VENCER',NOW()),
+      ('DEMO-1-2001-6-001',1,2,'ANA OLIVEIRA',2001,'PLASTICOS GERAIS SA',6,'0','001','NF-0006',(CURRENT_DATE-INTERVAL'60 days')::text,22000.00,22000.00,1980.00,'BOLETO','Curitiba','PR','VENCIDO',NOW()),
+      ('DEMO-1-2002-7-001',1,2,'ANA OLIVEIRA',2002,'IMPERIAL HIDRAULICA LTDA',7,'0','001','NF-0007',(CURRENT_DATE-INTERVAL'8 days')::text,4300.00,4300.00,103.20,'BOLETO','Londrina','PR','VENCIDO',NOW()),
+      ('DEMO-1-2003-8-001',1,2,'ANA OLIVEIRA',2003,'CENTRAL DE OBRAS LTDA',8,'0','001','NF-0008',(CURRENT_DATE+INTERVAL'7 days')::text,9800.00,9800.00,0,'BOLETO','Maringá','PR','A_VENCER',NOW()),
+      ('DEMO-1-2004-9-001',1,2,'ANA OLIVEIRA',2004,'RESINATO EMPREENDIMENTOS LTDA',9,'0','001','NF-0009',(CURRENT_DATE+INTERVAL'30 days')::text,15600.00,15600.00,0,'BOLETO','Cascavel','PR','A_VENCER',NOW()),
+      ('DEMO-1-3001-10-001',1,3,'ROBERTO MENDES',3001,'CONECTA TUBOS E PECAS ME',10,'0','001','NF-0010',(CURRENT_DATE-INTERVAL'20 days')::text,6750.00,6750.00,270.00,'BOLETO','Porto Alegre','RS','VENCIDO',NOW()),
+      ('DEMO-1-3002-11-001',1,3,'ROBERTO MENDES',3002,'SULBRASIL COMERCIO LTDA',11,'0','001','NF-0011',(CURRENT_DATE+INTERVAL'20 days')::text,11200.00,11200.00,0,'BOLETO','Caxias do Sul','RS','A_VENCER',NOW()),
+      ('DEMO-1-3003-12-001',1,3,'ROBERTO MENDES',3003,'REVESTIMENTOS GAUCHO LTDA',12,'0','001','NF-0012',(CURRENT_DATE-INTERVAL'5 days')::text,3400.00,3400.00,51.00,'BOLETO','Pelotas','RS','VENCIDO',NOW())
+    ON CONFLICT (chave_titulo) DO NOTHING
+  `);
+  console.log("[schema-bootstrap] Demo: 12 registros de Contas a Receber inseridos");
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -1131,6 +1163,7 @@ export async function runSchemaBootstrap(): Promise<void> {
 
     // ── Financeiro / Contas a Receber ──────────────────────────────────────
     await bootstrapFinanceiro();
+    await seedDemoContasReceber();
 
     // ── Runtime column migrations ─────────────────────────────────────────
     const addedCols: string[] = [];

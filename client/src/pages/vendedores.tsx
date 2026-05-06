@@ -4,13 +4,14 @@ import { getAuthToken } from "@/lib/auth-context";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard, type FinancialSummary } from "@/components/dashboard/salesperson-card";
-import { Search, Grid3X3, List, Users } from "lucide-react";
+import { Search, Grid3X3, List, Users, SlidersHorizontal } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
@@ -41,6 +42,7 @@ export default function Vendedores() {
     mode: { type: "livre" },
   });
   const [helpOpen, setHelpOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -114,11 +116,9 @@ export default function Vendedores() {
 
   const dedupedSalespersons = useMemo(() => {
     const byId = new Map<string, SalespersonWithStats>();
-
     for (const row of salespersons) {
       const normalizedId = normalizeVendorId(row.salesperson.id);
       if (!normalizedId) continue;
-
       const normalizedRow: SalespersonWithStats = {
         ...row,
         salesperson: {
@@ -128,13 +128,11 @@ export default function Vendedores() {
           email: String(row.salesperson.email ?? ""),
         },
       };
-
       const current = byId.get(normalizedId);
       if (!current || normalizedRow.stats.totalVendas > current.stats.totalVendas) {
         byId.set(normalizedId, normalizedRow);
       }
     }
-
     return Array.from(byId.values());
   }, [salespersons]);
 
@@ -147,16 +145,13 @@ export default function Vendedores() {
     const groupMembers = selectedGroup
       ? new Set(selectedGroup.members.map(normalizeVendorId))
       : null;
-
     return dedupedSalespersons.filter(({ salesperson }) => {
       const matchesSearch =
         !searchTerm ||
         salesperson.name.toLowerCase().includes(searchTerm) ||
         (salesperson.email ?? "").toLowerCase().includes(searchTerm);
-
       if (!matchesSearch) return false;
       if (!groupMembers) return true;
-
       return groupMembers.has(normalizeVendorId(salesperson.id));
     });
   }, [dedupedSalespersons, search, selectedGroup]);
@@ -172,51 +167,100 @@ export default function Vendedores() {
 
   const showGroupFilter = (isAdmin || isSupervisor) && normalizedGroups.length > 0;
 
+  // Count active non-default filters for badge
+  const activeFiltersCount = [
+    companyId !== "1" && companyId !== "all",
+    selectedGroupId !== "all",
+  ].filter(Boolean).length;
+
   return (
     <div className="h-full overflow-auto">
+      {/* ── Sticky header ───────────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
-        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-baseline gap-3">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">Vendedores</h1>
-            <HelpButton onClick={() => setHelpOpen(true)} />
-            <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {showGroupFilter && (
-              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                <SelectTrigger className="h-8 text-xs w-36 gap-1.5">
-                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Grupo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">Todos os grupos</SelectItem>
-                  {normalizedGroups.map(g => (
-                    <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <CompanySelector
-              companies={companies}
-              selectedId={companyId}
-              onChange={setCompanyId}
-              loading={companiesLoading}
-            />
-            <PeriodSelector value={period} onChange={setPeriod} />
-          </div>
-        </div>
-      </div>
+        <div className="px-4 sm:px-6 py-3">
+          {/* Row 1: Title + mobile filter button + view toggles */}
+          <div className="flex items-center justify-between gap-2 mb-2 sm:mb-0">
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">Vendedores</h1>
+              <HelpButton onClick={() => setHelpOpen(true)} />
+              <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
+            </div>
 
-      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-2 flex-1 w-full">
+            <div className="flex items-center gap-2">
+              {/* Mobile: Filtros button */}
+              <Button
+                variant={activeFiltersCount > 0 ? "secondary" : "outline"}
+                size="sm"
+                className="sm:hidden h-8 gap-1.5 text-xs"
+                onClick={() => setFiltersOpen(true)}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Filtros
+                {activeFiltersCount > 0 && (
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </Button>
+
+              {/* Desktop: Inline filter controls */}
+              <div className="hidden sm:flex items-center gap-2 flex-wrap">
+                {showGroupFilter && (
+                  <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                    <SelectTrigger className="h-8 text-xs w-36 gap-1.5">
+                      <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <SelectValue placeholder="Grupo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="text-xs">Todos os grupos</SelectItem>
+                      {normalizedGroups.map(g => (
+                        <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <CompanySelector
+                  companies={companies}
+                  selectedId={companyId}
+                  onChange={setCompanyId}
+                  loading={companiesLoading}
+                />
+                <PeriodSelector value={period} onChange={setPeriod} />
+              </div>
+
+              {/* View mode toggles — always visible */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setViewMode("grid")}
+                  data-testid="button-view-grid"
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setViewMode("list")}
+                  data-testid="button-view-list"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Search (always visible) + desktop period summary */}
+          <div className="flex items-center gap-2">
             <div className="relative flex-1 sm:max-w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar vendedor..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                className="pl-9 h-8 text-sm"
                 data-testid="input-search-salesperson"
               />
             </div>
@@ -226,28 +270,64 @@ export default function Vendedores() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+        </div>
+      </div>
+
+      {/* ── Mobile Filters Sheet ─────────────────────────────── */}
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="rounded-t-xl pb-8">
+          <SheetHeader className="pb-4 border-b mb-4">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+              Filtros
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4">
+            {showGroupFilter && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Grupo</p>
+                <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); }}>
+                  <SelectTrigger className="h-10 text-sm">
+                    <Users className="h-4 w-4 text-muted-foreground mr-1 shrink-0" />
+                    <SelectValue placeholder="Grupo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os grupos</SelectItem>
+                    {normalizedGroups.map(g => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Empresa</p>
+              <CompanySelector
+                companies={companies}
+                selectedId={companyId}
+                onChange={setCompanyId}
+                loading={companiesLoading}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Período</p>
+              <PeriodSelector value={period} onChange={p => { setPeriod(p); }} />
+            </div>
+
             <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode("grid")}
-              data-testid="button-view-grid"
+              className="w-full h-10"
+              onClick={() => setFiltersOpen(false)}
             >
-              <Grid3X3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode("list")}
-              data-testid="button-view-list"
-            >
-              <List className="h-4 w-4" />
+              Aplicar
             </Button>
           </div>
-        </div>
+        </SheetContent>
+      </Sheet>
 
+      {/* ── Cards grid ─────────────────────────────────────────── */}
+      <div className="p-4 sm:p-6 space-y-4">
         {salespersonsLoading ? (
           <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
             {[...Array(6)].map((_, i) => (
@@ -275,6 +355,7 @@ export default function Vendedores() {
           </div>
         )}
       </div>
+
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} content={HELP_CONTENT.vendedores} />
     </div>
   );
