@@ -276,48 +276,44 @@ export default function ComprasDashboard() {
     ]);
   }
 
-  function handleExportCompras() {
+  async function handleExportCompras() {
     if (produtosFiltrados.length === 0) {
       toast({ title: "Nenhum produto para exportar" });
       return;
     }
 
+    const XLSX = await import("xlsx");
     const now = new Date();
-    const linhas: string[] = [];
-    const fmtC = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    const fmtN = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const empresa = companyId === "all" ? "Todas" : companies.find(c => c.id === companyId)?.name || companyId;
 
-    linhas.push(`"SalesStoker - Relatório de Compras"`);
-    linhas.push(`"Gerado em","${now.toLocaleString("pt-BR")}"`);
-    linhas.push(`"Empresa","${companyId === "all" ? "Todas" : companies.find(c => c.id === companyId)?.name || companyId}"`);
-    linhas.push("");
-    
-    linhas.push(`"Código","Descrição","Fornecedor","Criticidade","Estoque Atual","Cobertura (dias)","Data Est. Ruptura","Sugestão Compra"`);
-
-    for (const p of produtosFiltrados) {
-      const row = [
+    const metaSheet = XLSX.utils.aoa_to_sheet([
+      ["CONECTUBOS — Relatório de Compras"],
+      ["Gerado em", now.toLocaleString("pt-BR")],
+      ["Empresa", empresa],
+    ]);
+    const dataRows = [
+      ["Código", "Descrição", "Fornecedor", "Criticidade", "Estoque Atual", "Cobertura (dias)", "Data Est. Ruptura", "Sugestão Compra"],
+      ...produtosFiltrados.map(p => [
         p.codigo,
         p.descricao,
         p.fornecedor,
         p.criticidade.toUpperCase(),
-        fmtN(p.estoqueAtual),
-        fmtN(p.coberturaDias),
+        p.estoqueAtual,
+        p.coberturaDias,
         p.dataEstimadaRuptura,
-        fmtN(p.sugestaoCompra)
-      ];
-      linhas.push(row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";"));
-    }
+        p.sugestaoCompra,
+      ]),
+    ];
+    const dataSheet = XLSX.utils.aoa_to_sheet(dataRows);
+    dataSheet["!cols"] = [
+      { wch: 10 }, { wch: 40 }, { wch: 24 }, { wch: 12 },
+      { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, dataSheet, "Compras");
+    XLSX.utils.book_append_sheet(wb, metaSheet, "Informações");
+    XLSX.writeFile(wb, `compras-relatorio-${now.toISOString().slice(0,10)}.xlsx`);
 
-    const blob = new Blob(["\uFEFF" + linhas.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `compras-relatorio-${now.toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
     toast({ title: "Relatório exportado com sucesso!" });
   }
 
@@ -579,7 +575,7 @@ export default function ComprasDashboard() {
             onClick={handleExportCompras}
           >
             <Download className="h-4 w-4" />
-            Exportar CSV
+            Exportar XLSX
           </Button>
         </div>
 

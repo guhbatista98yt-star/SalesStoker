@@ -12,12 +12,8 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -27,7 +23,7 @@ import {
 import {
   DollarSign, AlertTriangle, Clock, TrendingUp, Users, FileText,
   Search, Filter, Download, RefreshCw, ChevronRight, ChevronLeft,
-  ChevronDown, MoreVertical, Eye, Phone, MessageSquare, Calendar,
+  ChevronDown, MoreVertical, Eye, MessageSquare, Calendar,
   Printer, Building2, MapPin, User, List, ArrowUpDown,
   CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
@@ -163,9 +159,12 @@ interface Filters {
   busca: string;
   venc_de: string;
   venc_ate: string;
-  uf: string;
   forma_recebimento: string;
   somente_vencidos: string;
+  cod_cliente: string;
+  cod_vendedor: string;
+  idtitulo: string;
+  numnota: string;
 }
 
 const DEFAULT_FILTERS: Filters = {
@@ -174,15 +173,37 @@ const DEFAULT_FILTERS: Filters = {
   busca: "",
   venc_de: "",
   venc_ate: "",
-  uf: "",
   forma_recebimento: "",
   somente_vencidos: "0",
+  cod_cliente: "",
+  cod_vendedor: "",
+  idtitulo: "",
+  numnota: "",
 };
+
+const FORMAS_RECEBIMENTO = [
+  "BOLETO", "DUPLICATA", "PIX", "CHEQUE", "TRANSFERÊNCIA",
+  "DINHEIRO", "CARTÃO", "DOC", "TED", "DÉBITO AUTOMÁTICO",
+];
 
 function buildQS(filters: Filters, extra: Record<string, string | number> = {}) {
   const qs = new URLSearchParams();
-  Object.entries({ ...filters, ...extra }).forEach(([k, v]) => {
-    if (v != null && v !== "" && v !== "todos" && v !== "all") qs.set(k, String(v));
+  const mapped: Record<string, string | number> = {
+    ...extra,
+    status: filters.status,
+    empresa: filters.empresa,
+    busca: filters.busca,
+    venc_de: filters.venc_de,
+    venc_ate: filters.venc_ate,
+    forma_recebimento: filters.forma_recebimento,
+    somente_vencidos: filters.somente_vencidos,
+    idclifor: filters.cod_cliente,
+    idvendedor: filters.cod_vendedor,
+    idtitulo: filters.idtitulo,
+    numnota: filters.numnota,
+  };
+  Object.entries(mapped).forEach(([k, v]) => {
+    if (v != null && v !== "" && v !== "todos" && v !== "all" && v !== "0") qs.set(k, String(v));
   });
   return qs.toString() ? `?${qs.toString()}` : "";
 }
@@ -197,16 +218,17 @@ export default function ContasReceber() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"clientes" | "duplicatas" | "vendedores" | "fila">("clientes");
   const [delinquencyDays, setDelinquencyDays] = useState<number>(10);
+  const [delinquencyEnabled, setDelinquencyEnabled] = useState<boolean>(true);
+  const [showDelinquency, setShowDelinquency] = useState<boolean>(false);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [buscaInput, setBuscaInput] = useState("");
   const [clientePage, setClientePage] = useState(1);
   const [duplicataPage, setDuplicataPage] = useState(1);
+  const [perPage, setPerPage] = useState(25);
   const [clienteDetalhe, setClienteDetalhe] = useState<number | null>(null);
   const [vendedorDetalhe, setVendedorDetalhe] = useState<number | null>(null);
   const [showFiltros, setShowFiltros] = useState(false);
-  const [showCobrancaDialog, setShowCobrancaDialog] = useState<{
-    chave: string; idclifor: number; idtitulo: number; digitotitulo?: string; serienota?: string; idempresa?: number; cliente?: string;
-  } | null>(null);
+  const [formaSearch, setFormaSearch] = useState("");
   const [sortClientes, setSortClientes] = useState<{ sort: string; dir: string }>({ sort: "total_vencido", dir: "desc" });
   const [sortDuplicatas, setSortDuplicatas] = useState<{ sort: string; dir: string }>({ sort: "dtvencimento", dir: "asc" });
 
@@ -231,14 +253,14 @@ export default function ContasReceber() {
 
   const resumo = useResumo();
 
-  const clientesQS = buildQS(filters, { page: clientePage, limit: 50, ...sortClientes });
+  const clientesQS = buildQS(filters, { page: clientePage, limit: perPage, ...sortClientes });
   const clientesQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/clientes", clientesQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/clientes${clientesQS}`),
     staleTime: 30_000,
   });
 
-  const dupsQS = buildQS(filters, { page: duplicataPage, limit: 100, ...sortDuplicatas });
+  const dupsQS = buildQS(filters, { page: duplicataPage, limit: perPage, ...sortDuplicatas });
   const dupsQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/duplicatas", dupsQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas${dupsQS}`),
@@ -297,6 +319,7 @@ export default function ContasReceber() {
     const url = `/api/financeiro/contas-receber/exportar${qs}`;
     const a = document.createElement("a");
     a.href = url;
+    a.download = `contas-receber-${new Date().toISOString().slice(0,10)}.xlsx`;
     a.click();
   }
 
@@ -351,7 +374,7 @@ export default function ContasReceber() {
             className="hidden sm:flex"
           >
             <Download className="h-3.5 w-3.5 mr-1.5" />
-            Exportar CSV
+            Exportar XLSX
           </Button>
           <Button
             variant="outline" size="sm"
@@ -369,7 +392,7 @@ export default function ContasReceber() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handlePrint}><Printer className="h-3.5 w-3.5 mr-2" />Imprimir</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportar}><Download className="h-3.5 w-3.5 mr-2" />Exportar CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportar}><Download className="h-3.5 w-3.5 mr-2" />Exportar XLSX</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -444,20 +467,43 @@ export default function ContasReceber() {
           </div>
 
           {/* ── Delinquency threshold (simulation) ──────────────────────── */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 print:hidden">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="text-xs font-medium text-amber-800 dark:text-amber-300">Simulação de inadimplência:</span>
-            <span className="text-xs text-amber-700 dark:text-amber-400">considerar inadimplente após</span>
-            <Input
-              type="number"
-              min={1}
-              max={365}
-              value={delinquencyDays}
-              onChange={e => setDelinquencyDays(Math.max(1, Number(e.target.value) || 1))}
-              className="h-7 w-16 text-xs text-center px-1"
-            />
-            <span className="text-xs text-amber-700 dark:text-amber-400">dias em atraso</span>
-            <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-500 italic">Apenas visualização</span>
+          <div className="print:hidden">
+            <button
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setShowDelinquency(v => !v)}
+            >
+              <AlertTriangle className="h-3 w-3 text-amber-500" />
+              Simulação de inadimplência
+              <ChevronDown className={cn("h-3 w-3 transition-transform", showDelinquency && "rotate-180")} />
+            </button>
+            {showDelinquency && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-800 dark:text-amber-300">
+                  <input
+                    type="checkbox"
+                    checked={delinquencyEnabled}
+                    onChange={e => setDelinquencyEnabled(e.target.checked)}
+                    className="rounded"
+                  />
+                  Ativar
+                </label>
+                {delinquencyEnabled && (
+                  <>
+                    <span className="text-xs text-amber-700 dark:text-amber-400">Considerar inadimplente após</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={delinquencyDays}
+                      onChange={e => setDelinquencyDays(Math.max(0, Number(e.target.value) || 0))}
+                      className="h-7 w-16 text-xs text-center px-1"
+                    />
+                    <span className="text-xs text-amber-700 dark:text-amber-400">dias em atraso</span>
+                  </>
+                )}
+                <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-500 italic">Apenas visualização</span>
+              </div>
+            )}
           </div>
 
           {/* ── Filters & Search ─────────────────────────────────────────── */}
@@ -482,6 +528,13 @@ export default function ContasReceber() {
                 <SelectItem value="A_VENCER">A vencer</SelectItem>
               </SelectContent>
             </Select>
+            <select
+              value={perPage}
+              onChange={e => { setPerPage(Number(e.target.value)); setClientePage(1); setDuplicataPage(1); }}
+              className="h-9 text-sm border border-input rounded-md bg-background px-2 cursor-pointer hidden sm:block"
+            >
+              {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}/pág</option>)}
+            </select>
             <Button
               variant="outline" size="sm"
               onClick={() => setShowFiltros(v => !v)}
@@ -490,7 +543,7 @@ export default function ContasReceber() {
               <Filter className="h-3.5 w-3.5 mr-1.5" />
               Filtros
             </Button>
-            {(filters.busca || filters.status !== "todos" || filters.venc_de || filters.venc_ate || filters.uf || filters.somente_vencidos === "1") && (
+            {(filters.busca || filters.status !== "todos" || filters.venc_de || filters.venc_ate || filters.forma_recebimento || filters.somente_vencidos === "1" || filters.cod_cliente || filters.cod_vendedor || filters.idtitulo || filters.numnota) && (
               <Button
                 variant="ghost" size="sm"
                 onClick={() => { setFilters(DEFAULT_FILTERS); setBuscaInput(""); }}
@@ -506,7 +559,7 @@ export default function ContasReceber() {
           {showFiltros && (
             <Card className="print:hidden">
               <CardContent className="pt-4 pb-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   <div>
                     <Label className="text-xs">Vencimento de</Label>
                     <Input type="date" className="h-8 text-sm mt-1"
@@ -520,17 +573,86 @@ export default function ContasReceber() {
                       onChange={e => setFilter("venc_ate", e.target.value)} />
                   </div>
                   <div>
-                    <Label className="text-xs">UF</Label>
-                    <Input className="h-8 text-sm mt-1" placeholder="SP, MG..."
-                      value={filters.uf}
-                      onChange={e => setFilter("uf", e.target.value.toUpperCase())}
-                      maxLength={2} />
+                    <Label className="text-xs">Cód. Cliente</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-sm mt-1"
+                      placeholder="Ex: 12345"
+                      value={filters.cod_cliente}
+                      onChange={e => setFilter("cod_cliente", e.target.value)}
+                    />
                   </div>
                   <div>
+                    <Label className="text-xs">Cód. Vendedor</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-sm mt-1"
+                      placeholder="Ex: 10"
+                      value={filters.cod_vendedor}
+                      onChange={e => setFilter("cod_vendedor", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Nº Título</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-sm mt-1"
+                      placeholder="Ex: 2335879"
+                      value={filters.idtitulo}
+                      onChange={e => setFilter("idtitulo", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Nota Fiscal</Label>
+                    <Input
+                      className="h-8 text-sm mt-1"
+                      placeholder="Nº da nota"
+                      value={filters.numnota}
+                      onChange={e => setFilter("numnota", e.target.value)}
+                    />
+                  </div>
+                  <div className="relative">
                     <Label className="text-xs">Forma de Recebimento</Label>
-                    <Input className="h-8 text-sm mt-1" placeholder="Boleto, PIX..."
-                      value={filters.forma_recebimento}
-                      onChange={e => setFilter("forma_recebimento", e.target.value)} />
+                    <div className="relative mt-1">
+                      <Input
+                        className="h-8 text-sm pr-8"
+                        placeholder="Digite ou selecione..."
+                        value={formaSearch || filters.forma_recebimento}
+                        onChange={e => {
+                          setFormaSearch(e.target.value);
+                          setFilter("forma_recebimento", e.target.value);
+                        }}
+                      />
+                      {(filters.forma_recebimento || formaSearch) && (
+                        <button
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => { setFormaSearch(""); setFilter("forma_recebimento", ""); }}
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {formaSearch && (
+                      <div className="absolute z-20 top-full mt-0.5 left-0 right-0 bg-background border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                        {FORMAS_RECEBIMENTO.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).map(f => (
+                          <button
+                            key={f}
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                            onClick={() => {
+                              setFilter("forma_recebimento", f);
+                              setFormaSearch("");
+                            }}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                        {FORMAS_RECEBIMENTO.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).length === 0 && (
+                          <p className="px-3 py-2 text-xs text-muted-foreground">
+                            Pressione Enter para usar "{formaSearch}"
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-end pb-0.5">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -585,7 +707,6 @@ export default function ContasReceber() {
               sort={sortClientes}
               onSort={setSortClientes}
               onSelectCliente={setClienteDetalhe}
-              onCobranca={setShowCobrancaDialog}
             />
           )}
 
@@ -600,7 +721,6 @@ export default function ContasReceber() {
               onPage={setDuplicataPage}
               sort={sortDuplicatas}
               onSort={setSortDuplicatas}
-              onCobranca={setShowCobrancaDialog}
               onSelectCliente={setClienteDetalhe}
             />
           )}
@@ -624,7 +744,6 @@ export default function ContasReceber() {
               data={filaQ.data}
               loading={filaQ.isLoading}
               onSelectCliente={setClienteDetalhe}
-              onCobranca={setShowCobrancaDialog}
             />
           )}
         </div>
@@ -648,7 +767,6 @@ export default function ContasReceber() {
               info={clienteDetalheQ.data.data}
               duplicatas={clienteDetalheQ.data.duplicatas}
               cobrancas={clienteDetalheQ.data.cobrancas}
-              onCobranca={setShowCobrancaDialog}
             />
           ) : (
             <div className="mt-8 text-center text-muted-foreground">
@@ -683,18 +801,6 @@ export default function ContasReceber() {
         </SheetContent>
       </Sheet>
 
-      {/* ── Cobrança Dialog ────────────────────────────────────────────── */}
-      {showCobrancaDialog != null && (
-        <CobrancaDialog
-          info={showCobrancaDialog}
-          onClose={() => setShowCobrancaDialog(null)}
-          onSuccess={() => {
-            setShowCobrancaDialog(null);
-            qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/cliente"] });
-            qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/fila"] });
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -704,12 +810,11 @@ export default function ContasReceber() {
 // ============================================================================
 
 function ClientesTab({
-  data, loading, page, onPage, sort, onSort, onSelectCliente, onCobranca,
+  data, loading, page, onPage, sort, onSort, onSelectCliente,
 }: {
   data: any; loading: boolean; page: number; onPage: (p: number) => void;
   sort: { sort: string; dir: string }; onSort: (s: { sort: string; dir: string }) => void;
   onSelectCliente: (id: number) => void;
-  onCobranca: (info: any) => void;
 }) {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
@@ -824,16 +929,6 @@ function ClientesTab({
                 >
                   <Eye className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  size="sm" variant="ghost"
-                  className="h-8 w-8 p-0"
-                  onClick={() => onCobranca({
-                    chave: "", idclifor: row.idclifor, idtitulo: 0,
-                    cliente: row.nomecliente,
-                  })}
-                >
-                  <Phone className="h-3.5 w-3.5" />
-                </Button>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
             </div>
@@ -842,8 +937,8 @@ function ClientesTab({
       ))}
 
       {/* Pagination */}
-      {pages > 1 && (
-        <Pagination page={page} pages={pages} total={total} onPage={onPage} />
+      {(pages > 1 || total > 10) && (
+        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={25} />
       )}
     </div>
   );
@@ -854,11 +949,11 @@ function ClientesTab({
 // ============================================================================
 
 function DuplicatasTab({
-  data, loading, page, onPage, sort, onSort, onCobranca, onSelectCliente,
+  data, loading, page, onPage, sort, onSort, onSelectCliente,
 }: {
   data: any; loading: boolean; page: number; onPage: (p: number) => void;
   sort: { sort: string; dir: string }; onSort: (s: { sort: string; dir: string }) => void;
-  onCobranca: (info: any) => void; onSelectCliente: (id: number) => void;
+  onSelectCliente: (id: number) => void;
 }) {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
@@ -940,23 +1035,6 @@ function DuplicatasTab({
                 <td className="px-4 py-3">
                   <StatusBadge status={row.status} />
                 </td>
-                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                  <Button
-                    size="sm" variant="ghost"
-                    className="h-7 w-7 p-0"
-                    onClick={() => onCobranca({
-                      chave: row.chave_titulo,
-                      idclifor: row.idclifor,
-                      idtitulo: row.idtitulo,
-                      digitotitulo: row.digitotitulo,
-                      serienota: row.serienota,
-                      idempresa: row.idempresa,
-                      cliente: row.nomecliente,
-                    })}
-                  >
-                    <Phone className="h-3 w-3" />
-                  </Button>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -983,7 +1061,7 @@ function DuplicatasTab({
         ))}
       </div>
 
-      {pages > 1 && (
+      {(pages > 1 || total > 10) && (
         <Pagination page={page} pages={pages} total={total} onPage={onPage} />
       )}
     </div>
@@ -1071,11 +1149,10 @@ const PRIORIDADE_CONFIG: Record<string, { label: string; color: string; bg: stri
 };
 
 function FilaCobrancaTab({
-  data, loading, onSelectCliente, onCobranca,
+  data, loading, onSelectCliente,
 }: {
   data: any; loading: boolean;
   onSelectCliente: (id: number) => void;
-  onCobranca: (info: any) => void;
 }) {
   const rows = data?.data ?? [];
   const hoje = new Date().toISOString().split("T")[0];
@@ -1149,14 +1226,6 @@ function FilaCobrancaTab({
                             <p className="text-red-600 dark:text-red-400 font-bold text-sm">{fmtBRL(row.total_vencido)}</p>
                             <p className="text-[10px] text-muted-foreground">{fmtBRL(row.total_aberto)} total</p>
                           </div>
-                          <Button
-                            size="sm" variant="outline"
-                            className="h-8"
-                            onClick={e => { e.stopPropagation(); onCobranca({ chave: "", idclifor: row.idclifor, idtitulo: 0, cliente: row.nomecliente }); }}
-                          >
-                            <Phone className="h-3.5 w-3.5 mr-1" />
-                            Cobrar
-                          </Button>
                         </div>
                       </div>
                       {row.ultima_cobranca && (
@@ -1182,10 +1251,9 @@ function FilaCobrancaTab({
 // ============================================================================
 
 function ClienteDetalheContent({
-  info, duplicatas, cobrancas, onCobranca,
+  info, duplicatas, cobrancas,
 }: {
   info: any; duplicatas: any[]; cobrancas: any[];
-  onCobranca: (info: any) => void;
 }) {
   return (
     <div className="mt-6 space-y-5">
@@ -1225,16 +1293,6 @@ function ClienteDetalheContent({
         {info.proximo_vencimento && <p><Clock className="inline h-3.5 w-3.5 mr-1" />Próximo vencimento: <span className="text-foreground">{fmtDate(info.proximo_vencimento)}</span></p>}
       </div>
 
-      <Button
-        className="w-full"
-        onClick={() => onCobranca({
-          chave: "", idclifor: info.idclifor, idtitulo: 0,
-          cliente: info.nomecliente,
-        })}
-      >
-        <Phone className="h-3.5 w-3.5 mr-2" />
-        Registrar Cobrança
-      </Button>
 
       {/* Duplicatas */}
       <div>
@@ -1377,193 +1435,48 @@ function VendedorDetalheContent({
 }
 
 // ============================================================================
-// Cobrança Dialog
+// _placeholder_cobranca_removed
 // ============================================================================
 
-function CobrancaDialog({
-  info, onClose, onSuccess,
-}: {
-  info: { chave: string; idclifor: number; idtitulo: number; digitotitulo?: string; serienota?: string; idempresa?: number; cliente?: string };
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const { toast } = useToast();
-  const [status, setStatus] = useState("COBRADO");
-  const [canal, setCanal] = useState("Telefone");
-  const [obs, setObs] = useState("");
-  const [motivo, setMotivo] = useState("");
-  const [proximaAcao, setProximaAcao] = useState("");
-  const [dataProximaAcao, setDataProximaAcao] = useState("");
-  const [promessa, setPromessa] = useState("N");
-  const [dataPromessa, setDataPromessa] = useState("");
-
-  const mut = useMutation({
-    mutationFn: () => apiFetch("/api/financeiro/contas-receber/cobranca", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chave_titulo: info.chave,
-        idempresa: info.idempresa,
-        idclifor: info.idclifor,
-        idtitulo: info.idtitulo,
-        digitotitulo: info.digitotitulo,
-        serienota: info.serienota,
-        status_interno: status,
-        observacao: obs,
-        motivo_atraso: motivo,
-        canal_contato: canal,
-        proxima_acao: proximaAcao,
-        data_proxima_acao: dataProximaAcao || null,
-        promessa_pagamento: promessa,
-        data_promessa_pagamento: dataPromessa || null,
-      }),
-    }),
-    onSuccess: () => {
-      toast({ title: "Cobrança registrada", description: "Histórico salvo com sucesso." });
-      onSuccess();
-    },
-    onError: (err: Error) => {
-      toast({ title: "Erro", description: err.message, variant: "destructive" });
-    },
-  });
-
-  return (
-    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Registrar Cobrança</DialogTitle>
-          <DialogDescription>
-            {info.cliente ? `Cliente: ${info.cliente}` : `Cód. ${info.idclifor}`}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="h-8 text-sm mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="COBRADO">Cobrado</SelectItem>
-                  <SelectItem value="SEM_CONTATO">Sem contato</SelectItem>
-                  <SelectItem value="AGUARDANDO">Aguardando</SelectItem>
-                  <SelectItem value="PROMESSA">Promessa de pagamento</SelectItem>
-                  <SelectItem value="NEGOCIACAO">Em negociação</SelectItem>
-                  <SelectItem value="CONTESTADO">Contestado</SelectItem>
-                  <SelectItem value="IRRECUPERAVEL">Irrecuperável</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Canal de Contato</Label>
-              <Select value={canal} onValueChange={setCanal}>
-                <SelectTrigger className="h-8 text-sm mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Telefone">Telefone</SelectItem>
-                  <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                  <SelectItem value="E-mail">E-mail</SelectItem>
-                  <SelectItem value="Visita">Visita presencial</SelectItem>
-                  <SelectItem value="Carta">Carta/Notificação</SelectItem>
-                  <SelectItem value="Outro">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-xs">Observação</Label>
-            <Textarea
-              className="text-sm mt-1 resize-none"
-              placeholder="Descreva o contato realizado..."
-              rows={3}
-              value={obs}
-              onChange={e => setObs(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label className="text-xs">Motivo do atraso</Label>
-            <Input
-              className="h-8 text-sm mt-1"
-              placeholder="Financeiro, esquecimento, disputa..."
-              value={motivo}
-              onChange={e => setMotivo(e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Próxima ação</Label>
-              <Input
-                className="h-8 text-sm mt-1"
-                placeholder="Ligar novamente, enviar boleto..."
-                value={proximaAcao}
-                onChange={e => setProximaAcao(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Data próxima ação</Label>
-              <Input
-                type="date" className="h-8 text-sm mt-1"
-                value={dataProximaAcao}
-                onChange={e => setDataProximaAcao(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 pt-1">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={promessa === "S"}
-                onChange={e => setPromessa(e.target.checked ? "S" : "N")}
-                className="rounded"
-              />
-              <span className="text-sm">Promessa de pagamento</span>
-            </label>
-            {promessa === "S" && (
-              <Input
-                type="date" className="h-8 text-sm flex-1"
-                value={dataPromessa}
-                onChange={e => setDataPromessa(e.target.value)}
-                placeholder="Data prometida"
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
-            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
-            {mut.isPending ? "Salvando..." : "Salvar"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ============================================================================
 // Pagination
 // ============================================================================
 
-function Pagination({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (p: number) => void }) {
+function Pagination({
+  page, pages, total, onPage, perPage, onPerPage,
+}: {
+  page: number; pages: number; total: number;
+  onPage: (p: number) => void;
+  perPage?: number; onPerPage?: (n: number) => void;
+}) {
   return (
-    <div className="flex items-center justify-between gap-2 pt-2 print:hidden">
+    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 print:hidden">
       <p className="text-xs text-muted-foreground">{total} registro{total !== 1 ? "s" : ""}</p>
-      <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" onClick={() => onPage(page - 1)} disabled={page === 1} className="h-7 w-7 p-0">
-          <ChevronLeft className="h-3.5 w-3.5" />
-        </Button>
-        <span className="text-xs text-muted-foreground px-2">Pág. {page} de {pages}</span>
-        <Button variant="outline" size="sm" onClick={() => onPage(page + 1)} disabled={page >= pages} className="h-7 w-7 p-0">
-          <ChevronRight className="h-3.5 w-3.5" />
-        </Button>
+      <div className="flex items-center gap-3">
+        {onPerPage && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Por página:</span>
+            <select
+              value={perPage}
+              onChange={e => { onPerPage(Number(e.target.value)); onPage(1); }}
+              className="h-7 text-xs border border-input rounded-md bg-background px-2 cursor-pointer"
+            >
+              {[10, 25, 50, 100].map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={() => onPage(page - 1)} disabled={page === 1} className="h-7 w-7 p-0">
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+          <span className="text-xs text-muted-foreground px-2">Pág. {page} de {pages}</span>
+          <Button variant="outline" size="sm" onClick={() => onPage(page + 1)} disabled={page >= pages} className="h-7 w-7 p-0">
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   );

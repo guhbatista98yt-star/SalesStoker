@@ -19,6 +19,7 @@
 import { Router, Response } from "express";
 import { isAuthenticated, isAdmin, AuthRequest } from "../auth";
 import { pgAll, pgGet, pgRun } from "../pg-client";
+import XLSX from "xlsx";
 
 const router = Router();
 
@@ -74,6 +75,14 @@ function buildWhereClause(q: Record<string, string | undefined>): { where: strin
   if (q.forma_recebimento) {
     conditions.push(`LOWER(forma_recebimento) LIKE LOWER(${p()})`);
     params.push(`%${q.forma_recebimento}%`);
+  }
+  if (q.idtitulo) {
+    conditions.push(`idtitulo = ${p()}`);
+    params.push(Number(q.idtitulo));
+  }
+  if (q.numnota) {
+    conditions.push(`CAST(numnota AS TEXT) LIKE ${p()}`);
+    params.push(`%${q.numnota}%`);
   }
   if (q.valor_min) {
     conditions.push(`valor_aberto >= ${p()}`);
@@ -664,43 +673,54 @@ router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response)
       params
     );
 
-    const formatDate = (d: string | null) => {
+    const fmtDate = (d: string | null) => {
       if (!d) return "";
       const dt = new Date(d);
       if (isNaN(dt.getTime())) return d;
       return dt.toLocaleDateString("pt-BR");
     };
-    const formatCurrency = (v: number | null) =>
-      v == null ? "0,00" : Number(v).toFixed(2).replace(".", ",");
+    const fmtNum = (v: number | null) =>
+      v == null ? 0 : Number(v);
 
-    const header = [
-      "Vendedor", "Cliente", "Cód.Cliente", "Cidade", "UF",
-      "Título", "Dígito", "Série", "Nota/Cupom", "Planilha",
-      "Movimento", "Vencimento", "Últ.Pagamento", "Dias Atraso", "Status",
-      "Valor Original", "Valor Pago", "Valor Aberto", "Juros Pendente",
-      "Desconto Concedido", "Valor Líquido",
-      "Forma Recebimento", "Origem", "Observação",
-    ].join(";");
-
-    const lines = rows.map(r =>
+    const wsData = [
       [
-        r.nomevendedor, r.nomecliente, r.idclifor,
-        r.cidade_cobranca, r.uf_cobranca,
-        r.idtitulo, r.digitotitulo, r.serienota, r.numnota, r.idplanilha,
-        formatDate(r.dtmovimento), formatDate(r.dtvencimento), formatDate(r.dtultimopagamento),
-        r.dias_atraso, r.status,
-        formatCurrency(r.valor_original), formatCurrency(r.valor_pago),
-        formatCurrency(r.valor_aberto), formatCurrency(r.valor_juros_pendente),
-        formatCurrency(r.valor_desconto_concedido), formatCurrency(r.valor_liquido),
-        r.forma_recebimento, r.origem_movimento, r.observacao_titulo,
-      ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")
-    );
+        "Vendedor", "Cliente", "Cód.Cliente", "Cidade", "UF",
+        "Título", "Dígito", "Série", "Nota/Cupom", "Planilha",
+        "Movimento", "Vencimento", "Últ.Pagamento", "Dias Atraso", "Status",
+        "Valor Original (R$)", "Valor Pago (R$)", "Valor Aberto (R$)", "Juros Pendente (R$)",
+        "Desconto Concedido (R$)", "Valor Líquido (R$)",
+        "Forma Recebimento", "Origem", "Observação",
+      ],
+      ...rows.map(r => [
+        r.nomevendedor ?? "", r.nomecliente ?? "", r.idclifor ?? "",
+        r.cidade_cobranca ?? "", r.uf_cobranca ?? "",
+        r.idtitulo ?? "", r.digitotitulo ?? "", r.serienota ?? "", r.numnota ?? "", r.idplanilha ?? "",
+        fmtDate(r.dtmovimento), fmtDate(r.dtvencimento), fmtDate(r.dtultimopagamento),
+        r.dias_atraso ?? 0, r.status ?? "",
+        fmtNum(r.valor_original), fmtNum(r.valor_pago),
+        fmtNum(r.valor_aberto), fmtNum(r.valor_juros_pendente),
+        fmtNum(r.valor_desconto_concedido), fmtNum(r.valor_liquido),
+        r.forma_recebimento ?? "", r.origem_movimento ?? "", r.observacao_titulo ?? "",
+      ]),
+    ];
 
-    const csv = "\uFEFF" + [header, ...lines].join("\n");
-    const filename = `contas-receber-${new Date().toISOString().split("T")[0]}.csv`;
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [
+      { wch: 22 }, { wch: 30 }, { wch: 10 }, { wch: 18 }, { wch: 4 },
+      { wch: 8 }, { wch: 6 }, { wch: 6 }, { wch: 10 }, { wch: 10 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 },
+      { wch: 16 }, { wch: 14 }, { wch: 24 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Contas a Receber");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const filename = `contas-receber-${new Date().toISOString().split("T")[0]}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(csv);
+    res.send(buf);
   } catch (err) {
     console.error("[financeiro] /exportar:", err);
     res.status(500).json({ error: "Erro ao exportar" });

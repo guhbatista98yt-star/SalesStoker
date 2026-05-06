@@ -92,23 +92,23 @@ export default function AdminReports() {
         [reportData]
     );
 
-    const exportToCSV = () => {
+    const exportToXLSX = async () => {
         if (!reportData.length) return;
+        const XLSX = await import("xlsx");
         const headers = ["ID", "Nome", "Gatilho (R$)", "Vendas (R$)", "% Atingido", "Elegível"];
         const rows = reportData.map(r => [
             r.salespersonId,
-            `"${r.salespersonName}"`,
-            (r.targetTrigger ?? 0).toFixed(2),
-            (r.currentSales ?? 0).toFixed(2),
-            (r.percentAchieved ?? 0).toFixed(2),
+            r.salespersonName,
+            Number((r.targetTrigger ?? 0).toFixed(2)),
+            Number((r.currentSales ?? 0).toFixed(2)),
+            Number((r.percentAchieved ?? 0).toFixed(2)),
             r.isEligible ? "SIM" : "NÃO",
         ]);
-        const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
-        const uri = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-        const a = document.createElement("a");
-        a.href = uri;
-        a.download = `relatorio_${selectedCampaign}_${format(new Date(), "yyyy-MM-dd")}.csv`;
-        a.click();
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        ws["!cols"] = [{ wch: 8 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 8 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Relatório");
+        XLSX.writeFile(wb, `relatorio_${selectedCampaign}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
     };
 
     if (!isAdmin) {
@@ -195,14 +195,14 @@ export default function AdminReports() {
                                     </SelectContent>
                                 </Select>
                                 <Button
-                                    onClick={exportToCSV}
+                                    onClick={exportToXLSX}
                                     variant="secondary"
                                     size="sm"
                                     className="gap-2"
                                     disabled={!reportData.length}
                                 >
                                     <Download className="w-4 h-4" />
-                                    Exportar CSV
+                                    Exportar XLSX
                                 </Button>
                             </div>
                         </div>

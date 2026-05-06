@@ -173,26 +173,24 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
     });
   }, [data, search, showOnly]);
 
-  function exportCSV() {
+  async function exportXLSX() {
     if (!data) return;
+    const XLSX = await import("xlsx");
     const headers = ["#", "ID", "Vendedor", "Gatilho (R$)", "Vendas (R$)", "Atingimento (%)", "Elegível"];
     const rows = data.results.map((r, i) => [
       i + 1,
       r.salespersonId,
       r.salespersonName,
       r.targetTrigger,
-      r.currentSales.toFixed(2),
-      r.percentAchieved !== null ? r.percentAchieved.toFixed(1) : "S/G",
+      Number(r.currentSales.toFixed(2)),
+      r.percentAchieved !== null ? Number(r.percentAchieved.toFixed(1)) : "S/G",
       r.isEligible ? "SIM" : "NÃO",
     ]);
-    const csv = [headers, ...rows].map(r => r.join(";")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `relatorio-${data.campaign.code}-${year}${quarter !== "all" ? `-Q${quarter}` : ""}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws["!cols"] = [{ wch: 4 }, { wch: 8 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relatório");
+    XLSX.writeFile(wb, `relatorio-${data.campaign.code}-${year}${quarter !== "all" ? `-Q${quarter}` : ""}.xlsx`);
   }
 
   if (isLoading) {
@@ -231,9 +229,9 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
             Acompanhe o atingimento dos gatilhos por vendedor no período selecionado.
           </p>
         </div>
-        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={exportCSV} disabled={!data}>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={exportXLSX} disabled={!data}>
           <Download className="h-3.5 w-3.5" />
-          Exportar CSV
+          Exportar XLSX
         </Button>
       </div>
 

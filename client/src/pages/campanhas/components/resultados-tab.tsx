@@ -291,12 +291,22 @@ export function ResultadosTab({ campaignId }: ResultadosTabProps) {
     onError: (e: any) => toast({ title: "Erro na apuração", description: e.message, variant: "destructive" }),
   });
 
-  function exportCSV() {
-    const url = `/api/campaigns/${campaignId}/resultados/export.csv`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "";
-    a.click();
+  async function exportCSV() {
+    if (!result) return;
+    const XLSX = await import("xlsx");
+    const headers = ["Posição", "Vendedor", "Valor Apurado", "Premiado", "% Atingimento"];
+    const rows = result.detalhes.map((d: any) => [
+      d.posicao ?? "—",
+      d.nomeVendedor ?? d.idvendedor,
+      Number((d.valorApuracao ?? 0).toFixed(2)),
+      d.premiado ? "SIM" : "NÃO",
+      d.percentual != null ? Number(d.percentual.toFixed(1)) : "—",
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws["!cols"] = [{ wch: 8 }, { wch: 28 }, { wch: 16 }, { wch: 10 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resultados");
+    XLSX.writeFile(wb, `resultados-${campaignId}.xlsx`);
   }
 
   if (isLoading) {
@@ -341,7 +351,7 @@ export function ResultadosTab({ campaignId }: ResultadosTabProps) {
         <div className="flex items-center gap-2">
           {result && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={exportCSV}>
-              <Download className="h-3 w-3" /> Exportar CSV
+              <Download className="h-3 w-3" /> Exportar XLSX
             </Button>
           )}
           <Button

@@ -624,28 +624,6 @@ export default function Dashboard() {
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetLayout}
-              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
-              data-testid="button-reset-layout"
-              title="Restaurar layout"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleExport}
-              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
-              data-testid="button-export-csv"
-              title="Exportar relatório CSV"
-              disabled={isLoading}
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
 
             <div className="hidden sm:flex items-center gap-2">
               <CompanySelector
@@ -749,16 +727,9 @@ export default function Dashboard() {
                     selected={customDraft}
                     onSelect={setCustomDraft}
                     locale={ptBR}
-                    className="rounded-md p-0"
+                    className="rounded-md"
                     numberOfMonths={1}
                     disabled={{ after: new Date() }}
-                    classNames={{
-                      months: "flex flex-col",
-                      caption_label: "text-xs font-medium",
-                      head_cell: "text-muted-foreground w-8 font-normal text-[0.7rem]",
-                      cell: "h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-                      day: "h-8 w-8 p-0 font-normal aria-selected:opacity-100 text-xs",
-                    }}
                   />
                   <Button
                     size="sm"
@@ -786,14 +757,6 @@ export default function Dashboard() {
               </PopoverContent>
             </Popover>
 
-            <Button
-              size="sm"
-              className="h-8 gap-1.5 text-xs font-medium rounded-lg hidden sm:flex"
-              onClick={handleExport}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportar
-            </Button>
           </div>
         </div>
       </div>
@@ -886,16 +849,9 @@ export default function Dashboard() {
                   selected={customDraft}
                   onSelect={setCustomDraft}
                   locale={ptBR}
-                  className="rounded-md p-0 w-full"
+                  className="rounded-md w-full"
                   numberOfMonths={1}
                   disabled={{ after: new Date() }}
-                  classNames={{
-                    months: "flex flex-col",
-                    caption_label: "text-xs font-medium",
-                    head_cell: "text-muted-foreground w-8 font-normal text-[0.7rem]",
-                    cell: "h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-                    day: "h-8 w-8 p-0 font-normal aria-selected:opacity-100 text-xs",
-                  }}
                 />
                 <Button
                   size="sm"
