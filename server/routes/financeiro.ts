@@ -167,6 +167,24 @@ router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) =
   }
 });
 
+// ── GET /formas-recebimento (distinct values) ────────────────────────────────
+
+router.get("/formas-recebimento", isAuthenticated, async (_req: AuthRequest, res: Response) => {
+  try {
+    const rows = await pgAll<{ forma: string }>(
+      `SELECT DISTINCT UPPER(TRIM(forma_recebimento)) AS forma
+       FROM cache_contas_receber
+       WHERE forma_recebimento IS NOT NULL AND TRIM(forma_recebimento) <> ''
+       ORDER BY 1`
+    );
+    const formas = rows.map(r => r.forma).filter(Boolean);
+    res.json({ formas });
+  } catch (err) {
+    console.error("[financeiro] /formas-recebimento:", err);
+    res.status(500).json({ formas: [] });
+  }
+});
+
 // ── GET /clientes ───────────────────────────────────────────────────────────
 
 router.get("/clientes", isAuthenticated, async (req: AuthRequest, res: Response) => {

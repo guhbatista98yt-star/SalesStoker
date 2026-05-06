@@ -1,0 +1,557 @@
+Preciso que você revise, corrija e melhore o módulo Financeiro > Contas a Receber do meu sistema.
+
+O objetivo desta solicitação é ajustar comportamento, filtros, paginação, UX/UI, impressão e coerência das abas para evitar informação errada, duplicada ou confusa para o colaborador responsável pelo financeiro.
+
+IMPORTANTE:
+- Não quebrar módulos existentes.
+- Não remover funcionalidades sem necessidade.
+- Não alterar regras de campanhas, vendedores, dashboard ou painel de TV.
+- O módulo de Contas a Receber precisa ser extremamente claro, confiável, profissional e produtivo.
+- O foco é evitar análise errada por filtro mal aplicado, popup repetido, layout inconsistente ou relatório mal formatado.
+
+====================================================
+1. PAGINAÇÃO NO RODAPÉ DA PÁGINA
+====================================================
+
+Adicionar configuração de paginação no rodapé das tabelas do módulo de Contas a Receber.
+
+A paginação deve aparecer no final das listas principais:
+
+- Aba Clientes
+- Aba Por Vendedor
+- Aba Duplicatas
+- Fila de Cobrança
+- Resultado de filtros
+
+A paginação deve permitir:
+
+- Escolher quantidade de registros por página:
+  - 10
+  - 25
+  - 50
+  - 100
+
+- Exibir:
+  - Página atual
+  - Total de páginas
+  - Total de registros encontrados
+  - Botão primeira página
+  - Botão página anterior
+  - Botão próxima página
+  - Botão última página
+
+Exemplo:
+Mostrando 1–25 de 342 registros
+
+A paginação deve respeitar os filtros aplicados.
+Não carregar milhares de registros de uma vez.
+A paginação deve ser server-side sempre que possível.
+
+====================================================
+2. FILTROS INTELIGENTES
+====================================================
+
+Revisar todos os filtros do módulo de Contas a Receber para funcionar de forma inteligente e segura.
+
+Regra principal:
+
+Todo filtro em branco deve significar “Todos”.
+
+Exemplos:
+
+- Cliente vazio = todos os clientes
+- Vendedor vazio = todos os vendedores
+- Empresa vazia = todas as empresas
+- Forma de pagamento vazia = todas as formas de pagamento
+- Cidade vazia = todas as cidades
+- UF vazia = todos os estados
+- Status vazio = todos os status
+- Valor mínimo vazio = sem valor mínimo
+- Valor máximo vazio = sem valor máximo
+
+Filtro de data:
+
+O filtro principal do módulo deve sempre considerar DATA DE VENCIMENTO.
+
+Se o período de vencimento estiver vazio:
+- Considerar todo o período existente no banco/cache.
+- Não limitar por mês atual automaticamente.
+- Não esconder dados antigos ou futuros sem o usuário pedir.
+
+Se apenas data inicial for preenchida:
+- Filtrar vencimentos a partir da data inicial.
+
+Se apenas data final for preenchida:
+- Filtrar vencimentos até a data final.
+
+Se data inicial e final forem preenchidas:
+- Filtrar vencimentos dentro do intervalo.
+
+A regra precisa ser clara no backend e no frontend.
+
+Evitar filtros “fantasma”, ou seja:
+- Filtro visual aparece limpo, mas ainda está aplicado internamente.
+- Card clicado aplica filtro sem mostrar visualmente qual filtro está ativo.
+- Troca de aba mantém filtro incompatível sem avisar.
+
+Sempre mostrar filtros ativos em formato de chips/badges, por exemplo:
+Filtros ativos:
+- Status: Vencido
+- Vendedor: João
+- Vencimento: 01/05/2026 até 31/05/2026
+
+Adicionar botão:
+“Limpar filtros”
+
+Esse botão deve realmente limpar todos os filtros e recarregar a visão padrão.
+
+====================================================
+3. COMPORTAMENTO DOS CARDS E BOTÕES
+====================================================
+
+Percebi que ao clicar nos cards do topo ou em “Pendências” no módulo de Contas a Receber, o sistema sempre abre o mesmo popup.
+
+Isso está desnecessário e confuso.
+
+Revisar o comportamento dos cards e botões.
+
+Regra desejada:
+
+Cards do topo devem servir principalmente para FILTRAR a tela atual, não para abrir sempre o mesmo popup.
+
+Exemplos:
+
+Card “Total em Aberto”:
+- Deve aplicar filtro de todos os títulos em aberto.
+
+Card “Vencido”:
+- Deve aplicar filtro status = VENCIDO.
+
+Card “Vence Hoje”:
+- Deve aplicar filtro vencimento = hoje.
+
+Card “A Vencer”:
+- Deve aplicar filtro status = A_VENCER.
+
+Card “Clientes com Pendência”:
+- Deve exibir clientes com saldo aberto.
+
+Card “Maior Risco”:
+- Pode abrir diretamente o detalhe do cliente de maior risco, se fizer sentido.
+
+O botão “Pendências” deve ter função própria e clara.
+
+Se já existir um botão específico para abrir detalhes ou popup, não repetir essa mesma ação nos cards.
+
+Evitar duplicidade de função.
+
+Cada elemento deve ter uma finalidade clara:
+
+- Card = resumo + filtro rápido
+- Botão Ver detalhes = abrir detalhe
+- Botão Pendências = abrir pendências financeiras
+- Botão Imprimir = gerar relatório
+- Botão Exportar = exportar dados
+
+====================================================
+4. COERÊNCIA ENTRE ABAS: CLIENTES, POR VENDEDOR E DUPLICATAS
+====================================================
+
+Revisar a lógica das abas do módulo:
+
+- Clientes
+- Por Vendedor
+- Duplicatas
+- Fila de Cobrança
+- Aging, se existir
+
+Tenho receio de informações erradas ou cruzadas entre filtros e abas.
+
+Preciso que cada aba tenha comportamento lógico e coerente.
+
+Aba Clientes:
+- A visão principal deve ser agrupada por cliente.
+- Filtros válidos:
+  - Período de vencimento
+  - Empresa
+  - Cliente
+  - Vendedor
+  - Status
+  - Cidade
+  - UF
+  - Forma de pagamento
+  - Faixa de atraso
+  - Valor mínimo/máximo
+
+Aba Por Vendedor:
+- A visão deve ser agrupada por vendedor.
+- O filtro de vendedor pode existir, mas deve fazer sentido:
+  - Se nenhum vendedor for selecionado, mostrar todos.
+  - Se um vendedor for selecionado, mostrar somente ele.
+- O filtro de cliente pode ser usado para localizar cliente dentro de vendedor.
+- Não permitir cruzamento confuso onde parece estar analisando todos, mas está filtrado por cliente escondido.
+
+Aba Duplicatas:
+- Deve mostrar títulos individuais.
+- Todos os filtros podem ser usados.
+- É a aba analítica/detalhada.
+
+Fila de Cobrança:
+- Deve priorizar apenas títulos/clientes que precisam de ação.
+- Por padrão, deve focar em vencidos, promessas vencidas, clientes críticos e sem cobrança.
+- Se o usuário aplicar filtro, respeitar o filtro e deixar claro.
+
+Aging:
+- Deve sempre respeitar o período de vencimento selecionado.
+- Se período estiver vazio, considerar todo o período existente.
+
+Regras importantes:
+
+Ao trocar de aba:
+- Manter apenas filtros compatíveis.
+- Se algum filtro não fizer sentido naquela aba, desativar visualmente ou ignorar com aviso claro.
+- Nunca aplicar filtro escondido.
+- Mostrar chips de filtros ativos.
+- O usuário precisa entender exatamente o que está sendo analisado.
+
+Se necessário, implementar filtros globais e filtros específicos por aba.
+
+====================================================
+5. REVISÃO COM BASE NO PAINEL DO ERP
+====================================================
+
+Estou enviando imagens do painel de Contas a Receber do ERP como referência.
+
+Quero que você compare visualmente e funcionalmente com o nosso módulo e verifique se falta alguma informação importante.
+
+O objetivo não é copiar o ERP.
+O objetivo é criar algo mais organizado, produtivo e profissional.
+
+Verificar se no nosso sistema existem informações equivalentes ou melhores para:
+
+- Cliente
+- Vendedor
+- Documento/título
+- Parcela
+- Vencimento
+- Valor previsto/original
+- Valor realizado/pago
+- Valor em aberto
+- Situação
+- Plano de conta, se existir
+- Forma de recebimento
+- Empresa
+- Código do título
+- Status vencido/em aberto/recebido
+- Total do período
+- Realizado no período
+- Não pago no período
+- Total em aberto
+- Total vencido
+- Quantidade de títulos
+- Quantidade de clientes
+- Atraso em dias
+
+Caso alguma informação importante do ERP não exista no nosso módulo, sugerir e implementar se já houver campo disponível no SQL/cache.
+
+Caso não exista no SQL atual, deixar preparado como campo opcional/futuro.
+
+====================================================
+6. PADRONIZAÇÃO DE UX/UI DOS CALENDÁRIOS
+====================================================
+
+Preciso de um único padrão de calendário/data em todo o sistema.
+
+Revisar o módulo de Contas a Receber e também verificar outros módulos que usam calendário/data, principalmente:
+
+- Módulo Vendedores
+- Dashboard
+- Campanhas
+- Relatórios
+- Contas a Receber
+- Outros módulos que tenham filtro por data
+
+Padronizar:
+
+- Visual do componente de calendário
+- Formato de data
+- Ícone
+- Espaçamento
+- Altura do campo
+- Botão limpar data
+- Comportamento ao selecionar período
+- Placeholder
+- Máscara DD/MM/YYYY
+- Conversão correta para backend em YYYY-MM-DD, se necessário
+
+O usuário deve sentir que todo o sistema usa o mesmo componente.
+
+Padrão desejado:
+
+- Data exibida ao usuário: DD/MM/YYYY
+- Data enviada ao backend: YYYY-MM-DD
+- Campo vazio = todos os períodos
+- Permitir limpar data facilmente
+- Evitar datas inválidas
+- Evitar diferença visual entre módulos
+
+Não deixar cada tela com um calendário diferente.
+
+Criar ou reutilizar um componente único, por exemplo:
+
+DateRangeFilter
+DatePickerPadrao
+FiltroPeriodoPadrao
+
+E aplicar em todos os locais possíveis.
+
+====================================================
+7. LIST SELECT PARA FORMA DE PAGAMENTO / FORMA DE RECEBIMENTO
+====================================================
+
+Faltou um List Select para o filtro de Forma de Pagamento/Forma de Recebimento no módulo de Contas a Receber.
+
+Criar filtro do tipo select/lista para:
+
+FORMA_RECEBIMENTO
+
+Campo vindo do SQL:
+FORMA_RECEBIMENTO
+
+Regras:
+
+- Se estiver vazio, considerar todas as formas.
+- Carregar as opções dinamicamente a partir dos dados existentes no cache.
+- Não deixar valores duplicados.
+- Ordenar alfabeticamente.
+- Permitir buscar dentro da lista, se houver muitas opções.
+- Se possível, permitir seleção múltipla.
+
+Exemplo:
+
+Forma de recebimento:
+[Todos]
+[Cartão Próprio]
+[Crediário]
+[Boleto]
+[PIX]
+[Dinheiro]
+[Outros]
+
+O nome real deve vir dos dados da coluna FORMA_RECEBIMENTO.
+
+Esse filtro deve funcionar em:
+
+- Aba Clientes
+- Aba Duplicatas
+- Aba Por Vendedor
+- Impressão
+- Exportação
+- Fila de Cobrança, se fizer sentido
+
+====================================================
+8. IMPRESSÃO PROFISSIONAL DO RELATÓRIO
+====================================================
+
+Reforço importante:
+
+Ao clicar em Imprimir, a impressão do relatório de Contas a Receber precisa sair em padrão profissional, semelhante ou melhor que as imagens de referência.
+
+Não quero uma impressão simples da tela.
+Quero um relatório realmente organizado.
+
+A impressão deve ter layout próprio, usando CSS de impressão.
+
+Criar padrão visual de relatório:
+
+Cabeçalho:
+- Logo ou nome do sistema/empresa, se disponível
+- Título: Relatório de Contas a Receber
+- Período de vencimento selecionado
+- Data/hora de emissão
+- Usuário emissor, se disponível
+- Filtros aplicados
+
+Resumo no topo:
+- Total em aberto
+- Total vencido
+- Vence hoje
+- A vencer
+- Juros pendente
+- Quantidade de clientes
+- Quantidade de títulos
+- Percentual inadimplente
+
+Corpo do relatório:
+
+Permitir escolher tipo de relatório antes de imprimir:
+
+1. Resumo por Cliente
+2. Detalhado por Cliente
+3. Resumo por Vendedor
+4. Detalhado por Vendedor
+5. Duplicatas Detalhadas
+6. Fila de Cobrança
+
+Relatório por Cliente deve mostrar:
+
+- Cliente
+- Código
+- Vendedor
+- Cidade/UF
+- Quantidade de títulos
+- Total em aberto
+- Total vencido
+- Maior atraso
+- Próximo vencimento
+- Status financeiro
+
+Detalhado por Cliente deve mostrar:
+
+- Cliente
+- Código
+- Vendedor
+- Cidade/UF
+- Documento/título
+- Dígito
+- Série
+- Nº nota/cupom
+- Vencimento
+- Dias vencido
+- Valor título
+- Valor pago
+- Valor aberto
+- Juros pendente
+- Forma de recebimento
+- Observação
+
+Resumo por Vendedor deve mostrar:
+
+- Vendedor
+- Quantidade de clientes com pendência
+- Quantidade de clientes vencidos
+- Total em aberto
+- Total vencido
+- Juros pendente
+- Maior atraso
+- Percentual vencido
+
+Fila de Cobrança deve mostrar:
+
+- Prioridade
+- Cliente
+- Vendedor
+- Total vencido
+- Maior atraso
+- Última cobrança
+- Próxima ação
+- Status interno
+
+Rodapé:
+- Total geral
+- Total vencido
+- Total juros
+- Quantidade de registros
+- Página X de Y
+
+Na impressão:
+Ocultar:
+- Menu lateral
+- Botões
+- Filtros interativos
+- Inputs
+- Ícones desnecessários
+- Elementos flutuantes
+
+Manter:
+- Cabeçalho do relatório
+- Resumo
+- Tabelas
+- Totais
+- Rodapé
+
+Regras visuais:
+- Papel A4
+- Margens adequadas
+- Fonte legível
+- Cabeçalho destacado
+- Tabelas com bordas suaves
+- Valores monetários alinhados à direita
+- Datas centralizadas
+- Agrupamentos bem separados
+- Quebra de página correta
+- Não cortar tabela no meio de forma ruim
+- Repetir cabeçalho da tabela ao mudar de página, se possível
+
+O relatório precisa parecer documento profissional para reunião, cobrança e conferência financeira.
+
+====================================================
+9. CLAREZA PARA O COLABORADOR
+====================================================
+
+O colaborador responsável pelo financeiro precisa usar o módulo sem dúvida.
+
+Revisar textos, botões, títulos, abas e filtros.
+
+Evitar nomes confusos.
+
+Exemplos:
+
+Em vez de:
+“Pendências”
+
+Usar, se fizer mais sentido:
+“Ver pendências”
+“Pendências do cliente”
+“Pendências do vendedor”
+
+Em vez de:
+“Por Vendedor”
+
+Pode manter, mas garantir que fique claro:
+“Resumo por Vendedor”
+
+Em vez de:
+“Clientes”
+
+Pode usar:
+“Clientes com Pendência”
+
+Cada aba deve ter uma pequena descrição ou tooltip, se necessário.
+
+Exemplo:
+Clientes com Pendência:
+“Visualize clientes agrupados com valores em aberto e vencidos.”
+
+Resumo por Vendedor:
+“Analise pendências financeiras agrupadas por vendedor responsável.”
+
+Duplicatas:
+“Visualize cada título individualmente.”
+
+Fila de Cobrança:
+“Priorize clientes que precisam de ação financeira.”
+
+====================================================
+10. VALIDAÇÃO FINAL
+====================================================
+
+Após implementar, revisar se:
+
+- Paginação aparece no rodapé.
+- Paginação respeita filtros.
+- Filtros vazios consideram todos.
+- Data de vencimento é o filtro principal.
+- Período vazio considera todo o período existente.
+- Cards filtram corretamente e não abrem popup desnecessário.
+- Botões não repetem a mesma função sem necessidade.
+- Aba Clientes não cruza informação errada com Vendedores.
+- Aba Por Vendedor está coerente e clara.
+- Aba Duplicatas mostra títulos individuais corretamente.
+- Filtro de Forma de Recebimento existe e funciona.
+- Calendários estão padronizados no sistema.
+- Impressão sai profissional e não apenas como print da tela.
+- Relatório impresso possui cabeçalho, resumo, filtros, tabelas e rodapé.
+- O sistema não trava.
+- Nenhum módulo existente foi quebrado.
+- Os dados continuam baseados corretamente no SQL/cache de Contas a Receber.

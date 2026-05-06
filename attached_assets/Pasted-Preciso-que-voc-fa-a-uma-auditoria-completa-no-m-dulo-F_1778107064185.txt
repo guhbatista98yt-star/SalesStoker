@@ -1,0 +1,308 @@
+Preciso que você faça uma auditoria completa no módulo Financeiro > Contas a Receber, com foco em validar se os filtros, cards, tabelas, abas e impressão estão retornando informações coerentes e confiáveis.
+
+Não quero novas funcionalidades agora, a menos que seja necessário para corrigir erro.
+O objetivo é conferir se o módulo está calculando e exibindo os dados corretamente.
+
+IMPORTANTE:
+- Não quebrar módulos existentes.
+- Não alterar layout sem necessidade.
+- Não remover funcionalidades.
+- Não usar dados mockados.
+- Validar com base no cache/dados reais de Contas a Receber.
+- O valor principal em aberto deve continuar sendo VALOR_SALDO_TITULO / valor_aberto.
+
+====================================================
+1. TESTE SEM FILTRO NENHUM
+====================================================
+
+Primeiro cenário:
+
+Abrir Financeiro > Contas a Receber sem aplicar nenhum filtro.
+
+Regras esperadas:
+
+- Cliente vazio = todos os clientes.
+- Vendedor vazio = todos os vendedores.
+- Forma de recebimento vazia = todas as formas.
+- Empresa vazia = todas as empresas.
+- Status vazio = todos os status.
+- Período de vencimento vazio = todo o período existente no banco/cache.
+
+Validar se os cards batem com os dados exibidos:
+
+Card Total em Aberto:
+Deve bater com a soma de valor_aberto de todos os títulos com valor_aberto > 0.
+
+Card Vencido:
+Deve bater com a soma de valor_aberto onde status = VENCIDO.
+
+Card Vence Hoje:
+Deve bater com a soma de valor_aberto onde status = VENCE_HOJE.
+
+Card A Vencer:
+Deve bater com a soma de valor_aberto onde status = A_VENCER.
+
+Card Juros Pendente:
+Deve bater com a soma de valor_juros_pendente.
+
+Clientes com Pendência:
+Deve bater com a quantidade distinta de idclifor com valor_aberto > 0.
+
+Validar também:
+
+- A aba Clientes deve mostrar clientes agrupados corretamente.
+- A aba Duplicatas deve mostrar os títulos individuais.
+- A aba Por Vendedor deve mostrar vendedores agrupados corretamente.
+- A paginação deve respeitar o total real de registros.
+- A impressão sem filtro deve bater com os mesmos totais dos cards.
+
+====================================================
+2. TESTE COM VENDEDOR ESPECÍFICO
+====================================================
+
+Segundo cenário:
+
+Selecionar um vendedor específico no filtro.
+
+Validar:
+
+- Todos os cards devem considerar somente clientes/títulos desse vendedor.
+- A aba Clientes deve mostrar apenas clientes desse vendedor.
+- A aba Duplicatas deve mostrar apenas títulos dos clientes desse vendedor.
+- A aba Por Vendedor deve mostrar somente o vendedor selecionado ou deixar claro que está filtrando aquele vendedor.
+- A Fila de Cobrança deve considerar somente pendências desse vendedor.
+- A impressão deve sair somente com dados desse vendedor.
+- A exportação deve respeitar o mesmo filtro.
+
+Verificar se não existe cruzamento incorreto, como:
+
+- Card calculando todos os vendedores, mas tabela mostrando apenas um.
+- Impressão ignorando o vendedor selecionado.
+- Aba Por Vendedor mostrando total geral mesmo com vendedor filtrado.
+- Filtro visual limpo, mas vendedor ainda aplicado internamente.
+
+Se encontrar esse tipo de erro, corrigir.
+
+====================================================
+3. TESTE COM CLIENTE ESPECÍFICO
+====================================================
+
+Terceiro cenário:
+
+Selecionar um cliente específico no filtro ou clicar em um cliente da aba Clientes.
+
+Validar:
+
+- Os cards devem considerar somente esse cliente quando o filtro estiver aplicado.
+- A tabela de duplicatas deve mostrar somente títulos desse cliente.
+- O detalhe do cliente deve bater com os totais da tabela.
+- O total em aberto do cliente deve ser a soma de valor_aberto dos títulos dele.
+- O total vencido do cliente deve ser a soma de valor_aberto dos títulos vencidos dele.
+- O maior atraso deve considerar apenas os títulos desse cliente.
+- A impressão do cliente deve bater com os cards e duplicatas.
+- A exportação do cliente deve respeitar o filtro.
+
+Verificar se não existe erro como:
+
+- Abrir cliente, mas carregar duplicatas de outro cliente.
+- Card mostrar total geral enquanto detalhe mostra cliente.
+- Impressão sair com clientes misturados.
+- Histórico de cobrança de um título aparecer em outro título.
+- Chave_titulo não sendo usada corretamente.
+
+====================================================
+4. TESTE DOS CARDS CLICÁVEIS
+====================================================
+
+Validar comportamento dos cards:
+
+Card Total em Aberto:
+- Deve filtrar todos os títulos em aberto.
+
+Card Vencido:
+- Deve filtrar apenas vencidos.
+
+Card Vence Hoje:
+- Deve filtrar apenas vencimentos de hoje.
+
+Card A Vencer:
+- Deve filtrar apenas títulos futuros.
+
+Card Maior Risco:
+- Pode abrir o detalhe do cliente de maior risco, se essa for a regra definida.
+
+Importante:
+Os cards não devem abrir sempre o mesmo popup genérico.
+Card deve ter função clara:
+- Ou filtra a tela.
+- Ou abre detalhe específico, quando fizer sentido.
+
+Se algum card estiver abrindo popup repetido e desnecessário, corrigir.
+
+====================================================
+5. TESTE DE FILTROS VAZIOS
+====================================================
+
+Validar todos os filtros vazios:
+
+- Cliente vazio deve considerar todos.
+- Vendedor vazio deve considerar todos.
+- Empresa vazia deve considerar todas.
+- Forma de recebimento vazia deve considerar todas.
+- Status vazio deve considerar todos.
+- Cidade vazia deve considerar todas.
+- UF vazia deve considerar todas.
+- Valor mínimo vazio não deve limitar.
+- Valor máximo vazio não deve limitar.
+- Data inicial vazia e data final vazia devem considerar todo o período existente.
+
+Validar combinações:
+
+- Apenas data inicial preenchida.
+- Apenas data final preenchida.
+- Data inicial e final preenchidas.
+- Vendedor + período.
+- Cliente + período.
+- Forma de recebimento + status.
+- Status vencido + vendedor.
+- Status vencido + cliente.
+
+Se algum filtro vazio estiver restringindo dados indevidamente, corrigir.
+
+====================================================
+6. TESTE DE PAGINAÇÃO
+====================================================
+
+Validar paginação no rodapé:
+
+- Quantidade por página: 10, 25, 50 e 100.
+- Total de registros correto.
+- Total de páginas correto.
+- Botão primeira página funcionando.
+- Botão página anterior funcionando.
+- Botão próxima página funcionando.
+- Botão última página funcionando.
+- Ao trocar filtro, a paginação deve voltar para página 1.
+- A paginação deve respeitar os filtros ativos.
+- A paginação não deve carregar registros duplicados.
+- A paginação não deve esconder registros indevidamente.
+
+====================================================
+7. TESTE DE IMPRESSÃO
+====================================================
+
+Validar impressão profissional:
+
+Testar impressão em:
+
+1. Sem filtro.
+2. Vendedor específico.
+3. Cliente específico.
+4. Somente vencidos.
+5. Período específico.
+6. Forma de recebimento específica.
+
+Validar se o relatório impresso mostra:
+
+- Cabeçalho profissional.
+- Nome do relatório.
+- Período de vencimento selecionado.
+- Data/hora de emissão.
+- Filtros aplicados.
+- Resumo com totais.
+- Tabela organizada.
+- Valores monetários alinhados.
+- Datas no formato DD/MM/YYYY.
+- Rodapé com total geral.
+- Página X de Y, se possível.
+
+Validar se a impressão oculta corretamente:
+
+- Menu lateral.
+- Botões.
+- Inputs.
+- Filtros interativos.
+- Ícones desnecessários.
+- Elementos flutuantes.
+
+A impressão não pode ser apenas um print da tela.
+Precisa ser um relatório limpo, profissional e próprio para reunião/cobrança.
+
+====================================================
+8. TESTE DE CONSISTÊNCIA ENTRE ABAS
+====================================================
+
+Validar se os totais permanecem coerentes entre:
+
+- Cards
+- Aba Clientes
+- Aba Duplicatas
+- Aba Por Vendedor
+- Fila de Cobrança
+- Impressão
+- Exportação
+
+Exemplo:
+
+Se o filtro “Vencido” estiver ativo:
+- Cards devem mostrar vencidos.
+- Clientes devem mostrar clientes com vencido.
+- Duplicatas devem mostrar títulos vencidos.
+- Por Vendedor deve agrupar somente vencidos.
+- Impressão deve sair somente com vencidos.
+- Exportação deve sair somente com vencidos.
+
+Se houver divergência, corrigir a origem da divergência no backend ou na regra de filtro.
+
+====================================================
+9. TESTE DE FORMATAÇÃO
+====================================================
+
+Validar formato brasileiro:
+
+Datas:
+DD/MM/YYYY
+
+Valores:
+R$ 1.234,56
+
+Percentuais:
+12,34%
+
+Campos vazios:
+Mostrar “Não informado” ou “-”, sem quebrar layout.
+
+Status:
+Usar badges visuais consistentes.
+
+Validar se todos os calendários do sistema usam o mesmo padrão visual e funcional, principalmente:
+
+- Dashboard
+- Vendedores
+- Campanhas
+- Contas a Receber
+- Relatórios
+
+====================================================
+10. RESULTADO FINAL ESPERADO
+====================================================
+
+Após a auditoria e correções, entregar um resumo com:
+
+1. O que foi testado.
+2. Quais erros foram encontrados.
+3. O que foi corrigido.
+4. Quais arquivos foram alterados.
+5. Quais regras de filtro foram padronizadas.
+6. Como validar manualmente.
+7. Confirmação de que nenhum módulo existente foi quebrado.
+
+Critério final:
+
+Os totais precisam bater entre cards, tabelas, abas, impressão e exportação nos três cenários principais:
+
+- Sem filtro nenhum.
+- Vendedor específico.
+- Cliente específico.
+
+Se esses três cenários estiverem corretos, o módulo fica confiável para uso operacional.

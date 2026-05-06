@@ -104,16 +104,40 @@ function RiscoBadge({ risco }: { risco: string }) {
   return <span className={cn("text-xs font-semibold", cfg.color)}>{cfg.label}</span>;
 }
 
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-medium text-primary">
+      {label}
+      <button
+        onClick={onRemove}
+        className="ml-0.5 hover:text-primary/60 transition-colors"
+        aria-label="Remover filtro"
+      >
+        <XCircle className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
 // ── KPI Card ───────────────────────────────────────────────────────────────
 
 function KPICard({
-  title, value, subtitle, icon: Icon, iconBg, loading, alert,
+  title, value, subtitle, icon: Icon, iconBg, loading, alert, onClick, active,
 }: {
   title: string; value: string; subtitle?: string;
   icon: React.ElementType; iconBg: string; loading?: boolean; alert?: boolean;
+  onClick?: () => void; active?: boolean;
 }) {
   return (
-    <Card className={cn("relative overflow-hidden", alert && "ring-2 ring-red-500/20")}>
+    <Card
+      className={cn(
+        "relative overflow-hidden transition-all",
+        alert && "ring-2 ring-red-500/20",
+        onClick && "cursor-pointer hover:shadow-md hover:-translate-y-0.5",
+        active && "ring-2 ring-primary border-primary/50"
+      )}
+      onClick={onClick}
+    >
       <CardContent className="p-4">
         {loading ? (
           <div className="space-y-2">
@@ -134,6 +158,9 @@ function KPICard({
               <Icon className="h-4 w-4" />
             </div>
           </div>
+        )}
+        {active && (
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
         )}
       </CardContent>
     </Card>
@@ -249,6 +276,22 @@ export default function ContasReceber() {
     setDuplicataPage(1);
   }, []);
 
+  // ── Active filter count ─────────────────────────────────────────────────
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (filters.status !== "todos") n++;
+    if (filters.busca) n++;
+    if (filters.venc_de) n++;
+    if (filters.venc_ate) n++;
+    if (filters.forma_recebimento) n++;
+    if (filters.somente_vencidos === "1") n++;
+    if (filters.cod_cliente) n++;
+    if (filters.cod_vendedor) n++;
+    if (filters.idtitulo) n++;
+    if (filters.numnota) n++;
+    return n;
+  }, [filters]);
+
   // ── Queries ────────────────────────────────────────────────────────────
 
   const resumo = useResumo();
@@ -329,6 +372,14 @@ export default function ContasReceber() {
     window.print();
   }
 
+  // ── Formas de recebimento (dinâmico) ──────────────────────────────────
+  const formasQ = useQuery({
+    queryKey: ["/api/financeiro/contas-receber/formas-recebimento"],
+    queryFn: () => apiFetch("/api/financeiro/contas-receber/formas-recebimento"),
+    staleTime: 300_000,
+  });
+  const formasList: string[] = formasQ.data?.formas ?? FORMAS_RECEBIMENTO;
+
   const r = resumo.data;
   const isEmptyCache = r && r.qtd_total === 0;
   const pctInadimplente = r && r.total_aberto > 0
@@ -340,14 +391,10 @@ export default function ContasReceber() {
   // ============================================================================
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background print:bg-white">
+    <div className="flex flex-col h-full overflow-hidden bg-background print:bg-white print:h-auto print:overflow-visible">
 
-      {/* ── Print-only header ─────────────────────────────────────────── */}
-      <div className="hidden print:block px-6 pt-6 pb-2">
-        <h1 className="text-lg font-bold">CONECTUBOS — Contas a Receber</h1>
-        <p className="text-xs text-gray-500">Emitido em: {new Date().toLocaleString("pt-BR")}</p>
-        <hr className="mt-2" />
-      </div>
+      {/* ── Professional Print Layout ─────────────────────────────────── */}
+      <PrintReport filters={filters} resumo={r} clientesData={clientesQ.data} dupsData={dupsQ.data} tab={tab} />
 
       {/* ── Page header ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 shrink-0 border-b border-border print:hidden">
@@ -422,7 +469,7 @@ export default function ContasReceber() {
           )}
 
           {/* ── KPI Cards ────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 print:grid-cols-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 print:grid-cols-5 print:gap-2">
             <KPICard
               title="Total em Aberto"
               value={fmtBRL(r?.total_aberto)}
@@ -430,6 +477,8 @@ export default function ContasReceber() {
               icon={DollarSign}
               iconBg="bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400"
               loading={resumo.isLoading}
+              onClick={() => { setFilter("status", "todos"); setFilter("somente_vencidos", "0"); setTab("clientes"); }}
+              active={filters.status === "todos" && filters.somente_vencidos === "0"}
             />
             <KPICard
               title="Total Vencido"
@@ -439,6 +488,8 @@ export default function ContasReceber() {
               iconBg="bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
               loading={resumo.isLoading}
               alert={(r?.total_vencido ?? 0) > 0}
+              onClick={() => { setFilter("status", "VENCIDO"); setTab("clientes"); }}
+              active={filters.status === "VENCIDO"}
             />
             <KPICard
               title="Vence Hoje"
@@ -447,6 +498,8 @@ export default function ContasReceber() {
               icon={Clock}
               iconBg="bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
               loading={resumo.isLoading}
+              onClick={() => { setFilter("status", "VENCE_HOJE"); setTab("clientes"); }}
+              active={filters.status === "VENCE_HOJE"}
             />
             <KPICard
               title="A Vencer"
@@ -455,6 +508,8 @@ export default function ContasReceber() {
               icon={TrendingUp}
               iconBg="bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
               loading={resumo.isLoading}
+              onClick={() => { setFilter("status", "A_VENCER"); setTab("clientes"); }}
+              active={filters.status === "A_VENCER"}
             />
             <KPICard
               title="Juros Pendente"
@@ -463,8 +518,14 @@ export default function ContasReceber() {
               icon={Users}
               iconBg="bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
               loading={resumo.isLoading}
+              onClick={() => { setFilter("somente_vencidos", "1"); setTab("fila"); }}
+              active={filters.somente_vencidos === "1"}
             />
           </div>
+          {/* KPI click hint */}
+          <p className="text-[10px] text-muted-foreground text-right print:hidden -mt-1">
+            Clique em um card para filtrar rapidamente
+          </p>
 
           {/* ── Delinquency threshold (simulation) ──────────────────────── */}
           <div className="print:hidden">
@@ -542,18 +603,89 @@ export default function ContasReceber() {
             >
               <Filter className="h-3.5 w-3.5 mr-1.5" />
               Filtros
+              {activeFilterCount > 0 && (
+                <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
             </Button>
-            {(filters.busca || filters.status !== "todos" || filters.venc_de || filters.venc_ate || filters.forma_recebimento || filters.somente_vencidos === "1" || filters.cod_cliente || filters.cod_vendedor || filters.idtitulo || filters.numnota) && (
+            {activeFilterCount > 0 && (
               <Button
                 variant="ghost" size="sm"
                 onClick={() => { setFilters(DEFAULT_FILTERS); setBuscaInput(""); }}
                 className="h-9 text-muted-foreground"
               >
                 <XCircle className="h-3.5 w-3.5 mr-1.5" />
-                Limpar
+                Limpar tudo
               </Button>
             )}
           </div>
+
+          {/* ── Active Filter Chips ───────────────────────────────────────── */}
+          {activeFilterCount > 0 && (
+            <div className="flex flex-wrap gap-1.5 print:hidden">
+              {filters.status !== "todos" && (
+                <FilterChip
+                  label={`Status: ${STATUS_CONFIG[filters.status]?.label ?? filters.status}`}
+                  onRemove={() => setFilter("status", "todos")}
+                />
+              )}
+              {filters.busca && (
+                <FilterChip
+                  label={`Busca: "${filters.busca}"`}
+                  onRemove={() => { setBuscaInput(""); setFilters(f => ({ ...f, busca: "" })); }}
+                />
+              )}
+              {filters.venc_de && (
+                <FilterChip
+                  label={`Venc. de: ${fmtDate(filters.venc_de)}`}
+                  onRemove={() => setFilter("venc_de", "")}
+                />
+              )}
+              {filters.venc_ate && (
+                <FilterChip
+                  label={`Venc. até: ${fmtDate(filters.venc_ate)}`}
+                  onRemove={() => setFilter("venc_ate", "")}
+                />
+              )}
+              {filters.forma_recebimento && (
+                <FilterChip
+                  label={`Forma: ${filters.forma_recebimento}`}
+                  onRemove={() => { setFilter("forma_recebimento", ""); setFormaSearch(""); }}
+                />
+              )}
+              {filters.somente_vencidos === "1" && (
+                <FilterChip
+                  label="Somente vencidos"
+                  onRemove={() => setFilter("somente_vencidos", "0")}
+                />
+              )}
+              {filters.cod_cliente && (
+                <FilterChip
+                  label={`Cliente: ${filters.cod_cliente}`}
+                  onRemove={() => setFilter("cod_cliente", "")}
+                />
+              )}
+              {filters.cod_vendedor && (
+                <FilterChip
+                  label={`Vendedor: ${filters.cod_vendedor}`}
+                  onRemove={() => setFilter("cod_vendedor", "")}
+                />
+              )}
+              {filters.idtitulo && (
+                <FilterChip
+                  label={`Título: ${filters.idtitulo}`}
+                  onRemove={() => setFilter("idtitulo", "")}
+                />
+              )}
+              {filters.numnota && (
+                <FilterChip
+                  label={`NF: ${filters.numnota}`}
+                  onRemove={() => setFilter("numnota", "")}
+                />
+              )}
+            </div>
+          )}
 
           {/* ── Advanced Filters ──────────────────────────────────────────── */}
           {showFiltros && (
@@ -634,7 +766,7 @@ export default function ContasReceber() {
                     </div>
                     {formaSearch && (
                       <div className="absolute z-20 top-full mt-0.5 left-0 right-0 bg-background border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                        {FORMAS_RECEBIMENTO.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).map(f => (
+                        {formasList.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).map(f => (
                           <button
                             key={f}
                             className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
@@ -646,7 +778,7 @@ export default function ContasReceber() {
                             {f}
                           </button>
                         ))}
-                        {FORMAS_RECEBIMENTO.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).length === 0 && (
+                        {formasList.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).length === 0 && (
                           <p className="px-3 py-2 text-xs text-muted-foreground">
                             Pressione Enter para usar "{formaSearch}"
                           </p>
@@ -671,26 +803,52 @@ export default function ContasReceber() {
           )}
 
           {/* ── Tabs ──────────────────────────────────────────────────────── */}
-          <div className="flex gap-1 border-b border-border print:hidden">
+          <div className="flex gap-1 border-b border-border print:hidden overflow-x-auto">
             {([
-              { key: "clientes",   label: "Clientes",     icon: Users },
-              { key: "duplicatas", label: "Duplicatas",   icon: FileText },
-              { key: "vendedores", label: "Por Vendedor", icon: User },
-              { key: "fila",       label: "Fila Cobrança",icon: List },
-            ] as const).map(({ key, label, icon: Icon }) => (
+              {
+                key: "clientes",
+                label: "Clientes com Pendência",
+                shortLabel: "Clientes",
+                icon: Users,
+                title: "Visualize clientes agrupados com valores em aberto e vencidos.",
+              },
+              {
+                key: "duplicatas",
+                label: "Duplicatas",
+                shortLabel: "Duplicatas",
+                icon: FileText,
+                title: "Visualize cada título individualmente.",
+              },
+              {
+                key: "vendedores",
+                label: "Resumo por Vendedor",
+                shortLabel: "Por Vendedor",
+                icon: User,
+                title: "Analise pendências financeiras agrupadas por vendedor responsável.",
+              },
+              {
+                key: "fila",
+                label: "Fila de Cobrança",
+                shortLabel: "Cobrança",
+                icon: List,
+                title: "Priorize clientes que precisam de ação financeira.",
+              },
+            ] as const).map(({ key, label, shortLabel, icon: Icon, title }) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
+                title={title}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                  "whitespace-nowrap",
+                  "whitespace-nowrap shrink-0",
                   tab === key
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{label}</span>
+                <span className="hidden lg:inline">{label}</span>
+                <span className="lg:hidden hidden sm:inline">{shortLabel}</span>
               </button>
             ))}
           </div>
@@ -704,6 +862,7 @@ export default function ContasReceber() {
               loading={clientesQ.isLoading}
               page={clientePage}
               onPage={setClientePage}
+              perPage={perPage}
               sort={sortClientes}
               onSort={setSortClientes}
               onSelectCliente={setClienteDetalhe}
@@ -719,6 +878,7 @@ export default function ContasReceber() {
               loading={dupsQ.isLoading}
               page={duplicataPage}
               onPage={setDuplicataPage}
+              perPage={perPage}
               sort={sortDuplicatas}
               onSort={setSortDuplicatas}
               onSelectCliente={setClienteDetalhe}
@@ -810,9 +970,10 @@ export default function ContasReceber() {
 // ============================================================================
 
 function ClientesTab({
-  data, loading, page, onPage, sort, onSort, onSelectCliente,
+  data, loading, page, onPage, perPage, sort, onSort, onSelectCliente,
 }: {
   data: any; loading: boolean; page: number; onPage: (p: number) => void;
+  perPage: number;
   sort: { sort: string; dir: string }; onSort: (s: { sort: string; dir: string }) => void;
   onSelectCliente: (id: number) => void;
 }) {
@@ -937,8 +1098,8 @@ function ClientesTab({
       ))}
 
       {/* Pagination */}
-      {(pages > 1 || total > 10) && (
-        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={25} />
+      {(pages > 1 || total > 0) && (
+        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={perPage} />
       )}
     </div>
   );
@@ -949,9 +1110,10 @@ function ClientesTab({
 // ============================================================================
 
 function DuplicatasTab({
-  data, loading, page, onPage, sort, onSort, onSelectCliente,
+  data, loading, page, onPage, perPage, sort, onSort, onSelectCliente,
 }: {
   data: any; loading: boolean; page: number; onPage: (p: number) => void;
+  perPage: number;
   sort: { sort: string; dir: string }; onSort: (s: { sort: string; dir: string }) => void;
   onSelectCliente: (id: number) => void;
 }) {
@@ -1061,8 +1223,8 @@ function DuplicatasTab({
         ))}
       </div>
 
-      {(pages > 1 || total > 10) && (
-        <Pagination page={page} pages={pages} total={total} onPage={onPage} />
+      {(pages > 1 || total > 0) && (
+        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={perPage} />
       )}
     </div>
   );
@@ -1440,6 +1602,235 @@ function VendedorDetalheContent({
 
 
 // ============================================================================
+// Print Report — layout profissional visível apenas no print
+// ============================================================================
+
+function PrintReport({
+  filters, resumo, clientesData, dupsData, tab,
+}: {
+  filters: Filters;
+  resumo: any;
+  clientesData: any;
+  dupsData: any;
+  tab: string;
+}) {
+  const now = new Date().toLocaleString("pt-BR");
+  const clientes = clientesData?.data ?? [];
+  const dups = dupsData?.data ?? [];
+
+  const activeFilters: string[] = [];
+  if (filters.status !== "todos") activeFilters.push(`Status: ${STATUS_CONFIG[filters.status]?.label ?? filters.status}`);
+  if (filters.busca) activeFilters.push(`Busca: "${filters.busca}"`);
+  if (filters.venc_de) activeFilters.push(`Vencimento de: ${fmtDate(filters.venc_de)}`);
+  if (filters.venc_ate) activeFilters.push(`Vencimento até: ${fmtDate(filters.venc_ate)}`);
+  if (filters.forma_recebimento) activeFilters.push(`Forma: ${filters.forma_recebimento}`);
+  if (filters.somente_vencidos === "1") activeFilters.push("Somente vencidos");
+  if (filters.cod_cliente) activeFilters.push(`Cód. Cliente: ${filters.cod_cliente}`);
+  if (filters.cod_vendedor) activeFilters.push(`Cód. Vendedor: ${filters.cod_vendedor}`);
+  if (filters.idtitulo) activeFilters.push(`Nº Título: ${filters.idtitulo}`);
+  if (filters.numnota) activeFilters.push(`Nota Fiscal: ${filters.numnota}`);
+
+  const tabLabel = tab === "clientes" ? "Clientes com Pendência"
+    : tab === "duplicatas" ? "Duplicatas (Títulos)"
+    : tab === "vendedores" ? "Resumo por Vendedor"
+    : "Fila de Cobrança";
+
+  return (
+    <div className="hidden print:block print:text-black print:bg-white">
+      {/* ── Cabeçalho ─────────────────────────────────────────────────── */}
+      <div style={{ borderBottom: "2px solid #1e293b", paddingBottom: "12px", marginBottom: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: "20px", fontWeight: "800", letterSpacing: "-0.5px", color: "#0f172a" }}>
+              CONECTUBOS
+            </div>
+            <div style={{ fontSize: "13px", fontWeight: "600", color: "#334155", marginTop: "2px" }}>
+              Relatório de Contas a Receber — {tabLabel}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", fontSize: "10px", color: "#64748b" }}>
+            <div>Emitido em: {now}</div>
+            {resumo?.ultima_atualizacao && (
+              <div>Dados de: {fmtDatetime(resumo.ultima_atualizacao)}</div>
+            )}
+          </div>
+        </div>
+
+        {/* Filtros ativos */}
+        {activeFilters.length > 0 && (
+          <div style={{ marginTop: "8px", fontSize: "10px", color: "#475569" }}>
+            <span style={{ fontWeight: "600" }}>Filtros aplicados: </span>
+            {activeFilters.join(" · ")}
+          </div>
+        )}
+      </div>
+
+      {/* ── Resumo KPI ────────────────────────────────────────────────── */}
+      {resumo && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "8px", marginBottom: "20px" }}>
+          {[
+            { label: "Total em Aberto", value: fmtBRL(resumo.total_aberto), sub: `${resumo.qtd_total} títulos` },
+            { label: "Total Vencido", value: fmtBRL(resumo.total_vencido), sub: `${resumo.qtd_vencido} títulos`, alert: resumo.total_vencido > 0 },
+            { label: "Vence Hoje", value: fmtBRL(resumo.total_vence_hoje), sub: `${resumo.qtd_hoje} títulos` },
+            { label: "A Vencer", value: fmtBRL(resumo.total_a_vencer), sub: `${resumo.qtd_a_vencer} títulos` },
+            { label: "Juros Pendente", value: fmtBRL(resumo.total_juros), sub: `${resumo.clientes_vencidos} clientes em atraso` },
+          ].map(({ label, value, sub, alert }) => (
+            <div key={label} style={{
+              border: `1px solid ${alert ? "#fca5a5" : "#e2e8f0"}`,
+              borderRadius: "6px",
+              padding: "8px 10px",
+              backgroundColor: alert ? "#fef2f2" : "#f8fafc",
+            }}>
+              <div style={{ fontSize: "9px", color: "#64748b", fontWeight: "500", marginBottom: "2px" }}>{label}</div>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: alert ? "#dc2626" : "#0f172a" }}>{value}</div>
+              <div style={{ fontSize: "9px", color: "#94a3b8" }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tabela de Clientes ────────────────────────────────────────── */}
+      {tab === "clientes" && clientes.length > 0 && (
+        <div>
+          <div style={{ fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Clientes com Pendência ({clientesData?.total ?? clientes.length} total)
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#1e293b", color: "#fff" }}>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Cliente</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Vendedor</th>
+                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Vencido</th>
+                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Total Aberto</th>
+                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Atraso</th>
+                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Juros</th>
+                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Títulos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clientes.map((row: any, i: number) => (
+                <tr key={row.idclifor} style={{ backgroundColor: i % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "5px 8px", fontWeight: "500" }}>
+                    <div>{row.nomecliente}</div>
+                    {row.cidade_cobranca && (
+                      <div style={{ fontSize: "8px", color: "#94a3b8" }}>{row.cidade_cobranca}/{row.uf_cobranca}</div>
+                    )}
+                  </td>
+                  <td style={{ padding: "5px 8px", color: "#64748b" }}>{row.nomevendedor ?? "—"}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: "600", color: row.total_vencido > 0 ? "#dc2626" : "#0f172a" }}>
+                    {fmtBRL(row.total_vencido)}
+                  </td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: "500" }}>{fmtBRL(row.total_aberto)}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "center", color: row.maior_atraso > 30 ? "#dc2626" : row.maior_atraso > 7 ? "#d97706" : "#64748b" }}>
+                    {row.maior_atraso > 0 ? `${row.maior_atraso}d` : "—"}
+                  </td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#64748b" }}>{fmtBRL(row.juros_pendente)}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "center", color: "#64748b" }}>{row.qtd_titulos}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ backgroundColor: "#1e293b", color: "#fff", fontWeight: "700" }}>
+                <td colSpan={2} style={{ padding: "6px 8px" }}>TOTAL</td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                  {fmtBRL(clientes.reduce((s: number, r: any) => s + (Number(r.total_vencido) || 0), 0))}
+                </td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                  {fmtBRL(clientes.reduce((s: number, r: any) => s + (Number(r.total_aberto) || 0), 0))}
+                </td>
+                <td></td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                  {fmtBRL(clientes.reduce((s: number, r: any) => s + (Number(r.juros_pendente) || 0), 0))}
+                </td>
+                <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                  {clientes.reduce((s: number, r: any) => s + (Number(r.qtd_titulos) || 0), 0)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+          {clientesData?.total > clientes.length && (
+            <div style={{ fontSize: "9px", color: "#94a3b8", marginTop: "4px", textAlign: "right" }}>
+              * Exibindo {clientes.length} de {clientesData.total} clientes. Para relatório completo, aumente o limite de registros por página.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tabela de Duplicatas ──────────────────────────────────────── */}
+      {tab === "duplicatas" && dups.length > 0 && (
+        <div>
+          <div style={{ fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Duplicatas / Títulos ({dupsData?.total ?? dups.length} total)
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#1e293b", color: "#fff" }}>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Cliente</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Título</th>
+                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Vencimento</th>
+                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Atraso</th>
+                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Forma</th>
+                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>V. Original</th>
+                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>V. Aberto</th>
+                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dups.map((row: any, i: number) => (
+                <tr key={row.id} style={{ backgroundColor: i % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "5px 8px" }}>
+                    <div style={{ fontWeight: "500" }}>{row.nomecliente}</div>
+                    <div style={{ fontSize: "8px", color: "#94a3b8" }}>{row.nomevendedor}</div>
+                  </td>
+                  <td style={{ padding: "5px 8px", fontFamily: "monospace", fontSize: "9px" }}>
+                    {row.idtitulo}/{row.digitotitulo}
+                    {row.numnota ? ` · NF ${row.numnota}` : ""}
+                  </td>
+                  <td style={{ padding: "5px 8px", textAlign: "center" }}>{fmtDate(row.dtvencimento)}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "center", color: row.dias_atraso > 30 ? "#dc2626" : row.dias_atraso > 0 ? "#d97706" : "#64748b" }}>
+                    {row.dias_atraso > 0 ? `${row.dias_atraso}d` : "—"}
+                  </td>
+                  <td style={{ padding: "5px 8px", color: "#64748b", fontSize: "9px" }}>{row.forma_recebimento ?? "—"}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#64748b" }}>{fmtBRL(row.valor_original)}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: "600" }}>{fmtBRL(row.valor_aberto)}</td>
+                  <td style={{ padding: "5px 8px", textAlign: "center", fontSize: "9px", fontWeight: "600",
+                    color: row.status === "VENCIDO" ? "#dc2626" : row.status === "VENCE_HOJE" ? "#d97706" : "#2563eb" }}>
+                    {STATUS_CONFIG[row.status]?.label ?? row.status}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ backgroundColor: "#1e293b", color: "#fff", fontWeight: "700" }}>
+                <td colSpan={6} style={{ padding: "6px 8px" }}>TOTAL</td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                  {fmtBRL(dups.reduce((s: number, r: any) => s + (Number(r.valor_aberto) || 0), 0))}
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {/* ── Rodapé ────────────────────────────────────────────────────── */}
+      <div style={{
+        marginTop: "24px",
+        paddingTop: "8px",
+        borderTop: "1px solid #e2e8f0",
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: "9px",
+        color: "#94a3b8",
+      }}>
+        <span>CONECTUBOS — Relatório Financeiro Confidencial</span>
+        <span>Emitido em {now}</span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Pagination
 // ============================================================================
 
@@ -1450,9 +1841,17 @@ function Pagination({
   onPage: (p: number) => void;
   perPage?: number; onPerPage?: (n: number) => void;
 }) {
+  const pp = perPage ?? 25;
+  const from = total === 0 ? 0 : (page - 1) * pp + 1;
+  const to = Math.min(page * pp, total);
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 print:hidden">
-      <p className="text-xs text-muted-foreground">{total} registro{total !== 1 ? "s" : ""}</p>
+      <p className="text-xs text-muted-foreground">
+        {total === 0
+          ? "Nenhum registro"
+          : `Exibindo ${from}–${to} de ${total} registro${total !== 1 ? "s" : ""}`}
+      </p>
       <div className="flex items-center gap-3">
         {onPerPage && (
           <div className="flex items-center gap-1.5">
@@ -1469,12 +1868,30 @@ function Pagination({
           </div>
         )}
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={() => onPage(page - 1)} disabled={page === 1} className="h-7 w-7 p-0">
+          <Button
+            variant="outline" size="sm"
+            onClick={() => onPage(1)} disabled={page === 1}
+            className="h-7 w-7 p-0" title="Primeira página"
+          >
+            <ChevronLeft className="h-3 w-3" style={{ marginRight: "-4px" }} />
+            <ChevronLeft className="h-3 w-3" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onPage(page - 1)} disabled={page === 1} className="h-7 w-7 p-0" title="Página anterior">
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-xs text-muted-foreground px-2">Pág. {page} de {pages}</span>
-          <Button variant="outline" size="sm" onClick={() => onPage(page + 1)} disabled={page >= pages} className="h-7 w-7 p-0">
+          <span className="text-xs text-muted-foreground px-2 whitespace-nowrap">
+            {page} / {pages}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => onPage(page + 1)} disabled={page >= pages} className="h-7 w-7 p-0" title="Próxima página">
             <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="outline" size="sm"
+            onClick={() => onPage(pages)} disabled={page >= pages}
+            className="h-7 w-7 p-0" title="Última página"
+          >
+            <ChevronRight className="h-3 w-3" style={{ marginLeft: "-4px" }} />
+            <ChevronRight className="h-3 w-3" />
           </Button>
         </div>
       </div>

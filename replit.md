@@ -74,7 +74,7 @@ drizzle-kit push:pg
 - **Campaign Management System**: Full commercial campaign management, including rule builder, simulation, versioning, and audit trails.
 - **Purchase Copilot with Notifications**: Real-time purchase alerts, notification center with sound, and administrative/user preferences for alerts.
 - **User & Permissions Management**: Admin-only page for managing users, roles, granular permissions, and access audit logs.
-- **Financeiro > Contas a Receber**: Accounts receivable module with KPI cards (total, vencido, vence hoje, a vencer, juros), client grouping, duplicata listing, aging analysis, per-vendor view, collection queue, internal collection logging, CSV export, and print layout. Data synced from ERP via `cache_contas_receber`. Internal management via `financeiro_cobrancas` + `financeiro_cobrancas_historico`.
+- **Financeiro > Contas a Receber**: Accounts receivable module with clickable KPI cards (filter on click), active filter chips (removable badges), smart pagination (first/last buttons, "Showing X–Y of Z"), dynamic forma de recebimento from API, renamed tabs ("Clientes com Pendência", "Resumo por Vendedor", etc.), professional A4 print layout (PrintReport component), and XLSX export. Data synced from ERP via `cache_contas_receber`.
 - **Responsive UI**: BI-tool-inspired design with dark/light theme, mobile bottom navigation, and adaptable layouts.
 
 ## User preferences
