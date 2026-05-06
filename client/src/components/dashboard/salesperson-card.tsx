@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp, TrendingDown, Minus, List, Loader2, AlertCircle,
-  AlertTriangle, CircleDollarSign, ChevronRight,
+  CircleDollarSign, AlertTriangle,
 } from "lucide-react";
 import { formatCurrency, formatPercentage } from "@/lib/calendar-utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -49,6 +49,7 @@ interface SalespersonCardProps {
   period?: { startDate: string; endDate: string };
   onClick?: () => void;
   showMovimentacoesButton?: boolean;
+  showFinanceiroButton?: boolean;
   financialSummary?: FinancialSummary | null;
 }
 
@@ -96,15 +97,6 @@ function riskColor(risco: string): string {
   }
 }
 
-function riskBg(risco: string): string {
-  switch (risco) {
-    case "CRITICO":  return "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800";
-    case "ATRASADO": return "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800";
-    case "ATENCAO":  return "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800";
-    default:         return "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800";
-  }
-}
-
 function riskLabel(risco: string): string {
   switch (risco) {
     case "CRITICO":  return "Crítico";
@@ -144,11 +136,11 @@ function MovimentacoesModal({
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-4xl w-full">
+      <DialogContent className="max-w-4xl w-[95vw] sm:w-full">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-base leading-tight">
             Movimentações — {salesperson.name}
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
+            <span className="block sm:inline sm:ml-2 text-sm font-normal text-muted-foreground">
               {period.startDate} a {period.endDate}
             </span>
           </DialogTitle>
@@ -160,17 +152,15 @@ function MovimentacoesModal({
             <span>Carregando movimentações...</span>
           </div>
         )}
-
         {error && (
           <div className="flex items-center justify-center py-12 gap-2 text-destructive">
             <AlertCircle className="h-5 w-5" />
             <span>Erro ao carregar movimentações</span>
           </div>
         )}
-
         {data && !isLoading && (
           <>
-            <div className="flex gap-4 mb-2 text-sm flex-wrap">
+            <div className="flex gap-3 mb-2 text-sm flex-wrap">
               <div className="bg-emerald-50 dark:bg-emerald-950 rounded px-3 py-1.5">
                 <span className="text-muted-foreground">Vendas: </span>
                 <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatCurrency(totalVendas)}</span>
@@ -180,42 +170,41 @@ function MovimentacoesModal({
                 <span className="font-semibold text-red-700 dark:text-red-400">{formatCurrency(totalDevol)}</span>
               </div>
             </div>
-
             {data.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 Nenhuma movimentação encontrada neste período.
               </div>
             ) : (
-              <ScrollArea className="h-[420px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Emp.</TableHead>
-                      <TableHead>Nota/Cupom</TableHead>
-                      <TableHead>Série</TableHead>
-                      <TableHead className="text-right">Val. Contábil</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.map((mov, i) => (
-                      <TableRow
-                        key={i}
-                        className={mov.isDevolucao ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400" : ""}
-                      >
-                        <TableCell className="whitespace-nowrap">{formatDate(mov.dtMovimento)}</TableCell>
-                        <TableCell className="max-w-[180px] truncate">{mov.nomeCliente || "-"}</TableCell>
-                        <TableCell>{mov.idEmpresa}</TableCell>
-                        <TableCell className="font-mono text-xs">{mov.numNota}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{mov.serieNota || "-"}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          {formatCurrency(mov.valContabil)}
-                        </TableCell>
+              <ScrollArea className="h-[50vh] sm:h-[420px]">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="whitespace-nowrap">Data</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead className="hidden sm:table-cell">Emp.</TableHead>
+                        <TableHead className="hidden sm:table-cell">Nota</TableHead>
+                        <TableHead className="text-right whitespace-nowrap">Valor</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {data.map((mov, i) => (
+                        <TableRow
+                          key={i}
+                          className={mov.isDevolucao ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400" : ""}
+                        >
+                          <TableCell className="whitespace-nowrap text-xs">{formatDate(mov.dtMovimento)}</TableCell>
+                          <TableCell className="max-w-[140px] truncate text-xs">{mov.nomeCliente || "-"}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-xs">{mov.idEmpresa}</TableCell>
+                          <TableCell className="hidden sm:table-cell font-mono text-xs">{mov.numNota}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap text-xs font-semibold">
+                            {formatCurrency(mov.valContabil)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </ScrollArea>
             )}
           </>
@@ -225,7 +214,7 @@ function MovimentacoesModal({
   );
 }
 
-// ── Financial Details Sheet ───────────────────────────────────────────────────
+// ── Financial Pendencies Sheet ────────────────────────────────────────────────
 
 function FinancialSheet({
   salesperson,
@@ -256,11 +245,11 @@ function FinancialSheet({
 
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
-            Pendências Financeiras — {salesperson.name}
+      <SheetContent side="bottom" className="h-[85dvh] sm:h-auto sm:max-h-[90vh] sm:w-[480px] sm:right-0 sm:left-auto sm:rounded-l-xl rounded-t-xl overflow-y-auto">
+        <SheetHeader className="pb-2 border-b">
+          <SheetTitle className="flex items-center gap-2 text-base leading-tight">
+            <CircleDollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="truncate">Pendências — {salesperson.name}</span>
           </SheetTitle>
         </SheetHeader>
 
@@ -270,87 +259,85 @@ function FinancialSheet({
             <span>Carregando...</span>
           </div>
         )}
-
         {error && (
           <div className="flex items-center justify-center py-16 gap-2 text-destructive">
             <AlertCircle className="h-5 w-5" />
-            <span>Erro ao carregar dados financeiros</span>
+            <span>Erro ao carregar dados</span>
           </div>
         )}
 
         {!isLoading && !error && (
-          <div className="mt-6 space-y-6">
+          <div className="mt-4 space-y-4 pb-6">
             {resumo ? (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Total Vencido</p>
-                    <p className="text-lg font-bold text-red-700 dark:text-red-400">{formatCurrency(Number(resumo.total_vencido))}</p>
+                    <p className="text-base font-bold text-red-700 dark:text-red-400 truncate">{formatCurrency(Number(resumo.total_vencido))}</p>
                   </div>
                   <div className="rounded-lg border p-3 bg-muted/40">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Total em Aberto</p>
-                    <p className="text-lg font-bold">{formatCurrency(Number(resumo.total_aberto))}</p>
+                    <p className="text-base font-bold truncate">{formatCurrency(Number(resumo.total_aberto))}</p>
                   </div>
                   <div className="rounded-lg border p-3 bg-muted/40">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Clientes Vencidos</p>
-                    <p className="text-lg font-bold">{resumo.clientes_vencidos ?? 0}</p>
+                    <p className="text-base font-bold">{resumo.clientes_vencidos ?? 0}</p>
                   </div>
                   <div className="rounded-lg border p-3 bg-muted/40">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Maior Atraso</p>
-                    <p className="text-lg font-bold">{resumo.maior_atraso ?? 0}d</p>
+                    <p className="text-base font-bold">{resumo.maior_atraso ?? 0} dias</p>
                   </div>
                 </div>
 
                 {clientes.length > 0 && (
                   <div>
-                    <p className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide text-[11px]">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">
                       Clientes com Pendências
                     </p>
-                    <ScrollArea className="h-[360px]">
-                      <div className="space-y-2 pr-2">
-                        {clientes.map(cli => (
-                          <div
-                            key={cli.idclifor}
-                            className="rounded-lg border p-3 text-sm flex flex-col gap-1"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium truncate flex-1">{cli.nomecliente}</span>
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[10px] shrink-0", riskColor(cli.status_cliente))}
-                              >
-                                {riskLabel(cli.status_cliente)}
-                              </Badge>
-                            </div>
-                            {cli.cidade_cobranca && (
-                              <span className="text-[11px] text-muted-foreground">
-                                {cli.cidade_cobranca}{cli.uf_cobranca ? ` — ${cli.uf_cobranca}` : ""}
-                              </span>
-                            )}
-                            <div className="flex gap-4 text-[11px] mt-0.5">
-                              <span className="text-muted-foreground">
-                                Vencido: <span className="font-semibold text-red-600 dark:text-red-400">
-                                  {formatCurrency(Number(cli.total_vencido))}
-                                </span>
-                              </span>
-                              <span className="text-muted-foreground">
-                                Atraso: <span className="font-semibold">{cli.maior_atraso}d</span>
-                              </span>
-                              <span className="text-muted-foreground">
-                                Títulos: <span className="font-semibold">{cli.qtd_titulos}</span>
-                              </span>
-                            </div>
+                    <div className="space-y-2">
+                      {clientes.map(cli => (
+                        <div
+                          key={cli.idclifor}
+                          className="rounded-lg border p-3 text-sm flex flex-col gap-1"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-medium text-sm leading-snug flex-1 min-w-0 break-words">{cli.nomecliente}</span>
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px] shrink-0 whitespace-nowrap", riskColor(cli.status_cliente))}
+                            >
+                              {riskLabel(cli.status_cliente)}
+                            </Badge>
                           </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                          {cli.cidade_cobranca && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {cli.cidade_cobranca}{cli.uf_cobranca ? ` — ${cli.uf_cobranca}` : ""}
+                            </span>
+                          )}
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] mt-0.5">
+                            <span className="text-muted-foreground">
+                              Vencido: <span className="font-semibold text-red-600 dark:text-red-400">
+                                {formatCurrency(Number(cli.total_vencido))}
+                              </span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              Atraso: <span className="font-semibold">{cli.maior_atraso}d</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              Títulos: <span className="font-semibold">{cli.qtd_titulos}</span>
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </>
             ) : (
               <div className="text-center py-16 text-muted-foreground">
                 <CircleDollarSign className="h-8 w-8 mx-auto mb-3 opacity-40" />
-                <p>Nenhuma pendência financeira</p>
+                <p className="font-medium">Sem pendências financeiras</p>
+                <p className="text-sm mt-1">Este vendedor não possui duplicatas em aberto.</p>
               </div>
             )}
           </div>
@@ -400,54 +387,6 @@ function YoyBadge({ value }: { value: number }) {
   );
 }
 
-// ── Financial Indicator Strip ─────────────────────────────────────────────────
-
-function FinancialIndicator({
-  summary,
-  onDetails,
-}: {
-  summary: FinancialSummary;
-  onDetails: () => void;
-}) {
-  const totalVencido = Number(summary.total_vencido) || 0;
-  const clientesVencidos = Number(summary.clientes_vencidos) || 0;
-  const maiorAtraso = Number(summary.maior_atraso) || 0;
-  const risco = summary.status_risco;
-
-  if (totalVencido <= 0) return null;
-
-  return (
-    <div
-      className={cn(
-        "mt-2.5 rounded-lg border px-2.5 py-2 cursor-pointer hover:opacity-80 transition-opacity",
-        riskBg(risco)
-      )}
-      onClick={e => { e.stopPropagation(); onDetails(); }}
-      title="Ver pendências financeiras"
-    >
-      <div className="flex items-center justify-between gap-1 mb-1">
-        <div className="flex items-center gap-1">
-          <AlertTriangle className={cn("h-3 w-3 shrink-0", riskColor(risco))} />
-          <span className={cn("text-[10px] font-semibold uppercase tracking-wide", riskColor(risco))}>
-            Pendências Financeiras
-          </span>
-        </div>
-        <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-      </div>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className={cn("text-sm font-bold", riskColor(risco))}>
-          {formatCurrency(totalVencido)}
-        </span>
-        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-          {clientesVencidos > 0 && `${clientesVencidos} cliente${clientesVencidos !== 1 ? "s" : ""}`}
-          {clientesVencidos > 0 && maiorAtraso > 0 && " · "}
-          {maiorAtraso > 0 && `${maiorAtraso}d atraso`}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Card ─────────────────────────────────────────────────────────────────
 
 export function SalespersonCard({
@@ -456,6 +395,7 @@ export function SalespersonCard({
   period,
   onClick,
   showMovimentacoesButton = true,
+  showFinanceiroButton = false,
   financialSummary,
 }: SalespersonCardProps) {
   const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
@@ -480,10 +420,15 @@ export function SalespersonCard({
     metaPct >= 60  ? "text-amber-600 dark:text-amber-400" :
     "text-red-600 dark:text-red-400";
 
+  const hasFooter = showMovimentacoesButton || showFinanceiroButton;
+
+  // Badge for overdue count on the Pendências button
+  const vencidosCount = financialSummary ? Number(financialSummary.qtd_titulos_vencidos) || 0 : 0;
+
   return (
     <>
       <Card
-        className="hover-elevate cursor-pointer transition-all"
+        className="hover-elevate cursor-pointer transition-all overflow-hidden"
         onClick={onClick}
         data-testid={`salesperson-card-${salesperson.id}`}
       >
@@ -519,20 +464,20 @@ export function SalespersonCard({
           </div>
 
           {/* ── Secondary metrics 4-col grid ──────────────────── */}
-          <div className="grid grid-cols-4 gap-x-2 gap-y-1.5 text-[11px] mb-3 bg-muted/40 rounded-lg px-2 py-2">
-            <div>
-              <p className="text-muted-foreground leading-none mb-0.5">Ticket</p>
-              <p className="font-semibold leading-tight">{formatCurrency(stats.ticketMedio)}</p>
+          <div className="grid grid-cols-4 gap-x-1 gap-y-1.5 text-[11px] mb-3 bg-muted/40 rounded-lg px-2 py-2">
+            <div className="min-w-0">
+              <p className="text-muted-foreground leading-none mb-0.5 truncate">Ticket</p>
+              <p className="font-semibold leading-tight truncate">{formatCurrency(stats.ticketMedio)}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-muted-foreground leading-none mb-0.5">Posit.</p>
               <p className="font-semibold leading-tight">{stats.positivacao}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-muted-foreground leading-none mb-0.5">Mix</p>
               <p className="font-semibold leading-tight">{stats.mixProdutos}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-muted-foreground leading-none mb-0.5">T×C</p>
               <p className="font-semibold leading-tight">
                 {stats.conexoesSobreTubos !== null
@@ -542,29 +487,47 @@ export function SalespersonCard({
             </div>
           </div>
 
-          {/* ── Financial delinquency indicator ───────────────── */}
-          {financialSummary && (
-            <FinancialIndicator
-              summary={financialSummary}
-              onDetails={() => setShowFinanceiro(true)}
-            />
-          )}
-
-          {/* ── Footer: movimentações ──────────────────────────── */}
-          {showMovimentacoesButton && (
-            <div className={cn("pt-2 border-t border-border/60", financialSummary ? "mt-2.5" : "")}>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2.5 text-xs gap-1.5 w-full"
-                onClick={e => {
-                  e.stopPropagation();
-                  setShowMovimentacoes(true);
-                }}
-              >
-                <List className="h-3 w-3" />
-                Ver Movimentações
-              </Button>
+          {/* ── Footer buttons ─────────────────────────────────── */}
+          {hasFooter && (
+            <div className="pt-2 border-t border-border/60">
+              <div className={cn(
+                "grid gap-1.5",
+                showMovimentacoesButton && showFinanceiroButton ? "grid-cols-2" : "grid-cols-1"
+              )}>
+                {showMovimentacoesButton && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs gap-1 w-full min-w-0"
+                    onClick={e => { e.stopPropagation(); setShowMovimentacoes(true); }}
+                  >
+                    <List className="h-3 w-3 shrink-0" />
+                    <span className="truncate">Movimentações</span>
+                  </Button>
+                )}
+                {showFinanceiroButton && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      "h-7 px-2 text-xs gap-1 w-full min-w-0",
+                      vencidosCount > 0 && "border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                    )}
+                    onClick={e => { e.stopPropagation(); setShowFinanceiro(true); }}
+                  >
+                    {vencidosCount > 0
+                      ? <AlertTriangle className="h-3 w-3 shrink-0" />
+                      : <CircleDollarSign className="h-3 w-3 shrink-0" />
+                    }
+                    <span className="truncate">Pendências</span>
+                    {vencidosCount > 0 && (
+                      <span className="ml-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900 text-[9px] font-bold text-red-700 dark:text-red-300">
+                        {vencidosCount > 99 ? "99+" : vencidosCount}
+                      </span>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

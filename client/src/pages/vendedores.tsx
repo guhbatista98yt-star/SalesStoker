@@ -10,10 +10,9 @@ import {
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard, type FinancialSummary } from "@/components/dashboard/salesperson-card";
-import { Search, Grid3X3, List, Users, Eye, EyeOff } from "lucide-react";
+import { Search, Grid3X3, List, Users } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
-import { Badge } from "@/components/ui/badge";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
 
 interface VendorGroup {
@@ -46,9 +45,6 @@ export default function Vendedores() {
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
-  const [showHidden, setShowHidden] = useState(false);
-
-  const canManageVisibility = isAdmin || isSupervisor;
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -60,26 +56,11 @@ export default function Vendedores() {
     }
   }, [companies, companyId]);
 
-  const { data: hiddenVendors = [] } = useQuery<{ id: string; isHidden: boolean }[]>({
-    queryKey: ["/api/admin/vendor-visibility"],
-    queryFn: async () => {
-      const token = getAuthToken();
-      const res = await fetch("/api/admin/vendor-visibility", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: canManageVisibility,
-    staleTime: 60_000,
-  });
-  const hiddenCount = hiddenVendors.filter(v => v.isHidden).length;
-
   const { data: salespersons = [], isLoading: salespersonsLoading } = useQuery<SalespersonWithStats[]>({
-    queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate, showHidden],
+    queryKey: ["/api/salespersons", companyId, period.startDate, period.endDate],
     queryFn: async () => {
       const token = getAuthToken();
-      const url = `/api/salespersons/${encodeURIComponent(companyId)}/${period.startDate}/${period.endDate}${showHidden ? "?showHidden=true" : ""}`;
+      const url = `/api/salespersons/${encodeURIComponent(companyId)}/${period.startDate}/${period.endDate}`;
       const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -201,29 +182,9 @@ export default function Vendedores() {
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho individual</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {canManageVisibility && (
-              <Button
-                variant={showHidden ? "secondary" : "ghost"}
-                size="sm"
-                className="h-8 gap-1.5 text-xs"
-                onClick={() => setShowHidden(v => !v)}
-                title={showHidden ? "Clique para ocultar os inativos" : "Clique para exibir os inativos"}
-              >
-                {showHidden
-                  ? <Eye className="h-3.5 w-3.5 text-amber-500" />
-                  : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                }
-                Inativos
-                {hiddenCount > 0 && (
-                  <Badge variant={showHidden ? "default" : "secondary"} className="ml-0.5 h-4 px-1 text-[10px]">
-                    {hiddenCount}
-                  </Badge>
-                )}
-              </Button>
-            )}
             {showGroupFilter && (
               <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                <SelectTrigger className="h-8 text-xs w-40 gap-1.5">
+                <SelectTrigger className="h-8 text-xs w-36 gap-1.5">
                   <Users className="h-3 w-3 text-muted-foreground shrink-0" />
                   <SelectValue placeholder="Grupo..." />
                 </SelectTrigger>
@@ -246,10 +207,10 @@ export default function Vendedores() {
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-2 flex-1">
-            <div className="relative w-full sm:w-80">
+          <div className="flex items-center gap-2 flex-1 w-full">
+            <div className="relative flex-1 sm:max-w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar vendedor..."
@@ -261,14 +222,15 @@ export default function Vendedores() {
             </div>
             {selectedGroup && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {filteredSalespersons.length} de {dedupedSalespersons.length} vendedores
+                {filteredSalespersons.length}/{dedupedSalespersons.length}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
               size="icon"
+              className="h-8 w-8"
               onClick={() => setViewMode("grid")}
               data-testid="button-view-grid"
             >
@@ -277,6 +239,7 @@ export default function Vendedores() {
             <Button
               variant={viewMode === "list" ? "secondary" : "ghost"}
               size="icon"
+              className="h-8 w-8"
               onClick={() => setViewMode("list")}
               data-testid="button-view-list"
             >
@@ -286,7 +249,7 @@ export default function Vendedores() {
         </div>
 
         {salespersonsLoading ? (
-          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
+          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
             {[...Array(6)].map((_, i) => (
               <div key={i} className="h-44 bg-card rounded-md animate-pulse" />
             ))}
@@ -297,7 +260,7 @@ export default function Vendedores() {
             <p className="text-sm">Tente ajustar os filtros ou período</p>
           </div>
         ) : (
-          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 max-w-2xl"}`}>
+          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 max-w-2xl"}`}>
             {filteredSalespersons.map(({ salesperson, stats }) => (
               <SalespersonCard
                 key={salesperson.id}
@@ -305,6 +268,7 @@ export default function Vendedores() {
                 stats={stats}
                 period={{ startDate: period.startDate, endDate: period.endDate }}
                 showMovimentacoesButton={showMovimentacoesButton()}
+                showFinanceiroButton={canSeeFinanceiro}
                 financialSummary={canSeeFinanceiro ? (financialByVendedor.get(salesperson.id) ?? null) : null}
               />
             ))}
