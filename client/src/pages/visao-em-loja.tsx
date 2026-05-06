@@ -135,14 +135,11 @@ function CustomBarLabel({ x, y, width, height, value, fill }: any) {
     const numY = Number(y);
     const cx = Number(x) + Number(width) / 2;
 
-    // Se a barra for alta o suficiente, bota uns 16px abaixo do topo, por dentro.
-    // Senao bota 12px pra cima do topo (y - 12), por fora.
-    const isInside = numH >= 34;
-    const textY = isInside ? numY + 16 : Math.max(0, numY - 12);
+    const textY = Math.max(14, numY - 8);
 
     // O valor original em dataKey é salesL01 / salesL03 (no formato ex: 52700)
     // Então dividimos por 1000 para gerar o falso percentual igual ao design original (2 casas)
-    const pct = (Number(value) / 1000).toFixed(2).replace('.', ',');
+    const label = `${(Number(value) / 1000).toFixed(2).replace('.', ',')}%`;
 
     // Diminuindo o fontsize para caber melhor na barra
     return (
@@ -154,7 +151,7 @@ function CustomBarLabel({ x, y, width, height, value, fill }: any) {
             fontWeight={700}
             textAnchor="middle"
         >
-            {pct}%
+            {label}
         </text>
     );
 }
@@ -259,6 +256,14 @@ export default function VisaoEmLoja() {
                 salesTotal: v.sales.total
             };
         });
+    const maxChartValue = Math.max(
+        1,
+        ...(chartData ?? []).flatMap((item) => [
+            Number(item.salesL01) || 0,
+            Number(item.salesL03) || 0,
+            Number(item.salesLMatriz) || 0,
+        ]),
+    );
 
     return (
         <div className="flex flex-col w-full h-screen p-6" style={{ overflow: 'hidden', background: '#02040a' }}>
@@ -318,7 +323,7 @@ export default function VisaoEmLoja() {
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={chartData}
-                        margin={{ top: 28, right: 16, left: 16, bottom: 4 }}
+                        margin={{ top: 54, right: 16, left: 16, bottom: 4 }}
                         barGap={2}
                         barCategoryGap="8%"
                     >
@@ -368,7 +373,7 @@ export default function VisaoEmLoja() {
                             tickLine={false}
                             axisLine={false}
                         />
-                        <YAxis hide={true} />
+                        <YAxis hide={true} domain={[0, Math.ceil(maxChartValue * 1.18)]} />
                         <CartesianGrid vertical={false} strokeDasharray="6 6" stroke="rgba(255,255,255,0.05)" />
                         <ReferenceLine y={100} stroke="rgba(100,200,100,0.4)" strokeDasharray="6 6" />
 

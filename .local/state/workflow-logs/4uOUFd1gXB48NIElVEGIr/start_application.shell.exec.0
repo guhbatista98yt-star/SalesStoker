@@ -1,0 +1,55 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development node --env-file=.env --import tsx/esm server/index.ts
+
+[1G[0K[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...
+Criados 30 usuários de vendedores.
+[schema-bootstrap] Colunas adicionadas: cache_estoque_sugestao.DESCRICAO, cache_campanhas.IDEMPRESA
+[schema-bootstrap] Schema OK — 38 tabelas verificadas em 1226ms
+[Campanhas] Módulo inicializado.
+[Comissões] Módulo inicializado.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+[ComprasAlertEngine] Iniciado. Avaliando a cada 30 minutos.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Evaluation cycle complete.
+2:02:45 AM [express] serving on http://localhost:5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[ComprasAlertEngine] Ciclo BI completo. 1000 produtos avaliados.
+Loaded 0 goals from database
+Loaded 0 goals from database
+[AI Assistant] Error: Error: Limite de requisições Groq atingido (429). O plano gratuito tem limites por minuto — aguarde alguns segundos.
+    at callGroq [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:708:11[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async <anonymous> [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:788:14[90m)[39m
+[AI Assistant] Error: Error: Limite de requisições Groq atingido (429). O plano gratuito tem limites por minuto — aguarde alguns segundos.
+    at callGroq [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:708:11[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async <anonymous> [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:788:14[90m)[39m
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:14:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/components/ai-assistant.tsx[22m

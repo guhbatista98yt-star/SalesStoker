@@ -116,7 +116,7 @@ export function formatCurrency(value: number): string {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
-  }).format(value);
+  }).format(value).replace(/\u00a0/g, " ");
 }
 
 export function formatCurrencyCompact(value: number): string {
@@ -135,6 +135,10 @@ export function formatCurrencyCompact(value: number): string {
 export function formatPercentage(value: number | null): string {
   if (value === null) return "N/A";
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+export function formatPercent(value: number): string {
+  return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
 export function formatNumber(value: number): string {

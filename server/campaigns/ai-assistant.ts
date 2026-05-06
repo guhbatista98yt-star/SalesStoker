@@ -844,7 +844,41 @@ router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
       }
     }
 
-    res.json({ message, campaignDraft });
+    // Validate and fix common AI generation errors
+    let validationWarnings: string[] = [];
+    if (campaignDraft) {
+      // Fix: conditions as array instead of root object
+      if (Array.isArray(campaignDraft.conditions)) {
+        campaignDraft.conditions = {
+          id: "root",
+          connector: "AND",
+          conditions: campaignDraft.conditions,
+          groups: [],
+        };
+        validationWarnings.push("Formato de condições corrigido automaticamente.");
+      }
+
+      // Validate structure
+      const { validateCampaignStructure } = await import("./engine");
+      const errors = validateCampaignStructure(campaignDraft);
+      if (errors.length > 0) {
+        validationWarnings.push(...errors);
+      }
+
+      // Ensure required fields have defaults
+      if (!campaignDraft.priority) campaignDraft.priority = 50;
+      if (campaignDraft.is_cumulative === undefined) campaignDraft.is_cumulative = true;
+      if (!campaignDraft.targets) {
+        campaignDraft.targets = {
+          vendedores: { mode: "all", ids: [], groupIds: [], exclude: [] },
+          produtos: { mode: "all", ids: [], suppliers: [], categories: [], exclude: [] },
+          clientes: { mode: "all", ids: [], exclude: [] },
+          empresas: { mode: "all", ids: [] },
+        };
+      }
+    }
+
+    res.json({ message, campaignDraft, validationWarnings });
   } catch (err: any) {
     console.error("[AI Assistant] Error:", err);
     res.status(500).json({ error: err.message });

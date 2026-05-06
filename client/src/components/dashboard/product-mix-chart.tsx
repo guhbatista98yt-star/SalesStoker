@@ -59,7 +59,7 @@ export function ProductMixChart({ data, loading, dragHandle }: ProductMixChartPr
         <CardTitle className="flex items-center gap-2 text-lg">
           {dragHandle}
           <Package className="h-5 w-5 text-primary" />
-          Mix de Produtos
+          Mix por Fabricante
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -84,6 +84,7 @@ export function ProductMixChart({ data, loading, dragHandle }: ProductMixChartPr
                     outerRadius={100}
                     paddingAngle={2}
                     dataKey="value"
+                    isAnimationActive={false}
                   >
                     {chartData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

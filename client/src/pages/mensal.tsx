@@ -58,9 +58,10 @@ interface MonthlyCardProps {
   totalMonth: number;
   yoyVariacao: number | null;
   metaProgress: number;
+  hasGoal?: boolean;
 }
 
-const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress }: MonthlyCardProps) {
+const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress, hasGoal }: MonthlyCardProps) {
   const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
   return (
     <Card data-testid={`monthly-card-${salesperson.id}`}>
@@ -87,8 +88,14 @@ const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalM
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Progress value={metaProgress} className="w-24 sm:w-32 h-2" />
-              <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">{metaProgress.toFixed(0)}%</span>
+              {hasGoal === false ? (
+                <span className="text-xs text-muted-foreground italic whitespace-nowrap">Sem meta</span>
+              ) : (
+                <>
+                  <Progress value={Math.min(metaProgress, 100)} className="w-24 sm:w-32 h-2" />
+                  <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">{metaProgress.toFixed(0)}%</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -211,6 +218,7 @@ export default function Mensal() {
                 totalMonth={totalMonth}
                 yoyVariacao={yoyVariacao}
                 metaProgress={metaProgress}
+                hasGoal={metaProgress > 0 || totalMonth === 0}
               />
             ))}
           </div>

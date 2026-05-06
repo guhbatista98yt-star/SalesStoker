@@ -103,7 +103,14 @@ const teams: Team[] = [
   { id: "t1", name: "Equipe Vendas", companyId: "1", supervisorId: "s1" },
 ];
 
+import { CompanyRepository, TeamRepository, SettingsRepository, CampaignRepository } from "./repositories";
+
 export class PostgresStorage implements IStorage {
+  private companyRepo = new CompanyRepository();
+  private teamRepo = new TeamRepository();
+  private settingsRepo = new SettingsRepository();
+  private campaignRepo = new CampaignRepository();
+
   private goals: Goal[] = [];
   private goalSettings: GoalSetting[] = [];
 
@@ -118,16 +125,60 @@ export class PostgresStorage implements IStorage {
     await this.loadGoalSettingsFromDb();
   }
 
-  private buildTeamFilter(teamMembers?: string[], columnName: string = `"NOME_VENDEDOR"`): string {
-    const excludeInternal = ` AND UPPER(${columnName}) NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%' `;
-    if (!teamMembers || teamMembers.length === 0) return excludeInternal;
-    const validNames = teamMembers.filter(n => n.trim().length > 0);
-    if (validNames.length === 0) return excludeInternal;
-    const conditions = validNames.map(name => {
-      const safe = name.replace(/\\/g, "\\\\").replace(/'/g, "''").toUpperCase();
-      return `UPPER(${columnName}) LIKE '%${safe}%'`;
-    }).join(" OR ");
-    return `${excludeInternal} AND (${conditions})`;
+  private normalizeVendorId(value: unknown): string {
+    return String(value ?? "").trim();
+  }
+
+  private normalizeVendorName(value: unknown): string {
+    return String(value ?? "").trim();
+  }
+
+  private matchesTeamMember(salesperson: { id: string; name: string }, teamMembers?: string[]): boolean {
+    if (!teamMembers || teamMembers.length === 0) return true;
+
+    const salespersonId = this.normalizeVendorId(salesperson.id);
+    const salespersonName = this.normalizeVendorName(salesperson.name).toUpperCase();
+
+    return teamMembers.some(member => {
+      const normalizedMember = this.normalizeVendorId(member);
+      if (!normalizedMember) return false;
+      if (normalizedMember === salespersonId) return true;
+      return salespersonName.includes(normalizedMember.toUpperCase());
+    });
+  }
+
+  private buildTeamFilter(
+    teamMembers?: string[],
+    nameColumn: string = `"NOME_VENDEDOR"`,
+    idColumn: string = `"IDVENDEDOR"`,
+  ): string {
+    const filters: string[] = [];
+    const hasNameColumn = nameColumn.trim().length > 0;
+    const hasIdColumn = idColumn.trim().length > 0;
+
+    if (hasNameColumn) {
+      filters.push(`UPPER(${nameColumn}) NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%'`);
+    }
+
+    const validMembers = (teamMembers ?? []).map(member => this.normalizeVendorId(member)).filter(Boolean);
+    if (validMembers.length > 0) {
+      const conditions = validMembers.map(member => {
+        const safeId = member.replace(/\\/g, "\\\\").replace(/'/g, "''");
+        const clauses = hasIdColumn ? [`TRIM(CAST(${idColumn} AS TEXT)) = '${safeId}'`] : [];
+
+        if (hasNameColumn) {
+          const safeName = member.replace(/\\/g, "\\\\").replace(/'/g, "''").toUpperCase();
+          clauses.push(`UPPER(${nameColumn}) LIKE '%${safeName}%'`);
+        }
+
+        if (clauses.length === 0) return "FALSE";
+        return `(${clauses.join(" OR ")})`;
+      }).join(" OR ");
+
+      filters.push(`(${conditions})`);
+    }
+
+    return filters.length > 0 ? ` AND ${filters.join(" AND ")}` : "";
   }
 
   private async getConexoesSobreTubos(vendedorId: string, companyId?: string, startDate?: string, endDate?: string): Promise<number | null> {
@@ -143,14 +194,17 @@ export class PostgresStorage implements IStorage {
 
       const result = await pgGet<{ conexoes: number; tubos: number }>(`
         SELECT
-          COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as conexoes,
-          COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as tubos
+          COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes,
+          COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos
         FROM cache_tubos_conexoes
-        WHERE "IDVENDEDOR" = ? ${whereCompany} ${wherePeriod}
-      `, [vendedorId]);
+        WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? ${whereCompany} ${wherePeriod}
+      `, [this.normalizeVendorId(vendedorId)]);
 
-      if (!result || result.tubos === 0) return null;
-      return (result.conexoes / result.tubos) * 100;
+      const tubosNum = Number(result?.tubos || 0);
+      const conexoesNum = Number(result?.conexoes || 0);
+
+      if (!result || tubosNum === 0) return null;
+      return (conexoesNum / tubosNum) * 100;
     } catch (e) {
       return null;
     }
@@ -211,7 +265,7 @@ export class PostgresStorage implements IStorage {
           const hiddenRows = await pgAll<{ vendorId: string }>(
             `SELECT "vendorId" FROM vendor_display_settings WHERE "isHidden" = TRUE OR "isHidden" = 1`
           );
-          hiddenIds = new Set(hiddenRows.map(r => String(r.vendorId)));
+          hiddenIds = new Set(hiddenRows.map(r => this.normalizeVendorId(r.vendorId)));
         } catch { /* table may be empty */ }
       }
 
@@ -219,42 +273,45 @@ export class PostgresStorage implements IStorage {
 
       if (companyId && companyId !== "all") {
         rows = await pgAll(`
-          SELECT DISTINCT
-            "IDVENDEDOR" as id,
-            "NOME_VENDEDOR" as name,
+          SELECT
+            TRIM(CAST("IDVENDEDOR" AS TEXT)) as id,
+            MIN(TRIM("NOME_VENDEDOR")) as name,
             CAST("IDEMPRESA" AS TEXT) as "companyId"
           FROM cache_vendas
           WHERE "IDVENDEDOR" IS NOT NULL
+            AND TRIM(CAST("IDVENDEDOR" AS TEXT)) != ''
             AND "NOME_VENDEDOR" IS NOT NULL
             AND "NOME_VENDEDOR" NOT LIKE '%SEM VENDEDOR%'
             AND UPPER("NOME_VENDEDOR") NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%'
             AND "IDEMPRESA" = ?
-          ORDER BY "NOME_VENDEDOR"
+          GROUP BY TRIM(CAST("IDVENDEDOR" AS TEXT)), CAST("IDEMPRESA" AS TEXT)
+          ORDER BY name
         `, [parseInt(companyId)]);
       } else {
         rows = await pgAll(`
           SELECT
-            "IDVENDEDOR" as id,
-            MIN("NOME_VENDEDOR") as name,
-            MIN(CAST("IDEMPRESA" AS TEXT)) as "companyId"
+            TRIM(CAST("IDVENDEDOR" AS TEXT)) as id,
+            MIN(TRIM("NOME_VENDEDOR")) as name,
+            MIN(TRIM(CAST("IDEMPRESA" AS TEXT))) as "companyId"
           FROM cache_vendas
           WHERE "IDVENDEDOR" IS NOT NULL
+            AND TRIM(CAST("IDVENDEDOR" AS TEXT)) != ''
             AND "NOME_VENDEDOR" IS NOT NULL
             AND "NOME_VENDEDOR" NOT LIKE '%SEM VENDEDOR%'
             AND UPPER("NOME_VENDEDOR") NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%'
-          GROUP BY "IDVENDEDOR"
+          GROUP BY TRIM(CAST("IDVENDEDOR" AS TEXT))
           ORDER BY name
         `);
       }
 
       return rows
-        .filter((row: any) => showHidden || !hiddenIds.has(String(row.id ?? row.IDVENDEDOR ?? row.idvendedor ?? "")))
+        .filter((row: any) => showHidden || !hiddenIds.has(this.normalizeVendorId(row.id ?? row.IDVENDEDOR ?? row.idvendedor ?? "")))
         .map((row: any) => ({
-          id: String(row.id ?? row.IDVENDEDOR ?? row.idvendedor ?? ""),
+          id: this.normalizeVendorId(row.id ?? row.IDVENDEDOR ?? row.idvendedor ?? ""),
           name: String(row.name ?? row.NOME_VENDEDOR ?? row.nome_vendedor ?? "Nome não encontrado"),
           email: "",
           teamId: "t1",
-          companyId: String(row.companyId ?? row.idempresa ?? "1"),
+          companyId: this.normalizeVendorId(row.companyId ?? row.idempresa ?? "1") || "1",
         }));
     } catch (err) {
       console.error("Error getting salespersons from cache:", err);
@@ -266,28 +323,29 @@ export class PostgresStorage implements IStorage {
     try {
       const rows = await pgAll<{ id: string; name: string; companyId: string }>(`
         SELECT
-          "IDVENDEDOR" as id,
-          MIN("NOME_VENDEDOR") as name,
-          MIN(CAST("IDEMPRESA" AS TEXT)) as "companyId"
+          TRIM(CAST("IDVENDEDOR" AS TEXT)) as id,
+          MIN(TRIM("NOME_VENDEDOR")) as name,
+          MIN(TRIM(CAST("IDEMPRESA" AS TEXT))) as "companyId"
         FROM cache_vendas
         WHERE "IDVENDEDOR" IS NOT NULL
+          AND TRIM(CAST("IDVENDEDOR" AS TEXT)) != ''
           AND "NOME_VENDEDOR" IS NOT NULL
           AND "NOME_VENDEDOR" NOT LIKE '%SEM VENDEDOR%'
           AND UPPER("NOME_VENDEDOR") NOT LIKE '%BRUNO LEANDRO OLIVEIRA SANTOS%'
-        GROUP BY "IDVENDEDOR"
+        GROUP BY TRIM(CAST("IDVENDEDOR" AS TEXT))
         ORDER BY name
       `);
 
       const hiddenRows = await pgAll<{ vendorId: string }>(
         `SELECT "vendorId" FROM vendor_display_settings WHERE "isHidden" = TRUE OR "isHidden" = 1`
       ).catch(() => [] as { vendorId: string }[]);
-      const hiddenIds = new Set(hiddenRows.map(r => String(r.vendorId)));
+      const hiddenIds = new Set(hiddenRows.map(r => this.normalizeVendorId(r.vendorId)));
 
       return rows.map((row: any) => ({
-        id: String(row.id),
-        name: String(row.name),
-        companyId: String(row.companyId ?? "1"),
-        isHidden: hiddenIds.has(String(row.id)),
+        id: this.normalizeVendorId(row.id),
+        name: this.normalizeVendorName(row.name),
+        companyId: this.normalizeVendorId(row.companyId) || "1",
+        isHidden: hiddenIds.has(this.normalizeVendorId(row.id)),
       }));
     } catch (err) {
       console.error("Error getting all salespersons with visibility:", err);
@@ -344,32 +402,27 @@ export class PostgresStorage implements IStorage {
   }
 
   async getCompanies(): Promise<Company[]> {
-    return this.getCompaniesFromCache();
+    return this.companyRepo.getCompanies();
   }
 
   async getCompany(id: string): Promise<Company | undefined> {
-    const companies = await this.getCompaniesFromCache();
-    return companies.find(c => c.id === id);
+    return this.companyRepo.getCompany(id);
   }
 
   async getTeams(companyId: string): Promise<Team[]> {
-    if (companyId === "all") return teams;
-    return teams.filter(t => t.companyId === companyId);
+    return this.teamRepo.getTeams(companyId);
   }
 
   async getTeam(id: string): Promise<Team | undefined> {
-    return teams.find(t => t.id === id);
+    return this.teamRepo.getTeam(id);
   }
 
   async getSalespersons(companyId: string, teamMembers?: string[], showHidden = false): Promise<Salesperson[]> {
-    const all = await this.getSalespersonsFromCache(companyId, showHidden);
-    if (!teamMembers || teamMembers.length === 0) return all;
-    return all.filter(sp => teamMembers.some(tm => sp.name.toUpperCase().includes(tm.toUpperCase())));
+    return this.teamRepo.getSalespersons(companyId, teamMembers, showHidden);
   }
 
   async getSalesperson(id: string): Promise<Salesperson | undefined> {
-    const all = await this.getSalespersonsFromCache();
-    return all.find(s => s.id === id);
+    return this.teamRepo.getSalesperson(id);
   }
 
   async getProducts(_companyId: string): Promise<Product[]> {
@@ -415,7 +468,7 @@ export class PostgresStorage implements IStorage {
         ? ((totalMesAtual - totalMesAnoAnterior) / totalMesAnoAnterior) * 100
         : null;
 
-      const teamFilterPendentes = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`);
+      const teamFilterPendentes = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`, "");
       let whereCompanyPendentes = "";
       if (companyId !== "all") {
         whereCompanyPendentes = `AND "IDEMPRESA" = ${parseInt(companyId)}`;
@@ -460,29 +513,27 @@ export class PostgresStorage implements IStorage {
       }
       const teamFilter = this.buildTeamFilter(teamMembers);
 
-      const groupBy = companyId === "all"
-        ? `"IDVENDEDOR", "NOME_VENDEDOR"`
-        : `"IDVENDEDOR", "NOME_VENDEDOR", "IDEMPRESA"`;
-
       const salesRows = await pgAll<{
         id: string; name: string; companyId: string;
         totalVendas: number; totalLucro: number;
         positivacao: number; mixProdutos: number; qtdPedidos: number;
       }>(`
         SELECT
-          "IDVENDEDOR" as id,
-          "NOME_VENDEDOR" as name,
-          MIN(CAST("IDEMPRESA" AS TEXT)) as "companyId",
+          TRIM(CAST("IDVENDEDOR" AS TEXT)) as id,
+          MIN(TRIM("NOME_VENDEDOR")) as name,
+          MIN(TRIM(CAST("IDEMPRESA" AS TEXT))) as "companyId",
           COALESCE(SUM("TOTALVENDA_LINHA"), 0) as "totalVendas",
           0::numeric as "totalLucro",
-          0 as positivacao,
+          COUNT(DISTINCT NULLIF("IDCLIENTE", '0')) as positivacao,
           COUNT(DISTINCT "IDPLANILHA") as "mixProdutos",
           COUNT(DISTINCT "IDPLANILHA") as "qtdPedidos"
         FROM cache_vendas
         WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+          AND "IDVENDEDOR" IS NOT NULL
+          AND TRIM(CAST("IDVENDEDOR" AS TEXT)) != ''
           AND "NOME_VENDEDOR" NOT LIKE '%SEM VENDEDOR%'
           ${whereCompany} ${teamFilter}
-        GROUP BY ${groupBy}
+        GROUP BY TRIM(CAST("IDVENDEDOR" AS TEXT))
         ORDER BY "totalVendas" DESC
       `, [startDate, endDate]);
 
@@ -508,7 +559,7 @@ export class PostgresStorage implements IStorage {
           const yoyResult = await pgGet<{ total: number }>(`
             SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
             FROM cache_vendas
-            WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+            WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
           `, [row.id, yoyStartStr, yoyEndStr]);
           if (yoyResult && yoyResult.total > 0) {
             yoyVariacao = ((row.totalVendas - yoyResult.total) / yoyResult.total) * 100;
@@ -550,7 +601,7 @@ export class PostgresStorage implements IStorage {
       }
       const teamFilter = this.buildTeamFilter(teamMembers);
 
-      const teamFilterCamp = this.buildTeamFilter(teamMembers, `"IDVENDEDOR"`);
+      const teamFilterCamp = this.buildTeamFilter(teamMembers, "", `"IDVENDEDOR"`);
       const rows = await pgAll<{ category: string; totalValue: number; quantity: number }>(`
         SELECT
           COALESCE("FABRICANTE", 'Sem Fabricante') as category,
@@ -680,9 +731,7 @@ export class PostgresStorage implements IStorage {
   async getGoals(companyId: string, month: number, year: number, teamMembers?: string[]): Promise<GoalWithProgress[]> {
     const salespersons = await this.getSalespersonsFromCache(companyId === "all" ? undefined : companyId);
 
-    const filtered = !teamMembers || teamMembers.length === 0
-      ? salespersons
-      : salespersons.filter(sp => teamMembers.some(tm => sp.name.toUpperCase().includes(tm.toUpperCase())));
+    const filtered = salespersons.filter(sp => this.matchesTeamMember(sp, teamMembers));
 
     const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
     const endDate = new Date(year, month, 0).toISOString().split('T')[0];
@@ -705,7 +754,7 @@ export class PostgresStorage implements IStorage {
       const salesRow = await pgGet<{ total: number }>(`
         SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas
-        WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany}
+        WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? ${whereCompany}
       `, [sp.id, startDate, endDate]);
 
       const currentValue = Number(salesRow?.total ?? 0);
@@ -771,7 +820,7 @@ export class PostgresStorage implements IStorage {
     const progress = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
       FROM cache_vendas
-      WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+      WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
     `, [salespersonId, startDate, endDate]);
 
     const currentValue = Number(progress?.total ?? 0);
@@ -896,9 +945,7 @@ export class PostgresStorage implements IStorage {
 
   async getWeeklyView(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<WeeklySalesperson[]> {
     let salespersons = await this.getSalespersonsFromCache(companyId === "all" ? undefined : companyId);
-    if (teamMembers && teamMembers.length > 0) {
-      salespersons = salespersons.filter(sp => teamMembers.some(tm => sp.name.toUpperCase().includes(tm.toUpperCase())));
-    }
+    salespersons = salespersons.filter(sp => this.matchesTeamMember(sp, teamMembers));
 
     const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
     const now = new Date();
@@ -925,13 +972,13 @@ export class PostgresStorage implements IStorage {
           const result = await pgGet<{ total: number }>(`
             SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
             FROM cache_vendas
-            WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" = ?
+            WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" = ?
           `, [sp.id, dateStr]);
 
           const resultYoy = await pgGet<{ total: number }>(`
             SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
             FROM cache_vendas
-            WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" = ?
+            WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" = ?
           `, [sp.id, dateStrYoy]);
 
           dailySales.push({ day: days[dayOfWeek], value: result?.total ?? 0, yoyValue: resultYoy?.total ?? 0 });
@@ -965,9 +1012,7 @@ export class PostgresStorage implements IStorage {
 
   async getMonthlyView(companyId: string, startDate: string, endDate: string, teamMembers?: string[]): Promise<MonthlySalesperson[]> {
     let salespersons = await this.getSalespersonsFromCache(companyId === "all" ? undefined : companyId);
-    if (teamMembers && teamMembers.length > 0) {
-      salespersons = salespersons.filter(sp => teamMembers.some(tm => sp.name.toUpperCase().includes(tm.toUpperCase())));
-    }
+    salespersons = salespersons.filter(sp => this.matchesTeamMember(sp, teamMembers));
 
     const now = new Date();
     const year = now.getFullYear();
@@ -992,13 +1037,13 @@ export class PostgresStorage implements IStorage {
           const result = await pgGet<{ total: number }>(`
             SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
             FROM cache_vendas
-            WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+            WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
           `, [sp.id, weekStart, weekEnd]);
 
           const resultYoy = await pgGet<{ total: number }>(`
             SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
             FROM cache_vendas
-            WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+            WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
           `, [sp.id, weekStartYoy, weekEndYoy]);
 
           const value = result?.total ?? 0;
@@ -1026,7 +1071,7 @@ export class PostgresStorage implements IStorage {
         const result = await pgGet<{ total: number }>(`
           SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
           FROM cache_vendas
-          WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+          WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
         `, [sp.id, monthStart, monthEnd]);
         totalMonthAllCompanies = result?.total ?? cumulative;
       } catch {
@@ -1045,7 +1090,7 @@ export class PostgresStorage implements IStorage {
 
   async getAFaturarPorVendedor(companyId: string, teamMembers?: string[]): Promise<SalespersonAFaturar[]> {
     try {
-      const teamFilter = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`);
+      const teamFilter = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`, "");
       let whereCompany = "";
       if (companyId !== "all") {
         whereCompany = `AND "IDEMPRESA" = ${parseInt(companyId)}`;
@@ -1080,20 +1125,7 @@ export class PostgresStorage implements IStorage {
   }
 
   async getVendorDisplaySettings(): Promise<VendorDisplaySettings[]> {
-    try {
-      const rows = await pgAll(`SELECT * FROM vendor_display_settings`);
-      return rows.map(r => ({
-        id: r.id,
-        vendorId: r.vendorId,
-        displayCode: r.displayCode,
-        displayName: r.displayName,
-        isHidden: r.isHidden === 1 || r.isHidden === true,
-        showOnTv: r.showOnTv === 0 ? false : true,
-        companyId: r.companyId,
-      }));
-    } catch {
-      return [];
-    }
+    return this.settingsRepo.getVendorDisplaySettings();
   }
 
   async getVendorsTVSettings(): Promise<Array<{ vendorId: string; displayName: string; displayCode: string; showOnTv: boolean }>> {
@@ -1158,9 +1190,7 @@ export class PostgresStorage implements IStorage {
     const rawSalespersons = await this.getSalespersonsFromCache();
     let salespersons = rawSalespersons;
 
-    if (teamMembers && teamMembers.length > 0) {
-      salespersons = salespersons.filter(sp => teamMembers.some(tm => sp.name.toUpperCase().includes(tm.toUpperCase())));
-    }
+    salespersons = salespersons.filter(sp => this.matchesTeamMember(sp, teamMembers));
 
     const settings = await this.getVendorDisplaySettings();
 
@@ -1169,18 +1199,17 @@ export class PostgresStorage implements IStorage {
     const yoyStartStr = yoyStart.toISOString().split('T')[0];
     const yoyEndStr = yoyEnd.toISOString().split('T')[0];
 
-    // Descobre o IDEMPRESA da loja matriz (CNPJ 05.443.069/0001-03) uma única vez
-    const MATRIZ_CNPJ = '05.443.069/0001-03';
-    let matrizEmpresaId: number | null = null;
-    try {
-      const matrizRow = await pgGet<{ id: number }>(`
-        SELECT "IDEMPRESA" as id FROM cache_vendas
-        WHERE "CNPJ_EMPRESA" = ? LIMIT 1
-      `, [MATRIZ_CNPJ]);
-      matrizEmpresaId = matrizRow?.id ?? null;
-    } catch { }
+    // Define IDEMPRESA da matriz = 1
+    let matrizEmpresaId: number | null = 1;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const latestMovement = await pgGet<{ dt: string }>(`
+      SELECT MAX("DT_MOVIMENTO") as dt
+      FROM cache_vendas
+      WHERE "DT_MOVIMENTO" <= CURRENT_DATE
+    `);
+    const todayStr = latestMovement?.dt
+      ? new Date(latestMovement.dt).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
 
     const vendorsData = (await Promise.all(salespersons.map(async (sp) => {
       const setting = settings.find(s => s.vendorId === sp.id);
@@ -1192,14 +1221,14 @@ export class PostgresStorage implements IStorage {
         const rowL01 = await pgGet<{ total: number }>(`
           SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
           FROM cache_vendas
-          WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = 1
+          WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = 1
         `, [sp.id, weekStart, weekEnd]);
         l01Sales = rowL01?.total ?? 0;
 
         const rowL03 = await pgGet<{ total: number }>(`
           SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
           FROM cache_vendas
-          WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = 3
+          WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ? AND "IDEMPRESA" = 3
         `, [sp.id, weekStart, weekEnd]);
         l03Sales = rowL03?.total ?? 0;
 
@@ -1207,7 +1236,7 @@ export class PostgresStorage implements IStorage {
           const rowMatriz = await pgGet<{ total: number }>(`
             SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
             FROM cache_vendas
-            WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" = ? AND "IDEMPRESA" = ?
+            WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" = ? AND "IDEMPRESA" = ?
           `, [sp.id, todayStr, matrizEmpresaId]);
           lMatrizSales = rowMatriz?.total ?? 0;
         }
@@ -1220,7 +1249,7 @@ export class PostgresStorage implements IStorage {
         const rowYoy = await pgGet<{ total: number }>(`
           SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
           FROM cache_vendas
-          WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+          WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
         `, [sp.id, yoyStartStr, yoyEndStr]);
         yoyValue = rowYoy?.total ?? 0;
       } catch { }
@@ -1348,483 +1377,83 @@ export class PostgresStorage implements IStorage {
   }
 
   async getMetasAcompanhamento(vendedorId: string): Promise<any> {
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    const inicio = startOfWeek.toISOString().split('T')[0];
-
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    const fim = endOfWeek.toISOString().split('T')[0];
-
-    const dias_restantes = 6 - now.getDay();
-
-    const fatLoja1 = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
-      FROM cache_vendas
-      WHERE "IDEMPRESA" = 1 AND "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-    `, [vendedorId, inicio, fim]);
-
-    const fatLoja3 = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
-      FROM cache_vendas
-      WHERE "IDEMPRESA" = 3 AND "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-    `, [vendedorId, inicio, fim]);
-
-    const getGoal = async (companyId: string) => {
-      const row = await pgGet<{ totalGoal: number | null }>(`
-        SELECT SUM("targetValue") as "totalGoal"
-        FROM goals
-        WHERE "salespersonId" = ? AND "companyId" = ? AND type = 'weekly' AND month = ? AND year = ?
-      `, [vendedorId, companyId, now.getMonth() + 1, now.getFullYear()]);
-      return row?.totalGoal || 0;
-    };
-
-    const calc = (atual: number, meta: number) => {
-      const percentual = meta > 0 ? (atual / meta) * 100 : 0;
-      const faltante = meta > atual ? meta - atual : 0;
-      return { valor_atual: atual, meta, percentual: parseFloat(percentual.toFixed(2)), faltante };
-    };
-
-    const loja1 = calc(fatLoja1?.total || 0, await getGoal('1'));
-    const loja3 = calc(fatLoja3?.total || 0, await getGoal('3'));
-    const total_atual = (fatLoja1?.total || 0) + (fatLoja3?.total || 0);
-    const faturamento_geral = calc(total_atual, await getGoal('all'));
-
-    const mixResult = await pgGet<{ conexoes: number; tubos: number }>(`
-      SELECT
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as conexoes,
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as tubos
-      FROM cache_tubos_conexoes
-      WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-    `, [vendedorId, inicio, fim]);
-
-    const valor_conexoes = mixResult?.conexoes || 0;
-    const valor_tubos = mixResult?.tubos || 0;
-    const percentual_conexoes = valor_tubos > 0 ? (valor_conexoes / valor_tubos) * 100 : 0;
-
-    return {
-      last_update: now.toISOString(),
-      periodo: { tipo: 'semana', inicio, fim, dias_restantes: dias_restantes > 0 ? dias_restantes : 0 },
-      loja1,
-      loja3,
-      faturamento: faturamento_geral,
-      mix_geral: {
-        percentual_conexoes: parseFloat(percentual_conexoes.toFixed(2)),
-        valor_conexoes,
-        valor_tubos,
-      },
-    };
+    return this.campaignRepo.getMetasAcompanhamento(vendedorId);
   }
 
   async getMetasAmancoDTR(vendedorId: string, targetYear?: number, targetQuarter?: number): Promise<any> {
-    const now = new Date();
-    const year = targetYear ?? now.getFullYear();
-    const quarter = targetQuarter ?? Math.floor(now.getMonth() / 3);
-    const quarterStartMonth = quarter * 3;
-    const quarterEndMonth = quarterStartMonth + 2;
-
-    const inicioStr = new Date(year, quarterStartMonth, 1).toISOString().split('T')[0];
-    const fimStr = new Date(year, quarterEndMonth + 1, 0).toISOString().split('T')[0];
-
-    const resultAtual = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [vendedorId, inicioStr, fimStr]);
-
-    const valor_atual = resultAtual?.total || 0;
-
-    const resultMix = await pgGet<{ tubos: number; conexoes: number }>(`
-      SELECT
-        COALESCE(SUM(CASE WHEN "TipoProduto" = 'Tubo' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as tubos,
-        COALESCE(SUM(CASE WHEN "TipoProduto" = 'Conexão' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as conexoes
-      FROM cache_amanco_mix
-      WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
-    `, [vendedorId, inicioStr, fimStr]);
-
-    const tubos = resultMix?.tubos || 0;
-    const conexoes = resultMix?.conexoes || 0;
-    const percentual_conexoes = tubos > 0 ? (conexoes / tubos) * 100 : 0;
-
-    const lastYear = year - 1;
-    const inicioLyStr = new Date(lastYear, quarterStartMonth, 1).toISOString().split('T')[0];
-    const fimLyStr = new Date(lastYear, quarterEndMonth + 1, 0).toISOString().split('T')[0];
-
-    const resultLy = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [vendedorId, inicioLyStr, fimLyStr]);
-
-    const valor_ano_anterior = resultLy?.total || 0;
-
-    const triggerQuery = await pgGet<{ triggerValue: number }>(`
-      SELECT "triggerValue" FROM campaign_goals
-      WHERE "salespersonId" = ? AND "campaignName" = 'dtr_amanco' AND year = ?
-    `, [vendedorId, year]);
-
-    const gatilho_individual = triggerQuery?.triggerValue || 0;
-    const crescimento_percentual = valor_ano_anterior > 0 ? ((valor_atual - valor_ano_anterior) / valor_ano_anterior) * 100 : (valor_atual > 0 ? 100 : 0);
-
-    const resultLoja = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [inicioStr, fimStr]);
-    const loja_valor_atual = resultLoja?.total || 0;
-
-    const resultLojaLy = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [inicioLyStr, fimLyStr]);
-    const loja_valor_ano_anterior = resultLojaLy?.total || 0;
-    const loja_crescimento_percentual = loja_valor_ano_anterior > 0 ? ((loja_valor_atual - loja_valor_ano_anterior) / loja_valor_ano_anterior) * 100 : (loja_valor_atual > 0 ? 100 : 0);
-
-    const meta_gatilho = 120000;
-    const meta_mix = 40.0;
-    const meta_loja = 25.0;
-
-    const gatilho = valor_atual >= (gatilho_individual > 0 ? gatilho_individual : meta_gatilho);
-    const percentual_conexoes_arredondado = parseFloat(percentual_conexoes.toFixed(2));
-    const mix = percentual_conexoes_arredondado >= meta_mix;
-    const crescimento_loja = loja_crescimento_percentual >= meta_loja;
-
-    const motivos: string[] = [];
-    if (!gatilho) motivos.push("Abaixo do gatilho mínimo");
-    if (!mix) motivos.push("Mix de conexões abaixo de 40%");
-    if (!crescimento_loja) motivos.push("Crescimento global da loja insuficiente (meta: 25%)");
-
-    const quarterNames = ["JAN/FEV/MAR", "ABR/MAI/JUN", "JUL/AGO/SET", "OUT/NOV/DEZ"];
-    return {
-      last_update: now.toISOString(),
-      periodo: { inicio: inicioStr, fim: fimStr, nome: quarterNames[quarter] },
-      faturamento_amanco: {
-        valor_atual,
-        meta_gatilho: gatilho_individual > 0 ? gatilho_individual : meta_gatilho,
-        percentual: parseFloat(((gatilho_individual > 0 ? gatilho_individual : meta_gatilho) > 0 ? (valor_atual / (gatilho_individual > 0 ? gatilho_individual : meta_gatilho)) * 100 : 0).toFixed(2)),
-        faltante: gatilho ? 0 : (gatilho_individual > 0 ? gatilho_individual : meta_gatilho) - valor_atual,
-        gatilho_atingido: gatilho,
-      },
-      crescimento_vendedor: { valor_atual, valor_ano_anterior, crescimento_percentual: parseFloat(crescimento_percentual.toFixed(2)) },
-      mix_amanco: { tubos, conexoes, percentual_conexoes: parseFloat(percentual_conexoes.toFixed(2)), meta_percentual: meta_mix, status_ok: mix },
-      crescimento_loja: { loja_valor_atual, loja_valor_ano_anterior, crescimento_percentual: parseFloat(loja_crescimento_percentual.toFixed(2)), meta_percentual: meta_loja, status_ok: crescimento_loja },
-      elegibilidade: { gatilho, mix, crescimento_loja, participando: gatilho && mix && crescimento_loja, motivos },
-    };
+    return this.campaignRepo.getMetasAmancoDTR(vendedorId, targetYear, targetQuarter);
   }
 
   async getMetasAmancoTV(vendedorId: string): Promise<any> {
-    const now = new Date();
-    const year = 2026;
-    const inicioStr = `${year}-02-15`;
-    const fimStr = `${year}-04-15`;
-    const isEncerrado = now > new Date(`${fimStr}T23:59:59`);
-
-    const resultAtual = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [vendedorId, inicioStr, fimStr]);
-
-    const valor_atual = resultAtual?.total || 0;
-
-    const resultMix = await pgGet<{ tubos: number; conexoes: number }>(`
-      SELECT
-        COALESCE(SUM(CASE WHEN "TipoProduto" = 'Tubo' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as tubos,
-        COALESCE(SUM(CASE WHEN "TipoProduto" = 'Conexão' THEN "VALOR_LIQUIDO" ELSE 0 END), 0) as conexoes
-      FROM cache_amanco_mix
-      WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
-    `, [vendedorId, inicioStr, fimStr]);
-
-    const tubos = resultMix?.tubos || 0;
-    const conexoes = resultMix?.conexoes || 0;
-    const percentual_conexoes = tubos > 0 ? (conexoes / tubos) * 100 : 0;
-
-    const lastYear = year - 1;
-    const inicioLyStr = `${lastYear}-02-15`;
-    const fimLyStr = `${lastYear}-04-15`;
-
-    const resultLy = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [vendedorId, inicioLyStr, fimLyStr]);
-
-    const valor_ano_anterior = resultLy?.total || 0;
-
-    const triggerQuery = await pgGet<{ triggerValue: number }>(`
-      SELECT "triggerValue" FROM campaign_goals
-      WHERE "salespersonId" = ? AND "campaignName" = 'tv_amanco' AND year = ?
-    `, [vendedorId, year]);
-
-    const gatilho_individual = triggerQuery?.triggerValue || 0;
-    const crescimento_percentual = valor_ano_anterior > 0 ? ((valor_atual - valor_ano_anterior) / valor_ano_anterior) * 100 : (valor_atual > 0 ? 100 : 0);
-
-    const resultLoja = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [inicioStr, fimStr]);
-    const loja_valor_atual = resultLoja?.total || 0;
-
-    const resultLojaLy = await pgGet<{ total: number }>(`
-      SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
-      FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
-    `, [inicioLyStr, fimLyStr]);
-    const loja_valor_ano_anterior = resultLojaLy?.total || 0;
-    const loja_crescimento_percentual = loja_valor_ano_anterior > 0 ? ((loja_valor_atual - loja_valor_ano_anterior) / loja_valor_ano_anterior) * 100 : (loja_valor_atual > 0 ? 100 : 0);
-
-    const meta_gatilho = 60000;
-    const meta_mix = 45.0;
-    const meta_crescimento_vendedor = 20.0;
-    const meta_loja = 25.0;
-
-    const gatilho = valor_atual >= (gatilho_individual > 0 ? gatilho_individual : meta_gatilho);
-    const crescimento_vendedor_ok = crescimento_percentual >= meta_crescimento_vendedor;
-    const percentual_conexoes_arredondado = parseFloat(percentual_conexoes.toFixed(2));
-    const mix = percentual_conexoes_arredondado >= meta_mix;
-    const crescimento_loja_ok = loja_crescimento_percentual >= meta_loja;
-
-    const motivos: string[] = [];
-    if (!gatilho) motivos.push("Abaixo do gatilho mínimo");
-    if (!crescimento_vendedor_ok) motivos.push("Crescimento vs. ano anterior abaixo de 20%");
-    if (!mix) motivos.push("Mix de conexões abaixo de 45%");
-    if (!crescimento_loja_ok) motivos.push("Crescimento global da loja insuficiente (meta: 25%)");
-
-    return {
-      last_update: now.toISOString(),
-      periodo: { inicio: inicioStr, fim: fimStr, encerrado: isEncerrado },
-      faturamento_amanco: {
-        valor_atual,
-        meta_gatilho: gatilho_individual > 0 ? gatilho_individual : meta_gatilho,
-        percentual: parseFloat(((gatilho_individual > 0 ? gatilho_individual : meta_gatilho) > 0 ? (valor_atual / (gatilho_individual > 0 ? gatilho_individual : meta_gatilho)) * 100 : 0).toFixed(2)),
-        faltante: gatilho ? 0 : (gatilho_individual > 0 ? gatilho_individual : meta_gatilho) - valor_atual,
-        gatilho_atingido: gatilho,
-      },
-      crescimento_vendedor: { valor_atual, valor_ano_anterior, crescimento_percentual: parseFloat(crescimento_percentual.toFixed(2)), meta_percentual: meta_crescimento_vendedor, status_ok: crescimento_vendedor_ok },
-      mix_amanco: { tubos, conexoes, percentual_conexoes: parseFloat(percentual_conexoes.toFixed(2)), meta_percentual: meta_mix, status_ok: mix },
-      crescimento_loja: { loja_valor_atual, loja_valor_ano_anterior, crescimento_percentual: parseFloat(loja_crescimento_percentual.toFixed(2)), meta_percentual: meta_loja, status_ok: crescimento_loja_ok },
-      elegibilidade: { gatilho, crescimento_vendedor: crescimento_vendedor_ok, mix, crescimento_loja: crescimento_loja_ok, participando: gatilho && crescimento_vendedor_ok && mix && crescimento_loja_ok, motivos },
-    };
+    return this.campaignRepo.getMetasAmancoTV(vendedorId);
   }
 
   async getMetasElit(vendedorId: string): Promise<any> {
-    const now = new Date();
-    const currentDayOfWeek = now.getDay();
-    let daysSinceSaturday: number;
-
-    if (currentDayOfWeek === 6) { daysSinceSaturday = 7; }
-    else if (currentDayOfWeek === 0) { daysSinceSaturday = 8; }
-    else { daysSinceSaturday = currentDayOfWeek + 1; }
-
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - daysSinceSaturday);
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23, 59, 59, 999);
-
-    const payoutDate = new Date(endOfWeek);
-    payoutDate.setDate(endOfWeek.getDate() + 1);
-
-    const formatLocal = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    };
-
-    const inicioStr = formatLocal(startOfWeek);
-    const fimStr = formatLocal(endOfWeek);
-    const pagStr = formatLocal(payoutDate);
-
-    const result = await pgAll<{ total: number; DESCRICAOPRODUTO: string; qty: number }>(`
-      SELECT
-        COALESCE(SUM("VALOR_LIQUIDO"), 0) as total,
-        "IDPRODUTO" as "DESCRICAOPRODUTO",
-        SUM("QTD") as qty
-      FROM cache_campanhas
-      WHERE "IDVENDEDOR" = ? AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND ("FABRICANTE" IS NULL OR "FABRICANTE" <> 'AMANCO')
-      GROUP BY "IDPRODUTO"
-    `, [vendedorId, inicioStr, fimStr]);
-
-    const valor_vendido = result.reduce((acc, curr) => acc + curr.total, 0);
-
-    const goalsRows = await pgAll<{ triggerValue: number }>(`
-      SELECT "triggerValue" FROM campaign_goals WHERE "salespersonId" = ? AND "campaignName" = 'elit' AND year = ?
-    `, [vendedorId, now.getFullYear()]);
-    const gatilho_minimo = goalsRows.length > 0 ? goalsRows[0].triggerValue : 3000.0;
-
-    const participando = valor_vendido >= gatilho_minimo;
-    const faltante = participando ? 0 : gatilho_minimo - valor_vendido;
-
-    let total_receber = 0;
-    const detalhes = [];
-
-    const commissionMap: Record<string, number> = {
-      "BORRACHA LIQ. SEMIACET. 21,5KG": 10.0, "TINTA EMBORR. 18KG": 7.0,
-      "IMPERMEABILIZANTE 18KG": 5.0, "IMPERMEABILIZANTE GL": 5.0,
-      "TINTA DIRETO GESSO 18L": 5.0, "TINTA DIRETO GESSO GL": 5.0,
-      "TEXTURA RUSTIC. 23KG": 3.0, "MASSA ACRILICA": 2.0,
-      "TEXTURA LISA 23KG": 2.0, "TINTA ESM. (BASE AGUA) 3,6L": 3.0,
-      "TINTA ESM. 3,6L": 2.0, "TINTA ESM. 900ML": 0.50,
-      "TINTA PISO 18L": 3.0, "TINTA PISO 15L": 3.0, "TINTA PISO 3,6L": 2.0,
-      "TINTA SUPER REND. 20L": 4.0, "TINTA SUPER REND. 18L": 3.0,
-      "TINTA SUPER COMPL 18L": 3.0, "TINTA SUPER REND. 15L": 2.0,
-      "TINTA SUPER REND. SEMIBRILHO 15L": 2.0, "TINTA SUPER REND. 3,6L": 1.50,
-      "TINTA SUPER COMPL 3,6L": 2.0, "TINTA VINIL ACR. 18L": 3.0,
-      "TINTA VINIL ACR. 15L": 2.0, "TINTA VINIL ACR. 3,6L": 0.50,
-      "VERNIZ COPAL 3,6L": 2.0, "VERNIZ MARITIMO 3,6L": 2.0, "ZARCAO 3,6L": 2.0,
-      "VERNIZ COPAL 900ML": 0.50, "VERNIZ MARITIMO 900ML": 0.50, "ZARCAO 900ML": 0.50,
-      "HIPERFLOOR DEMAR. VIARIA BASE SOLV. 18L": 3.0,
-      "TINTA CLAS. 18L": 3.0, "TINTA CLAS. 3,6L": 2.0,
-      "TINTA PROFIS. 18L": 2.0, "TINTA ACRI. MAX PROF. 18L": 2.0,
-      "TINTA SUBLIME 18L": 2.0, "TINTA ACRI. MAX PROF. 3,6L": 1.0,
-      "TINTA PROFIS. 3,6L": 1.0, "SELADOR ESM. (BASE AGUA) GL": 2.0,
-    };
-
-    const isExcluded = (desc: string): boolean =>
-      desc.includes("FUNDO PREPARADOR") || desc.includes("REJUNTE") || desc.includes("RESINA") ||
-      desc.includes("SELADOR") || desc.includes("THINNER") || desc.includes("112,5ML");
-
-    const getElitCommission = (desc: string): number => {
-      const d = desc.toUpperCase();
-      if (isExcluded(d) && !d.includes("SELADOR ESM. (BASE AGUA) GL")) return 0;
-      if (d.includes("TINTA SUPER REND. 3,6L")) {
-        if (d.includes("SEMIBRILHO")) return 2.0;
-        return commissionMap["TINTA SUPER REND. 3,6L"] || 1.50;
-      }
-      for (const [key, val] of Object.entries(commissionMap)) {
-        if (d.includes(key)) return val;
-      }
-      return 0;
-    };
-
-    for (const item of result) {
-      if (!item.DESCRICAOPRODUTO) continue;
-      const commission = getElitCommission(item.DESCRICAOPRODUTO);
-      if (commission > 0 && item.qty > 0) {
-        const premio = commission * (item.qty || 0);
-        total_receber += premio;
-        detalhes.push({
-          produto: item.DESCRICAOPRODUTO,
-          qty: item.qty,
-          comissao_unit: commission,
-          premio,
-        });
-      }
-    }
-
-    total_receber = participando ? total_receber : 0;
-
-    return {
-      last_update: now.toISOString(),
-      periodo: { inicio: inicioStr, fim: fimStr, pagamento: pagStr },
-      elegibilidade: { participando, valor_vendido, gatilho_minimo, faltante },
-      premiacao: { total_receber, detalhes },
-    };
+    return this.campaignRepo.getMetasElit(vendedorId);
   }
 
   async getCampaignGoals(campaignName: string, year: number): Promise<{ salespersonId: string; triggerValue: number }[]> {
-    try {
-      const rows = await pgAll<{ salespersonId: string; triggerValue: number }>(`
-        SELECT "salespersonId", "triggerValue"
-        FROM campaign_goals
-        WHERE "campaignName" = ? AND year = ?
-      `, [campaignName, year]);
-      return rows;
-    } catch {
-      return [];
-    }
+    return this.campaignRepo.getCampaignGoals(campaignName, year);
   }
 
   async saveCampaignGoals(campaignName: string, year: number, goals: { salespersonId: string; triggerValue: number }[]): Promise<void> {
-    for (const g of goals) {
-      const existing = await pgGet(`
-        SELECT id FROM campaign_goals WHERE "salespersonId" = ? AND "campaignName" = ? AND year = ?
-      `, [g.salespersonId, campaignName, year]);
-
-      if (existing) {
-        await pgRun(`
-          UPDATE campaign_goals SET "triggerValue" = ? WHERE "salespersonId" = ? AND "campaignName" = ? AND year = ?
-        `, [g.triggerValue, g.salespersonId, campaignName, year]);
-      } else {
-        await pgRun(`
-          INSERT INTO campaign_goals (id, "salespersonId", "campaignName", year, "triggerValue")
-          VALUES (?, ?, ?, ?, ?)
-        `, [randomUUID(), g.salespersonId, campaignName, year, g.triggerValue]);
-      }
-    }
+    return this.campaignRepo.saveCampaignGoals(campaignName, year, goals);
   }
 
   async getVendorGroups(): Promise<{ id: string; name: string; members: string[] }[]> {
-    try {
-      const groups = await pgAll<{ id: string; name: string }>(`SELECT * FROM vendor_groups ORDER BY name`);
-      return Promise.all(groups.map(async (g) => {
-        const members = await pgAll<{ salesperson_id: string }>(`
-          SELECT salesperson_id FROM vendor_group_members WHERE group_id = ?
-        `, [g.id]);
-        return { id: g.id, name: g.name, members: members.map(m => m.salesperson_id) };
-      }));
-    } catch {
-      return [];
-    }
+    return this.teamRepo.getVendorGroups();
   }
 
   async saveVendorGroup(id: string, name: string, members: string[]): Promise<void> {
-    const existing = await pgGet(`SELECT id FROM vendor_groups WHERE id = ?`, [id]);
+    const normalizedId = String(id ?? "").trim();
+    const normalizedName = this.normalizeVendorName(name);
+    const normalizedMembers = Array.from(new Set((members ?? []).map(member => this.normalizeVendorId(member)).filter(Boolean)));
+
+    const existing = await pgGet(`SELECT id FROM vendor_groups WHERE id = ?`, [normalizedId]);
     if (existing) {
-      await pgRun(`UPDATE vendor_groups SET name = ? WHERE id = ?`, [name, id]);
+      await pgRun(`UPDATE vendor_groups SET name = ? WHERE id = ?`, [normalizedName, normalizedId]);
     } else {
-      await pgRun(`INSERT INTO vendor_groups (id, name) VALUES (?, ?)`, [id, name]);
+      await pgRun(`INSERT INTO vendor_groups (id, name) VALUES (?, ?)`, [normalizedId, normalizedName]);
     }
-    await pgRun(`DELETE FROM vendor_group_members WHERE group_id = ?`, [id]);
-    for (const m of members) {
-      await pgRun(`INSERT INTO vendor_group_members (group_id, salesperson_id) VALUES (?, ?)`, [id, m]);
+    await pgRun(`DELETE FROM vendor_group_members WHERE group_id = ?`, [normalizedId]);
+    for (const member of normalizedMembers) {
+      await pgRun(`INSERT INTO vendor_group_members (group_id, salesperson_id) VALUES (?, ?)`, [normalizedId, member]);
     }
   }
 
   async deleteVendorGroup(id: string): Promise<void> {
-    await pgRun(`DELETE FROM vendor_group_members WHERE group_id = ?`, [id]);
-    await pgRun(`DELETE FROM vendor_groups WHERE id = ?`, [id]);
+    const normalizedId = String(id ?? "").trim();
+    await pgRun(`DELETE FROM vendor_group_members WHERE group_id = ?`, [normalizedId]);
+    await pgRun(`DELETE FROM vendor_groups WHERE id = ?`, [normalizedId]);
   }
 
   async getCampaignReport(campaignName: string): Promise<any[]> {
-    try {
-      const rows = await pgAll(`
-        SELECT * FROM campaign_result_details
-        WHERE campaign_id IN (SELECT id FROM campaigns WHERE name = ?)
-        ORDER BY posicao ASC
-      `, [campaignName]);
-      return rows;
-    } catch {
-      return [];
-    }
+    return this.campaignRepo.getCampaignReport(campaignName);
   }
 
   async getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string): Promise<any[]> {
     try {
       const rows = await pgAll(`
         SELECT
-          "DT_MOVIMENTO" as data,
-          NULL::text as clienteId,
-          NULL::text as clienteNome,
-          "IDPLANILHA" as pedidoId,
-          NULL::text as produtoId,
-          NULL::text as produtoCategoria,
-          NULL::text as produtoNome,
-          NULL::numeric as quantidade,
-          "TOTALVENDA_LINHA" as valorTotal,
-          CAST("IDEMPRESA" AS TEXT) as empresa
+          "DT_MOVIMENTO" as "dtMovimento",
+          "IDCLIENTE" as "idCliente",
+          "NOME_CLIENTE" as "nomeCliente",
+          "IDEMPRESA" as "idEmpresa",
+          "IDPLANILHA" as "numNota",
+          '' as "serieNota",
+          'V' as "tipoMovimento",
+          CASE WHEN "TOTALVENDA_LINHA" < 0 THEN true ELSE false END as "isDevolucao",
+          "TOTALVENDA_LINHA" as "valContabil",
+          0 as lucro
         FROM cache_vendas
-        WHERE "IDVENDEDOR" = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+        WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
         ORDER BY "DT_MOVIMENTO" DESC, "IDPLANILHA"
-      `, [vendedorId, startDate, endDate]);
-      return rows;
+      `, [this.normalizeVendorId(vendedorId), startDate, endDate]);
+      return rows.map(r => ({
+        ...r,
+        valContabil: Number(r.valContabil),
+        lucro: Number(r.lucro),
+      }));
     } catch (err) {
       console.error("Error getting movimentacoes:", err);
       return [];

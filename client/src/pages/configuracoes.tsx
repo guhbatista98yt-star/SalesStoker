@@ -561,6 +561,7 @@ function TVSection() {
 
 function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
   const { toast } = useToast();
+  const normalizeMemberId = (value: unknown) => String(value ?? "").trim();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [groupName, setGroupName] = useState("");
   const [members, setMembers] = useState<string[]>([]);
@@ -570,6 +571,13 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
   const { data: groups = [], isLoading } = useQuery<VendorGroup[]>({
     queryKey: ["/api/admin/vendor-groups"],
   });
+
+  const normalizedGroups = useMemo<VendorGroup[]>(() => groups.map(group => ({
+    ...group,
+    id: String(group.id),
+    name: String(group.name ?? "").trim(),
+    members: Array.from(new Set((group.members ?? []).map(normalizeMemberId).filter(Boolean))),
+  })), [groups]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: VendorGroup) => {
@@ -598,7 +606,7 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
     onError: () => toast({ title: "Erro ao excluir", variant: "destructive" }),
   });
 
-  const selectedGroup = groups.find(g => g.id === selectedId) ?? null;
+  const selectedGroup = normalizedGroups.find(g => g.id === selectedId) ?? null;
 
   useEffect(() => {
     if (selectedGroup) {
@@ -606,7 +614,7 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
       setMembers(selectedGroup.members);
       setIsCreating(false);
     }
-  }, [selectedId, groups]);
+  }, [selectedId, normalizedGroups]);
 
   function startNew() {
     setSelectedId(null);
@@ -624,7 +632,8 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
     const id = isCreating
       ? Math.random().toString(36).slice(2, 12)
       : selectedId!;
-    saveMutation.mutate({ id, name: groupName, members });
+    const normalizedMembers = Array.from(new Set(members.map(normalizeMemberId).filter(Boolean)));
+    saveMutation.mutate({ id, name: groupName.trim(), members: normalizedMembers });
   }
 
   const filteredMembers = memberSearch
@@ -646,7 +655,7 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
         {/* Left: team list */}
         <div className="border rounded-lg flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/40">
-            <span className="text-sm font-medium">Equipes ({groups.length})</span>
+            <span className="text-sm font-medium">Equipes ({normalizedGroups.length})</span>
             <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={startNew}>
               <Plus className="h-3.5 w-3.5" /> Nova
             </Button>
@@ -656,13 +665,13 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
               <div className="flex items-center justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            ) : groups.length === 0 ? (
+            ) : normalizedGroups.length === 0 ? (
               <div className="text-center py-10 text-sm text-muted-foreground px-4">
                 Nenhuma equipe criada ainda. Clique em "Nova" para começar.
               </div>
             ) : (
               <div className="p-2 space-y-1">
-                {groups.map(g => (
+                {normalizedGroups.map(g => (
                   <button
                     key={g.id}
                     onClick={() => { setSelectedId(g.id); setIsCreating(false); }}
@@ -763,7 +772,8 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
               <ScrollArea className="flex-1 p-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                   {filteredMembers.map(sp => {
-                    const checked = members.includes(sp.id);
+                    const salespersonId = normalizeMemberId(sp.id);
+                    const checked = members.some(id => normalizeMemberId(id) === salespersonId);
                     return (
                       <label
                         key={sp.id}
@@ -778,7 +788,9 @@ function EquipesSection({ salespeople }: { salespeople: Salesperson[] }) {
                           checked={checked}
                           onCheckedChange={val => {
                             setMembers(prev =>
-                              val ? [...prev, sp.id] : prev.filter(id => id !== sp.id)
+                              val
+                                ? Array.from(new Set([...prev.map(normalizeMemberId), salespersonId].filter(Boolean)))
+                                : prev.filter(id => normalizeMemberId(id) !== salespersonId)
                             );
                           }}
                         />
@@ -1393,10 +1405,11 @@ export default function Configuracoes() {
       new Map(
         salespersonsRaw.map((d: any) => {
           const sp = d.salesperson ?? d;
-          return [sp.id, { id: sp.id, name: sp.name }];
+          const id = String(sp.id ?? "").trim();
+          return [id, { id, name: String(sp.name ?? "").trim() }];
         })
       ).values()
-    ).sort((a, b) => a.name.localeCompare(b.name));
+    ).filter(sp => sp.id).sort((a, b) => a.name.localeCompare(b.name));
   }, [salespersonsRaw]);
 
   const isLoading = configLoading || spLoading;

@@ -152,6 +152,14 @@ export async function createCampaign(data: any, actor: string) {
   const id = randomUUID();
   let code = data.code || generateCode();
 
+  // Validate dates upfront
+  if (!data.starts_at || !data.ends_at) {
+    throw new Error("Datas de início e encerramento são obrigatórias.");
+  }
+  if (data.starts_at >= data.ends_at) {
+    throw new Error("Data de encerramento deve ser posterior ao início.");
+  }
+
   const exists = await pgGet<{ id: string }>(`SELECT id FROM campaigns WHERE code = ?`, [code]);
   if (exists) code = generateCode() + "-" + Date.now().toString().slice(-4);
 
@@ -290,11 +298,21 @@ export async function cloneCampaign(id: string, actor: string) {
   const orig = await getCampaignById(id);
   if (!orig) throw new Error("Campanha não encontrada");
 
+  // Reset dates: preserve duration but start from today
+  const origStart = new Date(orig.starts_at);
+  const origEnd = new Date(orig.ends_at);
+  const durationMs = origEnd.getTime() - origStart.getTime();
+  const today = new Date();
+  const newStart = today.toISOString().split("T")[0];
+  const newEnd = new Date(today.getTime() + durationMs).toISOString().split("T")[0];
+
   const cloneData = {
     ...orig,
     name: `${orig.name} (cópia)`,
     code: undefined,
     parent_id: orig.id,
+    starts_at: newStart,
+    ends_at: newEnd,
     is_cumulative: orig.is_cumulative,
     is_exclusive: orig.is_exclusive,
   };

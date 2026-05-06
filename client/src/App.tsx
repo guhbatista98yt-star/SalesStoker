@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect, useLocation, Link } from "wouter";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense, lazy } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -35,21 +35,23 @@ import Metas from "@/pages/metas";
 import Alertas from "@/pages/alertas";
 import Semanal from "@/pages/semanal";
 import Mensal from "@/pages/mensal";
-import Configuracoes from "@/pages/configuracoes";
 import LandingPage from "@/pages/landing";
 import VisaoEmLoja from "@/pages/visao-em-loja";
 import TVDashboard from "@/pages/tv-dashboard";
-import MetasVendedorIndex from "@/pages/metas-vendedor/index";
-import CampanhasList from "@/pages/campanhas/index";
-import CampaignForm from "@/pages/campanhas/form";
-import CampaignView from "@/pages/campanhas/view";
-import Comissoes from "@/pages/comissoes/index";
-import ConfigurarComissoes from "@/pages/comissoes/configurar";
-import Usuarios from "@/pages/usuarios";
-import ComprasDashboard from "@/pages/compras/index";
-import FornecedorDetalhe from "@/pages/compras/fornecedor";
-import ProdutoDetalhe from "@/pages/compras/produto";
-import ComprasConfiguracoes from "@/pages/compras/configuracoes";
+
+// Lazy-loaded heavy modules (code-split for faster initial load)
+const Configuracoes = lazy(() => import("@/pages/configuracoes"));
+const MetasVendedorIndex = lazy(() => import("@/pages/metas-vendedor/index"));
+const CampanhasList = lazy(() => import("@/pages/campanhas/index"));
+const CampaignForm = lazy(() => import("@/pages/campanhas/form"));
+const CampaignView = lazy(() => import("@/pages/campanhas/view"));
+const Comissoes = lazy(() => import("@/pages/comissoes/index"));
+const ConfigurarComissoes = lazy(() => import("@/pages/comissoes/configurar"));
+const Usuarios = lazy(() => import("@/pages/usuarios"));
+const ComprasDashboard = lazy(() => import("@/pages/compras/index"));
+const FornecedorDetalhe = lazy(() => import("@/pages/compras/fornecedor"));
+const ProdutoDetalhe = lazy(() => import("@/pages/compras/produto"));
+const ComprasConfiguracoes = lazy(() => import("@/pages/compras/configuracoes"));
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,12 +92,11 @@ function ComprasGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const DTR_AMANCO_ID = "ec8a2ee4-2668-4785-9885-a4b7c12a99c9";
-
 function getInitialRoute(role?: string): string {
   switch (role) {
     case "loja":     return "/analises/visao-em-loja";
-    case "vendedor": return `/campanhas/${DTR_AMANCO_ID}`;
+    case "gerente":  return "/analises/visao-em-loja";
+    case "vendedor": return "/metas-vendedor/dtr-amanco";
     default:         return "/";
   }
 }
@@ -106,50 +107,58 @@ function Router() {
   const role = user?.role;
   const initialRoute = getInitialRoute(role);
 
+  const LazyFallback = (
+    <div className="flex items-center justify-center h-full">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+
   return (
-    <Switch>
-      <Route path="/" component={role === "admin" || role === "supervisor" ? Dashboard : () => <Redirect to={initialRoute} />} />
-      <Route path="/vendedores" component={Vendedores} />
-      <Route path="/metas" component={Metas} />
-      <Route path="/alertas" component={Alertas} />
-      <Route path="/semanal" component={Semanal} />
-      <Route path="/mensal" component={Mensal} />
-      <Route path="/configuracoes" component={Configuracoes} />
-      <Route path="/metas-vendedor" component={() => <MetasVendedorIndex />} />
-      <Route path="/metas-vendedor/:tab" component={() => <MetasVendedorIndex />} />
-      <Route path="/analises/visao-em-loja" component={VisaoEmLoja} />
-      <Route path="/tv" component={TVDashboard} />
-      <Route path="/campanhas" component={CampanhasList} />
-      <Route path="/campanhas/nova" component={() => <CampaignForm />} />
-      <Route path="/campanhas/:id/editar" component={({ params }: { params: { id: string } }) => <CampaignForm campaignId={params.id} />} />
-      <Route path="/campanhas/:id" component={({ params }: { params: { id: string } }) => <CampaignView campaignId={params.id} />} />
-      <Route path="/comissoes" component={Comissoes} />
-      <Route path="/comissoes/configurar" component={ConfigurarComissoes} />
-      <Route path="/usuarios" component={Usuarios} />
-      <Route path="/compras" component={() => <ComprasGuard><ComprasDashboard /></ComprasGuard>} />
-      <Route path="/compras/configuracoes" component={() => <ComprasGuard><ComprasConfiguracoes /></ComprasGuard>} />
-      <Route path="/compras/fornecedores/:id">
-        {(params) => (
-          <ComprasGuard>
-            <FornecedorDetalhe id={params?.id ?? ""} />
-          </ComprasGuard>
+    <Suspense fallback={LazyFallback}>
+      <Switch>
+        <Route path="/" component={role === "admin" || role === "supervisor" || role === "diretor" ? Dashboard : () => <Redirect to={initialRoute} />} />
+        <Route path="/vendedores" component={Vendedores} />
+        <Route path="/metas" component={Metas} />
+        <Route path="/alertas" component={Alertas} />
+        <Route path="/semanal" component={Semanal} />
+        <Route path="/mensal" component={Mensal} />
+        <Route path="/configuracoes" component={Configuracoes} />
+        <Route path="/metas-vendedor" component={() => <Redirect to="/metas-vendedor/dtr-amanco" />} />
+        <Route path="/metas-vendedor/:tab" component={() => <VendedorGuard><MetasVendedorIndex /></VendedorGuard>} />
+        <Route path="/analises/visao-em-loja" component={VisaoEmLoja} />
+        <Route path="/tv" component={TVDashboard} />
+        <Route path="/campanhas" component={CampanhasList} />
+        <Route path="/campanhas/nova" component={() => <CampaignForm />} />
+        <Route path="/campanhas/:id/editar" component={({ params }: { params: { id: string } }) => <CampaignForm campaignId={params.id} />} />
+        <Route path="/campanhas/:id" component={({ params }: { params: { id: string } }) => <CampaignView campaignId={params.id} />} />
+        <Route path="/comissoes" component={Comissoes} />
+        <Route path="/comissoes/configurar" component={ConfigurarComissoes} />
+        <Route path="/usuarios" component={Usuarios} />
+        <Route path="/compras" component={() => <ComprasGuard><ComprasDashboard /></ComprasGuard>} />
+        <Route path="/compras/configuracoes" component={() => <ComprasGuard><ComprasConfiguracoes /></ComprasGuard>} />
+        <Route path="/compras/fornecedores/:id">
+          {(params) => (
+            <ComprasGuard>
+              <FornecedorDetalhe id={params?.id ?? ""} />
+            </ComprasGuard>
+          )}
+        </Route>
+        <Route path="/compras/produtos/:id">
+          {(params) => (
+            <ComprasGuard>
+              <ProdutoDetalhe id={params?.id ?? ""} />
+            </ComprasGuard>
+          )}
+        </Route>
+        {(role === "admin" || role === "supervisor") && (
+          <>
+            <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
+            <Route path="/admin/relatorios" component={() => <Redirect to="/configuracoes" />} />
+          </>
         )}
-      </Route>
-      <Route path="/compras/produtos/:id">
-        {(params) => (
-          <ComprasGuard>
-            <ProdutoDetalhe id={params?.id ?? ""} />
-          </ComprasGuard>
-        )}
-      </Route>
-      {(role === "admin" || role === "supervisor") && (
-        <>
-          <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
-          <Route path="/admin/relatorios" component={() => <Redirect to="/configuracoes" />} />
-        </>
-      )}
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -246,7 +255,7 @@ function CommandPalette() {
   ];
 
   const vendedorItems = [
-    { label: "Metas e Campanhas", href: "/metas-vendedor", icon: BookOpen },
+    { label: "Metas e Campanhas", href: "/metas-vendedor/dtr-amanco", icon: BookOpen },
   ];
 
   const items = role === "loja"
@@ -424,9 +433,9 @@ function AuthenticatedApp() {
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
-        <div className="flex flex-col flex-1 overflow-hidden h-full min-w-0">
+        <div className="flex flex-col flex-1 overflow-hidden h-full min-w-0" style={{ contain: 'layout style', willChange: 'contents' }}>
           <TopHeader />
-          <main className="flex-1 overflow-hidden h-full relative pb-16 md:pb-0">
+          <main className="flex-1 overflow-hidden h-full relative pb-16 md:pb-0" style={{ contain: 'layout' }}>
             <Router />
           </main>
         </div>

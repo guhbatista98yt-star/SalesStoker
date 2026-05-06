@@ -2,10 +2,20 @@ import { Router } from "express";
 import { isAuthenticated, isAdmin, type AuthRequest } from "../auth";
 import * as service from "./service";
 import * as apuracao from "./apuracao";
-import { pgGet, pgAll, pgRun } from "../pg-client";
+import { pgGet, pgAll, pgRun, pgTransaction } from "../pg-client";
 import { storage } from "../storage";
 
 const router = Router();
+const apuracaoLocks = new Map<string, Promise<unknown>>();
+
+async function runApuracaoLocked(campaignId: string, actor: string) {
+  const running = apuracaoLocks.get(campaignId);
+  if (running) return running;
+  const job = apuracao.apurarCampanha(campaignId, actor)
+    .finally(() => apuracaoLocks.delete(campaignId));
+  apuracaoLocks.set(campaignId, job);
+  return job;
+}
 
 // ─── List campaigns ───────────────────────────────────────────────────────────
 router.get("/", isAuthenticated, async (req: AuthRequest, res) => {
@@ -54,6 +64,34 @@ router.put("/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
     res.json(campaign);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// ─── Delete campaign ──────────────────────────────────────────────────────────
+router.delete("/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = String(req.params.id);
+    const campaign = await service.getCampaignById(id);
+    if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
+    await pgTransaction(async (client) => {
+      await client.query(`UPDATE campaigns SET parent_id = NULL WHERE parent_id = $1`, [id]);
+      await client.query(
+        `DELETE FROM campaign_result_details
+          WHERE result_id IN (SELECT id FROM campaign_results WHERE campaign_id = $1)
+             OR campaign_id = $1`,
+        [id],
+      );
+      await client.query(`DELETE FROM campaign_results WHERE campaign_id = $1`, [id]);
+      await client.query(`DELETE FROM campaign_audit_logs WHERE campaign_id = $1`, [id]);
+      await client.query(`DELETE FROM campaign_versions WHERE campaign_id = $1`, [id]);
+      await client.query(`DELETE FROM campaign_simulations WHERE campaign_id = $1`, [id]);
+      await client.query(`DELETE FROM campaign_goals WHERE "campaignName" = $1`, [id]);
+      await client.query(`DELETE FROM campaigns WHERE id = $1`, [id]);
+    });
+
+    res.json({ success: true, deleted: id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -354,18 +392,18 @@ router.get("/:id/groups", isAuthenticated, async (_req, res) => {
 router.post("/:id/apurar", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.userEmail || "sistema";
-    const result = await apuracao.apurarCampanha(String(req.params.id), actor);
+    const result = await runApuracaoLocked(String(req.params.id), actor);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ─── Resultados ao vivo: compute fresh apuração (no admin required) ──────────
-router.post("/:id/resultados/live", isAuthenticated, async (req: AuthRequest, res) => {
+// ─── Resultados ao vivo: compute fresh apuração ─────────────────────────────
+router.post("/:id/resultados/live", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
   try {
     const actor = req.userEmail || "auto";
-    const result = await apuracao.apurarCampanha(String(req.params.id), actor);
+    const result = await runApuracaoLocked(String(req.params.id), actor);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

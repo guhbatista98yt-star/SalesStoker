@@ -1,0 +1,6 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development node --env-file=.env --import tsx/esm server/index.ts
+
+[1G[0K/nix/store/jfar9wnj6kvr0gr6klh1gk7vgckkfr5j-nodejs-20.20.0/bin/node: .env: not found
+[1G[0K⠙[1G[0K

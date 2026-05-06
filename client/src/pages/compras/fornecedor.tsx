@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 export default function FornecedorDetalhe({ id }: { id: string }) {
   const { companyId } = useComprasCompany();
-  const { data: fornecedor, isLoading } = useComprasFornecedorDetalhe(id, companyId !== "all" ? companyId : undefined);
+  const { data: fornecedor, isLoading, isError, error, refetch } = useComprasFornecedorDetalhe(id, companyId !== "all" ? companyId : undefined);
 
   if (isLoading) {
     return (
@@ -27,6 +27,22 @@ export default function FornecedorDetalhe({ id }: { id: string }) {
             {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
           </div>
           <Skeleton className="h-64 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <Building2 className="h-12 w-12 text-muted-foreground mx-auto" />
+          <p className="text-muted-foreground">Falha ao carregar fornecedor</p>
+          <p className="max-w-md text-xs text-muted-foreground">
+            {error instanceof Error ? error.message : "Tente atualizar a pagina."}
+          </p>
+          <Button onClick={() => refetch()}>Tentar novamente</Button>
+          <Link href="/compras"><Button variant="outline">Voltar</Button></Link>
         </div>
       </div>
     );

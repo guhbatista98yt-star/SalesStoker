@@ -9,7 +9,7 @@
  *   - Configurações administrativas: /configuracoes
  */
 
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import { isAuthenticated, isAdmin, isCompradorOuAdmin, type AuthRequest } from "../auth";
@@ -42,7 +42,7 @@ router.get("/sse", async (req: AuthRequest, res) => {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) { res.status(401).end(); return; }
     const role = user.role ?? "";
-    if (role !== "admin" && role !== "supervisor" && role !== "comprador") {
+    if (role !== "admin" && role !== "supervisor" && role !== "gerente" && role !== "diretor" && role !== "comprador") {
       res.status(403).end();
       return;
     }
@@ -81,11 +81,42 @@ router.get("/sse", async (req: AuthRequest, res) => {
 // BI Dashboard
 // ---------------------------------------------------------------------------
 
+class BadRequestError extends Error {}
+
 function parseCompanyId(req: AuthRequest): number | undefined {
   const raw = req.query.company_id as string | undefined;
   if (!raw) return undefined;
   const n = parseInt(raw, 10);
-  return isNaN(n) || n <= 0 ? undefined : n;
+  if (isNaN(n) || n <= 0 || String(n) !== raw.trim()) {
+    throw new BadRequestError("company_id invalido");
+  }
+  return n;
+}
+
+function parseBoundedInt(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (raw === undefined || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value)) throw new BadRequestError("Parametro numerico invalido");
+  return Math.min(max, Math.max(min, value));
+}
+
+function safeJsonObject(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value !== "string") return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function sendRouteError(res: Response, err: unknown, fallback: string): void {
+  if (err instanceof BadRequestError) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
+  res.status(500).json({ error: fallback });
 }
 
 router.get("/dashboard", isAuthenticated, async (req: AuthRequest, res) => {
@@ -94,7 +125,7 @@ router.get("/dashboard", isAuthenticated, async (req: AuthRequest, res) => {
     res.json(kpis);
   } catch (err: any) {
     console.error("[compras/dashboard]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao carregar dashboard de compras");
   }
 });
 
@@ -104,11 +135,15 @@ router.get("/dashboard", isAuthenticated, async (req: AuthRequest, res) => {
 
 router.get("/fornecedores", isAuthenticated, async (req: AuthRequest, res) => {
   try {
-    const ranking = await service.getRankingFornecedores(parseCompanyId(req));
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = req.query.search as string | undefined;
+
+    const ranking = await service.getRankingFornecedores(parseCompanyId(req), page, limit, search);
     res.json(ranking);
   } catch (err: any) {
     console.error("[compras/fornecedores]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao carregar fornecedores");
   }
 });
 
@@ -119,7 +154,7 @@ router.get("/fornecedores/:id", isAuthenticated, async (req: AuthRequest, res) =
     res.json(detalhe);
   } catch (err: any) {
     console.error("[compras/fornecedores/:id]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao carregar fornecedor");
   }
 });
 
@@ -129,17 +164,23 @@ router.get("/fornecedores/:id", isAuthenticated, async (req: AuthRequest, res) =
 
 router.get("/produtos", isAuthenticated, async (req: AuthRequest, res) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    
     const ranking = await service.getRankingProdutos(
       {
         urgencia: req.query.urgencia as string | undefined,
         fabricante: req.query.fabricante as string | undefined,
+        busca: req.query.search as string | undefined,
       },
       parseCompanyId(req),
+      page,
+      limit
     );
     res.json(ranking);
   } catch (err: any) {
     console.error("[compras/produtos]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao carregar produtos");
   }
 });
 
@@ -150,7 +191,7 @@ router.get("/produtos/:id", isAuthenticated, async (req: AuthRequest, res) => {
     res.json(detalhe);
   } catch (err: any) {
     console.error("[compras/produtos/:id]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao carregar produto");
   }
 });
 
@@ -170,7 +211,7 @@ router.get("/sugestoes", isAuthenticated, async (req: AuthRequest, res) => {
     res.json(sugestoes);
   } catch (err: any) {
     console.error("[compras/sugestoes]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao carregar sugestoes");
   }
 });
 
@@ -181,7 +222,7 @@ router.get("/sugestoes/fornecedor/:id", isAuthenticated, async (req: AuthRequest
     res.json(sugestoes);
   } catch (err: any) {
     console.error("[compras/sugestoes/fornecedor/:id]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao carregar sugestoes do fornecedor");
   }
 });
 
@@ -203,11 +244,22 @@ router.post("/simulacao", isAuthenticated, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: "quantidades é obrigatório e deve ser um objeto" });
     }
 
-    const resultado = await service.runSimulacao(produtoIds, quantidades);
+    if (produtoIds.some(id => typeof id !== "string" || id.trim().length === 0)) {
+      return res.status(400).json({ error: "produtoIds deve conter apenas IDs validos" });
+    }
+    for (const id of produtoIds) {
+      const qty = Number(quantidades[id]);
+      if (!Number.isFinite(qty) || qty < 0) {
+        return res.status(400).json({ error: `Quantidade invalida para o produto ${id}` });
+      }
+      quantidades[id] = qty;
+    }
+
+    const resultado = await service.runSimulacao(produtoIds, quantidades, parseCompanyId(req));
     res.json(resultado);
   } catch (err: any) {
     console.error("[compras/simulacao]", err);
-    res.status(500).json({ error: err.message });
+    sendRouteError(res, err, "Erro ao executar simulacao");
   }
 });
 
@@ -232,7 +284,9 @@ router.get("/alertas/unread-count", isAuthenticated, isCompradorOuAdmin, async (
 router.get("/alertas", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { status, severity, limit = "50", offset = "0" } = req.query as Record<string, string>;
+    const { status, severity } = req.query as Record<string, string>;
+    const limit = parseBoundedInt(req.query.limit as string | undefined, 50, 1, 100);
+    const offset = parseBoundedInt(req.query.offset as string | undefined, 0, 0, 100000);
 
     let where = `WHERE user_id = ?`;
     const params: unknown[] = [userId];
@@ -248,7 +302,7 @@ router.get("/alertas", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequ
 
     const rows = await pgAll(
       `SELECT * FROM purchase_alerts ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+      [...params, limit, offset]
     );
 
     const countRow = await pgGet<{ total: number }>(
@@ -272,7 +326,7 @@ router.get("/alertas", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequ
         title: r.title,
         message: r.message,
         status: r.status,
-        data: typeof r.data === "string" ? JSON.parse(r.data) : (r.data ?? {}),
+        data: safeJsonObject(r.data),
         createdAt: r.created_at,
         updatedAt: r.updated_at,
       })),
@@ -281,7 +335,7 @@ router.get("/alertas", isAuthenticated, isCompradorOuAdmin, async (req: AuthRequ
     });
   } catch (err) {
     console.error("[compras/alertas GET]", err);
-    res.status(500).json({ error: "Erro ao buscar alertas" });
+    sendRouteError(res, err, "Erro ao buscar alertas");
   }
 });
 
@@ -296,11 +350,15 @@ router.patch("/alertas/:id/status", isAuthenticated, isCompradorOuAdmin, async (
       return res.status(400).json({ error: "Status inválido" });
     }
 
-    const alert = await pgGet(
-      `SELECT id FROM purchase_alerts WHERE id = ? AND user_id = ?`,
+    const alert = await pgGet<{ id: string; status: string }>(
+      `SELECT id, status FROM purchase_alerts WHERE id = ? AND user_id = ?`,
       [id, userId]
     );
     if (!alert) return res.status(404).json({ error: "Alerta não encontrado" });
+
+    if (alert.status === status) {
+      return res.json({ success: true, unchanged: true });
+    }
 
     await pgRun(
       `UPDATE purchase_alerts SET status = ?, updated_at = ? WHERE id = ? AND user_id = ?`,

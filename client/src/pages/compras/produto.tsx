@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useComprasProdutoDetalhe } from "./use-compras";
+import { useComprasCompany } from "./use-company";
 import { CriticidadeBadge } from "./criticidade";
 import type { Criticidade } from "./types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +28,8 @@ function getCriticidadeFromDias(dias: number): Criticidade {
 }
 
 export default function ProdutoDetalhe({ id }: { id: string }) {
-  const { data: produto, isLoading } = useComprasProdutoDetalhe(id);
+  const { companyId } = useComprasCompany();
+  const { data: produto, isLoading, isError, error, refetch } = useComprasProdutoDetalhe(id, companyId !== "all" ? companyId : undefined);
   const [quantidade, setQuantidade] = useState("");
 
   if (isLoading) {
@@ -39,6 +41,22 @@ export default function ProdutoDetalhe({ id }: { id: string }) {
             {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
           </div>
           <Skeleton className="h-56 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <Package className="h-12 w-12 text-muted-foreground mx-auto" />
+          <p className="text-muted-foreground">Falha ao carregar produto</p>
+          <p className="max-w-md text-xs text-muted-foreground">
+            {error instanceof Error ? error.message : "Tente atualizar a pagina."}
+          </p>
+          <Button onClick={() => refetch()}>Tentar novamente</Button>
+          <Link href="/compras"><Button variant="outline">Voltar</Button></Link>
         </div>
       </div>
     );
@@ -58,8 +76,9 @@ export default function ProdutoDetalhe({ id }: { id: string }) {
 
   const consumoDiario = produto.consumoDiario || 1;
   const coberturaAntes = produto.coberturaDias;
-  const coberturaDepois = quantidade
-    ? Math.round((produto.estoqueAtual + Number(quantidade)) / consumoDiario)
+  const quantidadeNumerica = Number.isFinite(Number(quantidade)) ? Math.max(0, Number(quantidade)) : 0;
+  const coberturaDepois = quantidadeNumerica > 0
+    ? Math.round((produto.estoqueAtual + quantidadeNumerica) / consumoDiario)
     : coberturaAntes;
   const criticidadeDepois = getCriticidadeFromDias(coberturaDepois);
 
@@ -87,7 +106,10 @@ export default function ProdutoDetalhe({ id }: { id: string }) {
         <div>
           <p className="text-xs text-muted-foreground font-mono">{produto.codigo}</p>
           <h1 className="text-lg font-bold">{produto.descricao}</h1>
-          <p className="text-sm text-muted-foreground">Fornecedor: {produto.fornecedor}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">Fornecedor: {produto.fornecedor}</p>
+            {produto.semHistorico && <Badge variant="outline">Sem historico de consumo</Badge>}
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -244,7 +266,7 @@ export default function ProdutoDetalhe({ id }: { id: string }) {
               </div>
             </div>
 
-            {quantidade && (
+            {quantidadeNumerica > 0 && (
               <>
                 <Separator />
                 <div className="grid grid-cols-2 gap-4">
@@ -273,7 +295,7 @@ export default function ProdutoDetalhe({ id }: { id: string }) {
                     </div>
                   </div>
                 </div>
-                <Button className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto" disabled={quantidadeNumerica <= 0}>
                   Confirmar Sugestão de {quantidade} unidades
                 </Button>
               </>

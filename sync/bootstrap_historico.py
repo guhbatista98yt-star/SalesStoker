@@ -40,7 +40,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(__file__))
 from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS  # noqa: E402
-from erp_sync import _fix_monetary                            # noqa: E402
+from erp_sync import _fix_monetary, ensure_schema              # noqa: E402
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv()  # fallback: project root .env
@@ -342,15 +342,17 @@ def _sync_vendas_mes(
             (inicio, fim),
         )
         # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
-        #          IDPLANILHA[3] DT_MOVIMENTO[4] TOTALVENDA_LINHA[5]
+        #          IDPLANILHA[3] DT_MOVIMENTO[4] TOTALVENDA_LINHA[5] IDCLIENTE[6] NOME_CLIENTE[7]
         if rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 'INSERT INTO cache_vendas ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",'
-                '"IDPLANILHA","DT_MOVIMENTO","TOTALVENDA_LINHA",synced_at) VALUES %s',
+                '"IDPLANILHA","DT_MOVIMENTO","TOTALVENDA_LINHA","IDCLIENTE","NOME_CLIENTE",synced_at) VALUES %s',
                 [
                     (r[0], r[1], r[2], r[3], r[4],
                      _fix_monetary(r[5]),
+                     str(r[6]) if len(r) > 6 and r[6] is not None else '',
+                     str(r[7]) if len(r) > 7 and r[7] is not None else '',
                      datetime.now(timezone.utc))
                     for r in rows
                 ],
@@ -417,15 +419,16 @@ def _sync_tubos_mes(
             (inicio, fim),
         )
         # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
-        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4]
+        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4] TIPO_PRODUTO[5]
         if rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 'INSERT INTO cache_tubos_conexoes ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",'
-                '"DT_MOVIMENTO","TOTALVENDA_LINHA",synced_at) VALUES %s',
+                '"DT_MOVIMENTO","TOTALVENDA_LINHA","TIPO_PRODUTO",synced_at) VALUES %s',
                 [
                     (r[0], r[1], r[2], r[3],
                      _fix_monetary(r[4]),
+                     str(r[5]) if len(r) > 5 and r[5] else '',
                      datetime.now(timezone.utc))
                     for r in rows
                 ],
@@ -450,6 +453,9 @@ def run_bootstrap_rotina(rotina: str, force: bool = False) -> None:
     hoje      = date.today()
     data_fim  = hoje
     data_ini  = (hoje - timedelta(days=ANOS_HISTORICO * 365)).replace(day=1)
+
+    with pg_connection() as pg:
+        ensure_schema(pg)
 
     with pg_connection() as pg:
         if not force and _bootstrap_concluido(pg, rotina):

@@ -1,33 +1,58 @@
-import { useLocation, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
 import {
-  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
-  SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
-  SidebarHeader, SidebarFooter,
-} from "@/components/ui/sidebar";
-import {
-  LayoutDashboard, Users, Target, Bell, Settings, BarChart3, TrendingUp,
-  Store, Megaphone, LineChart, DollarSign, ShieldCheck, ShoppingCart,
+  Bell,
+  BarChart3,
+  Calendar,
+  DollarSign,
+  LayoutDashboard,
+  LineChart,
+  Megaphone,
+  PaintBucket,
+  Settings,
+  ShieldCheck,
+  ShoppingCart,
+  Store,
+  Target,
+  TrendingUp,
+  Users,
 } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth-context";
 
 const coreItems = [
-  { title: "Dashboard",     url: "/",          icon: LayoutDashboard },
-  { title: "Vendedores",    url: "/vendedores", icon: Users },
-  { title: "Metas",         url: "/metas",      icon: Target },
-  { title: "Alertas",      url: "/alertas",    icon: Bell },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Vendedores", url: "/vendedores", icon: Users },
+  { title: "Metas", url: "/metas", icon: Target },
+  { title: "Alertas", url: "/alertas", icon: Bell },
 ];
 
 const comprasItems = [
-  { title: "Copiloto de Compras",     url: "/compras",               icon: ShoppingCart },
+  { title: "Copiloto de Compras", url: "/compras", icon: ShoppingCart },
   { title: "Configuração de Compras", url: "/compras/configuracoes", icon: Settings },
 ];
 
 const analysisItems = [
-  { title: "Visão Semanal", url: "/semanal",                    icon: BarChart3 },
-  { title: "Visão Mensal",  url: "/mensal",                     icon: TrendingUp },
-  { title: "Visão em Loja", url: "/analises/visao-em-loja",     icon: Store },
-  { title: "Comissões",     url: "/comissoes",                  icon: DollarSign },
+  { title: "Visão Semanal", url: "/semanal", icon: BarChart3 },
+  { title: "Visão Mensal", url: "/mensal", icon: TrendingUp },
+  { title: "Visão em Loja", url: "/analises/visao-em-loja", icon: Store },
+  { title: "Comissões", url: "/comissoes", icon: DollarSign },
+];
+
+const vendedorCampaignItems = [
+  { title: "DTR Amanco", url: "/metas-vendedor/dtr-amanco", icon: TrendingUp },
+  { title: "TV Amanco", url: "/metas-vendedor/tv-amanco", icon: Calendar },
+  { title: "Tintas Elit", url: "/metas-vendedor/tintas-elit", icon: PaintBucket },
 ];
 
 function NavItem({ item, active }: { item: { title: string; url: string; icon: any }; active: boolean }) {
@@ -58,27 +83,29 @@ export function AppSidebar() {
 
   function isModuleEnabled(moduleName: string): boolean {
     if (!modPerms) return true;
-    return modPerms[moduleName] !== false;
+    const aliases: Record<string, string[]> = {
+      Usuarios: ["Usuarios", "Usuários"],
+      Configuracoes: ["Configuracoes", "Configurações"],
+      Comissoes: ["Comissoes", "Comissões"],
+      Analises: ["Analises", "Análises"],
+      "Visao em Loja": ["Visao em Loja", "Visão em Loja"],
+      "Visao Semanal": ["Visao Semanal", "Visão Semanal"],
+      "Visao Mensal": ["Visao Mensal", "Visão Mensal"],
+    };
+    return (aliases[moduleName] ?? [moduleName]).every((key) => modPerms[key] !== false);
   }
-
-  // Dynamic active campaigns for vendor view
-  const { data: activeCampaigns = [] } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ["/api/campaigns?status=ativa"],
-    enabled: isVendedor && isModuleEnabled("Campanhas"),
-    staleTime: 60_000,
-  });
 
   const filteredCore = isLoja || isVendedor
     ? []
-    : coreItems.filter(i => isModuleEnabled(i.title));
+    : coreItems.filter((item) => isModuleEnabled(item.title));
 
   const filteredAnalysis = isLoja
-    ? analysisItems.filter(i => i.title === "Visão em Loja" && isModuleEnabled(i.title))
+    ? analysisItems.filter((item) => item.title === "Visão em Loja" && isModuleEnabled(item.title))
     : isVendedor
       ? []
       : isSupervisor
-        ? analysisItems.filter(i => i.title !== "Visão em Loja" && isModuleEnabled(i.title))
-        : analysisItems.filter(i => isModuleEnabled(i.title));
+        ? analysisItems.filter((item) => item.title !== "Visão em Loja" && isModuleEnabled(item.title))
+        : analysisItems.filter((item) => isModuleEnabled(item.title));
 
   const showCampanhas = role === "admin" && isModuleEnabled("Campanhas");
   const COMPRAS_ROLES = ["admin", "supervisor", "gerente", "diretor", "comprador"];
@@ -86,7 +113,6 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r border-sidebar-border bg-sidebar">
-      {/* ── Logo / Brand ── */}
       <SidebarHeader className="px-4 py-4 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shrink-0">
@@ -104,8 +130,6 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-3">
-
-        {/* Campanhas do Vendedor — dynamic, from database */}
         {isVendedor && isModuleEnabled("Campanhas") && (
           <SidebarGroup className="mb-2">
             <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 mb-1">
@@ -113,39 +137,7 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {activeCampaigns.length === 0 && (
-                  <SidebarMenuItem>
-                    <p className="px-3 py-2 text-xs text-muted-foreground italic">Nenhuma campanha ativa</p>
-                  </SidebarMenuItem>
-                )}
-                {activeCampaigns.map(c => (
-                  <SidebarMenuItem key={c.id}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={location === `/campanhas/${c.id}`}
-                      className="h-9 rounded-lg text-sm font-medium"
-                    >
-                      <Link href={`/campanhas/${c.id}`}>
-                        <Megaphone className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{c.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Principal */}
-        {!isLoja && !isVendedor && filteredCore.length > 0 && (
-          <SidebarGroup className="mb-2">
-            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 mb-1">
-              Principal
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {filteredCore.map(item => (
+                {vendedorCampaignItems.map((item) => (
                   <NavItem key={item.title} item={item} active={location === item.url} />
                 ))}
               </SidebarMenu>
@@ -153,7 +145,21 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Análises */}
+        {!isLoja && !isVendedor && filteredCore.length > 0 && (
+          <SidebarGroup className="mb-2">
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 mb-1">
+              Principal
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredCore.map((item) => (
+                  <NavItem key={item.title} item={item} active={location === item.url} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         {filteredAnalysis.length > 0 && (
           <SidebarGroup className="mb-2">
             {!isLoja && !isVendedor && (
@@ -163,7 +169,7 @@ export function AppSidebar() {
             )}
             <SidebarGroupContent>
               <SidebarMenu>
-                {filteredAnalysis.map(item => (
+                {filteredAnalysis.map((item) => (
                   <NavItem key={item.title} item={item} active={location === item.url} />
                 ))}
               </SidebarMenu>
@@ -171,7 +177,6 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Compras */}
         {showCompras && (
           <SidebarGroup className="mb-2">
             <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 mb-1">
@@ -179,7 +184,7 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {comprasItems.map(item => (
+                {comprasItems.map((item) => (
                   <NavItem
                     key={item.title}
                     item={item}
@@ -196,7 +201,6 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      {/* Footer — admin only */}
       {role === "admin" && !isLoja && (
         <SidebarFooter className="px-2 pb-3 pt-2 border-t border-sidebar-border">
           <SidebarMenu>
@@ -214,30 +218,34 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={location === "/usuarios"}
-                className="h-9 rounded-lg text-sm font-medium"
-              >
-                <Link href="/usuarios" data-testid="nav-link-usuarios">
-                  <ShieldCheck className="h-4 w-4 shrink-0" />
+            {isModuleEnabled("Usuarios") && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/usuarios"}
+                  className="h-9 rounded-lg text-sm font-medium"
+                >
+                  <Link href="/usuarios" data-testid="nav-link-usuarios">
+                    <ShieldCheck className="h-4 w-4 shrink-0" />
                   <span>Usuários</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={location === "/configuracoes"}
-                className="h-9 rounded-lg text-sm font-medium"
-              >
-                <Link href="/configuracoes" data-testid="nav-link-configuracoes">
-                  <Settings className="h-4 w-4 shrink-0" />
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+            {isModuleEnabled("Configuracoes") && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/configuracoes"}
+                  className="h-9 rounded-lg text-sm font-medium"
+                >
+                  <Link href="/configuracoes" data-testid="nav-link-configuracoes">
+                    <Settings className="h-4 w-4 shrink-0" />
                   <span>Configurações</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarFooter>
       )}

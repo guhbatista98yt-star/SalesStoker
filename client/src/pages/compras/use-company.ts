@@ -5,9 +5,15 @@ import type { Company } from "@shared/schema";
 
 const STORAGE_KEY = "compras_selected_company";
 
+function normalizeCompanyId(value: string | null): string {
+  const id = (value ?? "all").trim();
+  if (id === "all") return "all";
+  return /^\d+$/.test(id) && Number(id) > 0 ? String(Number(id)) : "all";
+}
+
 export function useComprasCompany() {
   const [companyId, setCompanyIdState] = useState<string>(() => {
-    try { return localStorage.getItem(STORAGE_KEY) ?? "all"; } catch { return "all"; }
+    try { return normalizeCompanyId(localStorage.getItem(STORAGE_KEY)); } catch { return "all"; }
   });
 
   useEffect(() => {
@@ -28,7 +34,7 @@ export function useComprasCompany() {
   });
 
   function setCompanyId(id: string) {
-    setCompanyIdState(id);
+    setCompanyIdState(normalizeCompanyId(id));
   }
 
   return { companyId, setCompanyId, companies, companiesLoading };

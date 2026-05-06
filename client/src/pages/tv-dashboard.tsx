@@ -17,7 +17,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <p className="text-muted-foreground">Vendas: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.sales.total)}</p>
                 <p className="text-muted-foreground">Meta: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.goal.value)}</p>
                 <p className={data.achievement >= 100 ? "text-green-500 font-bold" : "text-yellow-500"}>
-                    Atingimento: {data.achievement.toFixed(2)}%
+                    Atingimento: {data.goal.value === 0 ? 'Sem meta' : `${data.achievement.toFixed(2)}%`}
                 </p>
                 {data.yoy.percentage !== 0 && (
                     <p className={data.yoy.percentage > 0 ? "text-green-500" : "text-red-500"}>
@@ -123,80 +123,74 @@ export default function TVDashboard() {
 
             {/* Grid of Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 flex-1 content-start">
-                {data.vendors.map((vendor) => {
-                    // Calculate segments for visualization
-                    // Total Bar Width = 100%
-                    // Goal Line = Dashed line at specific point? 
-                    // Better: Stacked Bar. 
-                    // Segment 1: L01 (Blue). Segment 2: L03 (Red). 
-                    // Background: Gray (Goal). 
-                    // If Total > Goal, bar fills up.
+                {(() => {
+                    // Auto-scale: find the max value across all vendors for consistent bar sizing
+                    const maxScale = Math.max(
+                        ...data.vendors.map(v => v.sales.total),
+                        ...data.vendors.map(v => v.goal.value),
+                        1 // avoid 0
+                    ) * 1.1; // 10% padding
 
-                    // Simplified Visualization for Card:
-                    // 1. Label (Code)
-                    // 2. Bar Chart inside Card? Or just simple CSS bars?
-                    // Let's use CSS bars for performance and ease of customization
+                    return data.vendors.map((vendor) => {
+                        const goalValue = vendor.goal.value || 1;
+                        const totalSales = vendor.sales.total;
+                        const l01Pct = (vendor.sales.loja01 / maxScale) * 100;
+                        const l03Pct = (vendor.sales.loja03 / maxScale) * 100;
+                        const goalLinePct = (goalValue / maxScale) * 100;
 
-                    const goalValue = vendor.goal.value || 1; // Avoid div by zero
-                    const totalSales = vendor.sales.total;
-                    const l01Pct = (vendor.sales.loja01 / goalValue) * 100;
-                    const l03Pct = (vendor.sales.loja03 / goalValue) * 100;
-                    const totalPct = l01Pct + l03Pct;
-
-                    const isExceeded = totalSales > goalValue;
-
-                    return (
-                        <Card key={vendor.id} className="bg-zinc-900 border-zinc-800 overflow-hidden flex flex-col justify-between">
-                            <CardHeader className="pb-2">
-                                <div className="flex justify-between items-start">
-                                    <CardTitle className="text-4xl font-bold text-white">{vendor.displayCode}</CardTitle>
-                                    <div className={`px-2 py-1 rounded text-xs font-bold ${vendor.yoy.percentage >= 0 ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
-                                        YoY {vendor.yoy.percentage > 0 ? '+' : ''}{vendor.yoy.percentage.toFixed(0)}%
+                        return (
+                            <Card key={vendor.id} className="bg-zinc-900 border-zinc-800 overflow-hidden flex flex-col justify-between">
+                                <CardHeader className="pb-2">
+                                    <div className="flex justify-between items-start">
+                                        <CardTitle className="text-4xl font-bold text-white">{vendor.displayCode}</CardTitle>
+                                        <div className={`px-2 py-1 rounded text-xs font-bold ${!isFinite(vendor.yoy.percentage) || vendor.yoy.percentage === 0 ? 'bg-zinc-800 text-zinc-400' : vendor.yoy.percentage >= 0 ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                                            {!isFinite(vendor.yoy.percentage) ? 'Novo' : `YoY ${vendor.yoy.percentage > 0 ? '+' : ''}${vendor.yoy.percentage.toFixed(0)}%`}
+                                        </div>
                                     </div>
-                                </div>
-                                <p className="text-sm text-zinc-500 truncate">{vendor.displayName}</p>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="mb-2 flex justify-between items-end">
-                                    <span className="text-2xl font-bold text-white">
-                                        {vendor.achievement.toFixed(1)}%
-                                    </span>
-                                    <span className="text-xs text-zinc-400">
-                                        Meta: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(vendor.goal.value)}
-                                    </span>
-                                </div>
-
-                                {/* Progress Bar Container */}
-                                <div className="h-6 w-full bg-zinc-800 rounded-full flex overflow-hidden relative">
-                                    {/* Goal Marker (100%) - Only visible if we scale > 100%?? 
-                                 Let's keep it simple: 100% width = Goal. 
-                                 If exceeded, we show full bar and maybe a glow or + badge.
-                              */}
-
-                                    <div
-                                        style={{ width: `${Math.min(l01Pct, 100)}%` }}
-                                        className="h-full bg-blue-600"
-                                    />
-                                    <div
-                                        style={{ width: `${Math.min(l03Pct, 100 - Math.min(l01Pct, 100))}%` }}
-                                        className="h-full bg-red-600"
-                                    />
-                                </div>
-
-                                <div className="mt-2 flex justify-between text-xs text-zinc-500">
-                                    <div className="flex items-center gap-1">
-                                        <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                                        <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(vendor.sales.loja01)}</span>
+                                    <p className="text-sm text-zinc-500 truncate">{vendor.displayName}</p>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="mb-2 flex justify-between items-end">
+                                        <span className={`text-2xl font-bold ${vendor.goal.value === 0 ? 'text-zinc-500' : vendor.achievement >= 100 ? 'text-green-400' : 'text-white'}`}>
+                                            {vendor.goal.value === 0 ? 'Sem meta' : `${vendor.achievement.toFixed(1)}%`}
+                                        </span>
+                                        <span className="text-xs text-zinc-400">
+                                            {vendor.goal.value > 0 ? `Meta: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(vendor.goal.value)}` : '—'}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-right">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(vendor.sales.loja03)}</span>
-                                        <div className="w-2 h-2 rounded-full bg-red-600"></div>
+
+                                    {/* Progress Bar with auto-scaled width and goal marker */}
+                                    <div className="h-6 w-full bg-zinc-800 rounded-full flex overflow-hidden relative">
+                                        <div
+                                            style={{ width: `${Math.min(l01Pct, 100)}%` }}
+                                            className="h-full bg-blue-600 transition-all duration-300"
+                                        />
+                                        <div
+                                            style={{ width: `${Math.min(l03Pct, 100 - Math.min(l01Pct, 100))}%` }}
+                                            className="h-full bg-red-600 transition-all duration-300"
+                                        />
+                                        {/* Goal marker line */}
+                                        <div
+                                            style={{ left: `${Math.min(goalLinePct, 100)}%` }}
+                                            className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-10"
+                                        />
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    );
-                })}
+
+                                    <div className="mt-2 flex justify-between text-xs text-zinc-500">
+                                        <div className="flex items-center gap-1">
+                                            <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                                            <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(vendor.sales.loja01)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-right">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(vendor.sales.loja03)}</span>
+                                            <div className="w-2 h-2 rounded-full bg-red-600"></div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    });
+                })()}
             </div>
         </div>
     );

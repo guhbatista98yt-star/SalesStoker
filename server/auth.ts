@@ -305,8 +305,8 @@ export function isAdmin(req: AuthRequest, res: Response, next: NextFunction) {
 /** Permite apenas administrador (admin/supervisor) e comprador */
 export function isCompradorOuAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   const role = req.userRole;
-  if (role !== "admin" && role !== "supervisor" && role !== "comprador") {
-    return res.status(403).json({ message: "Acesso restrito a administradores e compradores" });
+  if (role !== "admin" && role !== "supervisor" && role !== "gerente" && role !== "diretor" && role !== "comprador") {
+    return res.status(403).json({ message: "Acesso restrito ao módulo de compras" });
   }
   next();
 }

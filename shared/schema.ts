@@ -1,6 +1,15 @@
 export * from "./models/auth";
 
-export type UserRole = "supervisor" | "gerente" | "diretor";
+export type UserRole =
+  | "admin"
+  | "supervisor"
+  | "gerente"
+  | "diretor"
+  | "vendedor"
+  | "loja"
+  | "comprador"
+  | "financeiro"
+  | "marketing";
 
 export interface CommissionThreshold {
   from: number;

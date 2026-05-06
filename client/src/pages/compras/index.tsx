@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useComprasDashboard, useComprasAlertas, useComprasFornecedores, useComprasProdutos, useComprasSugestoes } from "./use-compras";
+import { useComprasDashboard, useComprasAlertas, useComprasFornecedores, useComprasProdutos, useComprasSugestoes, updateCompraAlertaStatus } from "./use-compras";
+import { useToast } from "@/hooks/use-toast";
 import { useComprasCompany } from "./use-company";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { CriticidadeBadge, CriticidadeDot, CRITICIDADE_CONFIG } from "./criticidade";
-import type { Alerta, FornecedorRanking, ProdutoCritico, SugestaoFornecedor, Criticidade } from "./types";
+import type { Alerta, ProdutoCritico, Criticidade } from "./types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle, Package, ShoppingCart, Clock, TrendingDown, TrendingUp,
   DollarSign, FileText, Building2, ChevronRight, Eye, BellOff, RefreshCw,
-  BarChart3, Filter, ArrowUpDown, HelpCircle, CheckCircle2, Info,
+  BarChart3, Filter, ArrowUpDown, HelpCircle, CheckCircle2, Info, Download,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
@@ -53,7 +54,15 @@ function KPICard({
 }
 
 /* ── Alert Row ─────────────────────────────────────────────────────── */
-function AlertRow({ alerta, onAcao }: { alerta: Alerta; onAcao: (id: string, acao: "ver" | "silenciar" | "detalhe") => void }) {
+function AlertRow({
+  alerta,
+  onAcao,
+  pending,
+}: {
+  alerta: Alerta;
+  onAcao: (id: string, acao: "ver" | "silenciar" | "detalhe") => void;
+  pending?: boolean;
+}) {
   const cfg = CRITICIDADE_CONFIG[alerta.criticidade];
   const detalheHref = alerta.produtoId
     ? `/compras/produtos/${alerta.produtoId}`
@@ -82,15 +91,15 @@ function AlertRow({ alerta, onAcao }: { alerta: Alerta; onAcao: (id: string, aca
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
-        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onAcao(alerta.id, "ver")}>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={pending} onClick={() => onAcao(alerta.id, "ver")}>
           <Eye className="h-3 w-3 mr-1" /> Marcar como visto
         </Button>
-        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onAcao(alerta.id, "silenciar")}>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={pending} onClick={() => onAcao(alerta.id, "silenciar")}>
           <BellOff className="h-3 w-3 mr-1" /> Silenciar
         </Button>
         {detalheHref && (
           <Link href={detalheHref}>
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onAcao(alerta.id, "detalhe")}>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={pending} onClick={() => onAcao(alerta.id, "detalhe")}>
               <ChevronRight className="h-3 w-3 mr-1" /> Detalhe
             </Button>
           </Link>
@@ -113,8 +122,9 @@ function SimulacaoDrawer({
 
   const coberturaAntes = produto?.coberturaDias ?? 0;
   const consumoDiario = produto ? Math.max(1, produto.estoqueAtual / Math.max(1, produto.coberturaDias)) : 1;
-  const coberturaDepois = produto && quantidade
-    ? Math.round((produto.estoqueAtual + Number(quantidade)) / consumoDiario)
+  const quantidadeNumerica = Number.isFinite(Number(quantidade)) ? Math.max(0, Number(quantidade)) : 0;
+  const coberturaDepois = produto && quantidadeNumerica > 0
+    ? Math.round((produto.estoqueAtual + quantidadeNumerica) / consumoDiario)
     : coberturaAntes;
 
   function getCriticidadeFromDias(dias: number): Criticidade {
@@ -200,8 +210,7 @@ function SimulacaoDrawer({
           )}
 
           <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-            <Button className="flex-1" disabled={!produto || !quantidade}>Confirmar Sugestão</Button>
+            <Button variant="outline" className="flex-1" onClick={onClose}>Fechar</Button>
           </div>
         </div>
       </SheetContent>
@@ -212,14 +221,17 @@ function SimulacaoDrawer({
 /* ── Main Dashboard ─────────────────────────────────────────────────── */
 export default function ComprasDashboard() {
   const { companyId, setCompanyId, companies, companiesLoading } = useComprasCompany();
-  const { data: dashboard, isLoading: loadingDash, refetch: refetchDash } = useComprasDashboard(companyId);
-  const { data: alertas = [], isLoading: loadingAlertas } = useComprasAlertas();
-  const { data: fornecedores = [], isLoading: loadingFornecedores } = useComprasFornecedores(companyId);
-  const { data: produtos = [], isLoading: loadingProdutos } = useComprasProdutos(companyId);
-  const { data: sugestoes = [] } = useComprasSugestoes(companyId);
+  const { toast } = useToast();
+  const { data: dashboard, isLoading: loadingDash, isError: erroDashboard, error: dashboardError, refetch: refetchDash } = useComprasDashboard(companyId);
+  const { data: alertas = [], isLoading: loadingAlertas, isError: erroAlertas, refetch: refetchAlertas } = useComprasAlertas();
+  const { data: fornecedoresData, isLoading: loadingFornecedores, isError: erroFornecedores, refetch: refetchFornecedores } = useComprasFornecedores(companyId);
+  const { data: produtosData, isLoading: loadingProdutos, isError: erroProdutos, refetch: refetchProdutos } = useComprasProdutos(companyId);
+  const { data: sugestoes = [], isError: erroSugestoes, refetch: refetchSugestoes } = useComprasSugestoes(companyId);
 
-  const [alertasVisto, setAlertasVisto] = useState<Set<string>>(new Set());
-  const [alertasSilenciado, setAlertasSilenciado] = useState<Set<string>>(new Set());
+  const fornecedores = fornecedoresData?.items || [];
+  const produtos = produtosData?.items || [];
+
+
   const [simulacaoOpen, setSimulacaoOpen] = useState(false);
   const [filtroFornecedor, setFiltroFornecedor] = useState("");
   const [filtroProduto, setFiltroProduto] = useState("");
@@ -228,15 +240,89 @@ export default function ComprasDashboard() {
   const [sortProduto, setSortProduto] = useState<"criticidade" | "cobertura" | "sugestao">("criticidade");
   const [showTodosAlertas, setShowTodosAlertas] = useState(false);
   const [showInstrucoes, setShowInstrucoes] = useState(false);
+  const [pendingAlertaIds, setPendingAlertaIds] = useState<Set<string>>(() => new Set());
 
-  function handleAlertaAcao(id: string, acao: "ver" | "silenciar" | "detalhe") {
-    if (acao === "ver") setAlertasVisto(s => { const n = new Set(s); n.add(id); return n; });
-    if (acao === "silenciar") setAlertasSilenciado(s => { const n = new Set(s); n.add(id); return n; });
+  async function handleAlertaAcao(id: string, acao: "ver" | "silenciar" | "detalhe") {
+    if (acao === "detalhe") return;
+    if (pendingAlertaIds.has(id)) return;
+    const status = acao === "ver" ? "lido" : "silenciado";
+    setPendingAlertaIds(prev => new Set(prev).add(id));
+    try {
+      await updateCompraAlertaStatus(id, status);
+      await refetchAlertas();
+      toast({ title: acao === "ver" ? "Alerta marcado como visto" : "Alerta silenciado" });
+    } catch (err) {
+      toast({
+        title: "Erro ao atualizar alerta",
+        description: err instanceof Error ? err.message : "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setPendingAlertaIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  async function handleRefreshCompras() {
+    await Promise.all([
+      refetchDash(),
+      refetchAlertas(),
+      refetchFornecedores(),
+      refetchProdutos(),
+      refetchSugestoes(),
+    ]);
+  }
+
+  function handleExportCompras() {
+    if (produtosFiltrados.length === 0) {
+      toast({ title: "Nenhum produto para exportar" });
+      return;
+    }
+
+    const now = new Date();
+    const linhas: string[] = [];
+    const fmtC = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const fmtN = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+    linhas.push(`"SalesStoker - Relatório de Compras"`);
+    linhas.push(`"Gerado em","${now.toLocaleString("pt-BR")}"`);
+    linhas.push(`"Empresa","${companyId === "all" ? "Todas" : companies.find(c => c.id === companyId)?.name || companyId}"`);
+    linhas.push("");
+    
+    linhas.push(`"Código","Descrição","Fornecedor","Criticidade","Estoque Atual","Cobertura (dias)","Data Est. Ruptura","Sugestão Compra"`);
+
+    for (const p of produtosFiltrados) {
+      const row = [
+        p.codigo,
+        p.descricao,
+        p.fornecedor,
+        p.criticidade.toUpperCase(),
+        fmtN(p.estoqueAtual),
+        fmtN(p.coberturaDias),
+        p.dataEstimadaRuptura,
+        fmtN(p.sugestaoCompra)
+      ];
+      linhas.push(row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";"));
+    }
+
+    const blob = new Blob(["\uFEFF" + linhas.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `compras-relatorio-${now.toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: "Relatório exportado com sucesso!" });
   }
 
   const alertasFiltrados = alertas
-    .filter(a => !alertasSilenciado.has(a.id))
-    .map(a => ({ ...a, visto: alertasVisto.has(a.id) || !!a.visto }));
+    .filter(a => !a.silenciado);
 
   const alertasExibidos = showTodosAlertas ? alertasFiltrados : alertasFiltrados.slice(0, 4);
 
@@ -283,12 +369,11 @@ export default function ComprasDashboard() {
     { name: ">14d",  value: produtos.filter(p => p.coberturaDias > 14).length },
   ];
 
-  const EXCESSO_POR_FORNECEDOR: Record<string, number> = { f1: 1, f2: 0, f3: 5, f4: 2, f5: 3, f6: 4 };
   const excessoRupturaData = fornecedores.slice(0, 6).map(f => ({
     name: f.nome,
     criticos: f.itensCriticos,
-    excesso: EXCESSO_POR_FORNECEDOR[f.id] ?? 0,
   }));
+  const hasComprasError = erroDashboard || erroAlertas || erroFornecedores || erroProdutos || erroSugestoes;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -310,14 +395,20 @@ export default function ComprasDashboard() {
             <Button size="sm" variant="outline" onClick={() => setShowInstrucoes(true)} className="gap-2">
               <HelpCircle className="h-3.5 w-3.5" /> Instruções
             </Button>
-            <Button size="sm" variant="outline" onClick={() => refetchDash()} className="gap-2">
+            <Button size="sm" variant="outline" onClick={handleRefreshCompras} className="gap-2">
               <RefreshCw className="h-3.5 w-3.5" /> Atualizar
             </Button>
-            <Button size="sm" onClick={() => setSimulacaoOpen(true)} className="gap-2">
+            <Button size="sm" onClick={() => setSimulacaoOpen(true)} disabled={produtos.length === 0} className="gap-2">
               <BarChart3 className="h-3.5 w-3.5" /> Simular Compra
             </Button>
           </div>
         </div>
+
+        {hasComprasError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Falha ao carregar dados reais de compras. {dashboardError instanceof Error ? dashboardError.message : "Verifique a API e tente atualizar."}
+          </div>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -351,7 +442,7 @@ export default function ComprasDashboard() {
             ) : (
               <div className="space-y-2">
                 {alertasExibidos.map(a => (
-                  <AlertRow key={a.id} alerta={a} onAcao={handleAlertaAcao} />
+                  <AlertRow key={a.id} alerta={a} onAcao={handleAlertaAcao} pending={pendingAlertaIds.has(a.id)} />
                 ))}
                 {alertasFiltrados.length > 4 && (
                   <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setShowTodosAlertas(v => !v)}>
@@ -370,7 +461,11 @@ export default function ComprasDashboard() {
               Sugestão por Fornecedor
             </h2>
             <div className="space-y-2">
-              {sugestoes.map(s => (
+              {sugestoes.length === 0 ? (
+                <div className="rounded-xl border bg-muted/20 p-4 text-center text-sm text-muted-foreground">
+                  Nenhuma sugestao de compra para os filtros atuais.
+                </div>
+              ) : sugestoes.map(s => (
                 <div key={s.fornecedorId} className="flex items-center gap-3 p-3 rounded-xl border bg-card">
                   <CriticidadeDot value={s.urgencia} size="md" />
                   <div className="flex-1 min-w-0">
@@ -401,7 +496,7 @@ export default function ComprasDashboard() {
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v: number | string) => [`${v} dias`, "Cobertura"]} />
-                  <Bar dataKey="cobertura" fill="hsl(var(--primary))" radius={[4,4,0,0]} />
+                  <Bar dataKey="cobertura" fill="hsl(var(--primary))" radius={[4,4,0,0]} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -409,7 +504,7 @@ export default function ComprasDashboard() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Excesso × Ruptura por Fornecedor</CardTitle>
+              <CardTitle className="text-sm font-semibold">Ruptura por Fornecedor</CardTitle>
             </CardHeader>
             <CardContent className="pb-4">
               <ResponsiveContainer width="100%" height={180}>
@@ -417,10 +512,9 @@ export default function ComprasDashboard() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip formatter={(v: number | string, name: string) => [v, name === "criticos" ? "Críticos/Ruptura" : "Excesso"]} />
+                  <Tooltip formatter={(v: number | string) => [v, "Críticos/Ruptura"]} />
                   <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="criticos" name="Críticos/Ruptura" fill="#ef4444" radius={[4,4,0,0]} />
-                  <Bar dataKey="excesso" name="Excesso" fill="#3b82f6" radius={[4,4,0,0]} />
+                  <Bar dataKey="criticos" name="Críticos/Ruptura" fill="#ef4444" radius={[4,4,0,0]} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -433,7 +527,7 @@ export default function ComprasDashboard() {
             <CardContent className="pb-4">
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={criticidadeData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
+                  <Pie data={criticidadeData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value" isAnimationActive={false}>
                     {criticidadeData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                   </Pie>
                   <Tooltip formatter={(v: number | string, name: string) => [v, name]} />
@@ -454,7 +548,7 @@ export default function ComprasDashboard() {
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip formatter={(v: number | string) => [v, "Produtos"]} />
-                  <Bar dataKey="value" fill="#ef4444" radius={[4,4,0,0]} />
+                  <Bar dataKey="value" fill="#ef4444" radius={[4,4,0,0]} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -477,6 +571,16 @@ export default function ComprasDashboard() {
               <SelectItem value="normal">Normal</SelectItem>
             </SelectContent>
           </Select>
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 gap-2 ml-auto"
+            onClick={handleExportCompras}
+          >
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
         </div>
 
         {/* Ranking Fornecedores */}
@@ -510,6 +614,10 @@ export default function ComprasDashboard() {
           <CardContent className="p-0">
             {loadingFornecedores ? (
               <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : fornecedoresFiltrados.length === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                Nenhum fornecedor encontrado para os filtros atuais.
+              </div>
             ) : (
               <>
                 {/* Desktop table */}
@@ -609,6 +717,10 @@ export default function ComprasDashboard() {
           <CardContent className="p-0">
             {loadingProdutos ? (
               <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : produtosFiltrados.length === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                Nenhum produto encontrado para os filtros atuais.
+              </div>
             ) : (
               <>
                 {/* Desktop table */}

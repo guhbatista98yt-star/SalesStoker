@@ -56,10 +56,10 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv()  # fallback: project root .env
 
-DB2_DSN       = os.environ["DB2_DSN"]          # e.g. "ERPPROD"
-DB2_UID       = os.environ["DB2_UID"]
-DB2_PWD       = os.environ["DB2_PWD"]
-PG_DSN        = os.environ["DATABASE_URL"]     # PostgreSQL connection string
+DB2_DSN       = os.environ.get("DB2_DSN", "")  # e.g. "ERPPROD"
+DB2_UID       = os.environ.get("DB2_UID", "")
+DB2_PWD       = os.environ.get("DB2_PWD", "")
+PG_DSN        = os.environ.get("DATABASE_URL", "")  # PostgreSQL connection string
 
 # How many rows to process per batch (controls memory usage and upsert size)
 BATCH_SIZE = 2_000
@@ -95,6 +95,13 @@ def db2_connection() -> Generator[pyodbc.Connection, None, None]:
     """
     conn: pyodbc.Connection | None = None
     try:
+        missing = [name for name, value in {
+            "DB2_DSN": DB2_DSN,
+            "DB2_UID": DB2_UID,
+            "DB2_PWD": DB2_PWD,
+        }.items() if not value]
+        if missing:
+            raise RuntimeError(f"Variaveis DB2 ausentes: {', '.join(missing)}")
         conn = pyodbc.connect(
             f"DSN={DB2_DSN};UID={DB2_UID};PWD={DB2_PWD}",
             autocommit=True,          # no implicit transaction for reads
@@ -117,6 +124,8 @@ def pg_connection() -> Generator[psycopg2.extensions.connection, None, None]:
     """Opens a PostgreSQL connection; commits on success, rolls back on error."""
     conn: psycopg2.extensions.connection | None = None
     try:
+        if not PG_DSN:
+            raise RuntimeError("Variavel DATABASE_URL ausente")
         conn = psycopg2.connect(PG_DSN)
         yield conn
         conn.commit()
@@ -137,10 +146,13 @@ def pg_connection() -> Generator[psycopg2.extensions.connection, None, None]:
 
 _REQUIRED_COLUMNS: list[tuple[str, str, str]] = [
     # (table, column, definition)
-    ("cache_campanhas",             "IDEMPRESA",  "TEXT NOT NULL DEFAULT ''"),
-    ("cache_estoque_sugestao",      "DESCRICAO",  "TEXT NOT NULL DEFAULT ''"),
-    ("compras_fornecedores_config", "company_id", "INTEGER NOT NULL DEFAULT 1"),
-    ("compras_produtos_config",     "company_id", "INTEGER NOT NULL DEFAULT 1"),
+    ("cache_campanhas",             "IDEMPRESA",     "TEXT NOT NULL DEFAULT ''"),
+    ("cache_estoque_sugestao",      "DESCRICAO",     "TEXT NOT NULL DEFAULT ''"),
+    ("cache_tubos_conexoes",        "TIPO_PRODUTO",  "TEXT NOT NULL DEFAULT ''"),
+    ("cache_vendas",                "IDCLIENTE",     "TEXT"),
+    ("cache_vendas",                "NOME_CLIENTE",  "TEXT"),
+    ("compras_fornecedores_config", "company_id",    "INTEGER NOT NULL DEFAULT 1"),
+    ("compras_produtos_config",     "company_id",    "INTEGER NOT NULL DEFAULT 1"),
 ]
 
 
@@ -404,19 +416,21 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
 
         # Bulk insert using execute_values for performance
         # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2] IDPLANILHA[3]
-        #          DT_MOVIMENTO[4] TOTALVENDA_LINHA[5]
+        #          DT_MOVIMENTO[4] TOTALVENDA_LINHA[5] IDCLIENTE[6] NOME_CLIENTE[7]
         if all_rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 """
                 INSERT INTO cache_vendas
                   ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA","IDPLANILHA",
-                   "DT_MOVIMENTO","TOTALVENDA_LINHA", synced_at)
+                   "DT_MOVIMENTO","TOTALVENDA_LINHA","IDCLIENTE","NOME_CLIENTE", synced_at)
                 VALUES %s
                 """,
                 [
                     (r[0], r[1], r[2], r[3], r[4],
                      _fix_monetary(r[5]),
+                     str(r[6]) if len(r) > 6 and r[6] is not None else '',
+                     str(r[7]) if len(r) > 7 and r[7] is not None else '',
                      datetime.now(timezone.utc))
                     for r in all_rows
                 ],
@@ -543,19 +557,20 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             (watermark, date_to),
         )
         # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
-        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4]
+        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4] TIPO_PRODUTO[5]
         if all_rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 """
                 INSERT INTO cache_tubos_conexoes
                   ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",
-                   "DT_MOVIMENTO","TOTALVENDA_LINHA", synced_at)
+                   "DT_MOVIMENTO","TOTALVENDA_LINHA","TIPO_PRODUTO", synced_at)
                 VALUES %s
                 """,
                 [
                     (r[0], r[1], r[2], r[3],
                      _fix_monetary(r[4]),
+                     str(r[5]) if len(r) > 5 and r[5] else '',
                      datetime.now(timezone.utc))
                     for r in all_rows
                 ],
@@ -858,6 +873,43 @@ def run_routine(name: str, force: bool = False) -> None:
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
+def run_once(routine: str, force: bool = False) -> None:
+    if routine == "all":
+        for name in ROUTINES:
+            run_routine(name, force=force)
+    else:
+        run_routine(routine, force=force)
+
+
+def run_loop(routine: str, interval_seconds: int, force: bool = False) -> None:
+    if interval_seconds < 30:
+        raise ValueError("--loop deve ser de pelo menos 30 segundos para proteger o ERP")
+
+    log.info(
+        "=== Loop automatico iniciado: routine=%s, intervalo=%ss ===",
+        routine,
+        interval_seconds,
+    )
+
+    while True:
+        cycle_started = time.monotonic()
+        try:
+            run_once(routine, force=force)
+        except SystemExit as exc:
+            if exc.code not in (0, None):
+                log.error("Ciclo de sync falhou; proximo ciclo sera tentado no intervalo configurado.")
+        except KeyboardInterrupt:
+            log.info("Loop automatico interrompido pelo usuario.")
+            raise
+        except Exception:
+            log.exception("Ciclo de sync falhou; proximo ciclo sera tentado no intervalo configurado.")
+
+        elapsed = time.monotonic() - cycle_started
+        sleep_for = max(0, interval_seconds - elapsed)
+        log.info("Proximo ciclo em %.0fs.", sleep_for)
+        time.sleep(sleep_for)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="CONECTUBOS ERP Sync")
     parser.add_argument(
@@ -870,13 +922,18 @@ def main() -> None:
         action="store_true",
         help="Ignora e libera o lock existente antes de executar (útil após falhas)",
     )
+    parser.add_argument(
+        "--loop",
+        type=int,
+        metavar="SEGUNDOS",
+        help="Mantem a rotina rodando em loop no intervalo informado. Minimo: 30 segundos.",
+    )
     args = parser.parse_args()
 
-    if args.routine == "all":
-        for name in ROUTINES:
-            run_routine(name, force=args.force)
+    if args.loop:
+        run_loop(args.routine, args.loop, force=args.force)
     else:
-        run_routine(args.routine, force=args.force)
+        run_once(args.routine, force=args.force)
 
 
 if __name__ == "__main__":

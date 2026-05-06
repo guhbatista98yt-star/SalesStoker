@@ -1,9 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { getAuthToken } from "@/lib/auth-context";
-import {
-  mockDashboard, mockAlertas, mockFornecedores, mockProdutos,
-  mockSugestoes, mockFornecedorDetalhe, mockProdutoDetalhe,
-} from "./mock-data";
 import type {
   ComprasDashboard, Alerta, FornecedorRanking, ProdutoCritico,
   SugestaoFornecedor, FornecedorDetalhe, ProdutoDetalhe, Criticidade,
@@ -64,6 +60,7 @@ interface BackendFornecedorItem {
   urgenciaMaxima: string;
   coberturaMediaDias: number;
   consumoMedioDiario: number;
+  valorEstimadoCompra?: number;
 }
 
 function adaptFornecedorRanking(raw: BackendFornecedorItem): FornecedorRanking {
@@ -73,7 +70,7 @@ function adaptFornecedorRanking(raw: BackendFornecedorItem): FornecedorRanking {
     itensCriticos: raw.skusCriticos,
     coberturaMedia: Math.round(raw.coberturaMediaDias),
     leadTime: 7,
-    valorEstimado: raw.skusCriticos * 8000 + raw.skusAlerta * 3000,
+    valorEstimado: raw.valorEstimadoCompra ?? 0,
     criticidade: urgenciaToCriticidade(raw.urgenciaMaxima),
     status: raw.urgenciaMaxima,
   };
@@ -90,9 +87,11 @@ interface BackendProdutoItem {
   consumoMedioDiario: number;
   quantidadeSugerida: number;
   estoqueAtual: number;
+  semHistorico?: boolean;
 }
 
-function estimateRupturaDate(coberturaDias: number): string {
+function estimateRupturaDate(coberturaDias: number, semHistorico = false): string {
+  if (semHistorico) return "Sem historico";
   if (coberturaDias <= 0) return "Hoje";
   const d = new Date();
   d.setDate(d.getDate() + coberturaDias);
@@ -108,9 +107,10 @@ function adaptProdutoCritico(raw: BackendProdutoItem): ProdutoCritico {
     fornecedorId: encodeURIComponent(raw.fabricante),
     estoqueAtual: raw.estoqueAtual,
     coberturaDias: Math.round(raw.coberturaDias),
-    dataEstimadaRuptura: estimateRupturaDate(raw.coberturaDias),
+    dataEstimadaRuptura: estimateRupturaDate(raw.coberturaDias, raw.semHistorico),
     sugestaoCompra: raw.quantidadeSugerida,
     criticidade: urgenciaToCriticidade(raw.urgencia),
+    semHistorico: raw.semHistorico ?? false,
   };
 }
 
@@ -147,11 +147,32 @@ function adaptAlerta(raw: BackendAlerta): Alerta {
 async function fetchApi<T>(url: string): Promise<{ data: T; fromApi: boolean }> {
   const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    let message = text || `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.error) message = String(parsed.error);
+    } catch {}
+    const err = new Error(message);
     throw err;
   }
   const data = await res.json() as T;
   return { data, fromApi: true };
+}
+
+export async function updateCompraAlertaStatus(id: string, status: string): Promise<void> {
+  const res = await fetch(`/api/compras/alertas/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
 }
 
 /* ── helpers ──────────────────────────────────────────────────────── */
@@ -167,12 +188,8 @@ export function useComprasDashboard(companyId?: string) {
   return useQuery<ComprasDashboard>({
     queryKey: ["compras", "dashboard", companyId ?? "all"],
     queryFn: async () => {
-      try {
-        const { data } = await fetchApi<Record<string, unknown>>(`/api/compras/dashboard${companyParam(companyId)}`);
-        return adaptDashboard(data);
-      } catch {
-        return mockDashboard;
-      }
+      const { data } = await fetchApi<Record<string, unknown>>(`/api/compras/dashboard${companyParam(companyId)}`);
+      return adaptDashboard(data);
     },
     staleTime: 60_000,
     refetchInterval: 120_000,
@@ -183,44 +200,42 @@ export function useComprasAlertas() {
   return useQuery<Alerta[]>({
     queryKey: ["compras", "alertas"],
     queryFn: async () => {
-      try {
-        const { data } = await fetchApi<{ alerts: BackendAlerta[]; total: number; unreadCount: number }>("/api/compras/alertas");
-        return data.alerts.map(adaptAlerta);
-      } catch {
-        return mockAlertas;
-      }
+      const { data } = await fetchApi<{ alerts: BackendAlerta[]; total: number; unreadCount: number }>("/api/compras/alertas");
+      return data.alerts.map(adaptAlerta);
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
 }
 
-export function useComprasFornecedores(companyId?: string) {
-  return useQuery<FornecedorRanking[]>({
-    queryKey: ["compras", "fornecedores", companyId ?? "all"],
+export function useComprasFornecedores(companyId?: string, page: number = 1, limit: number = 50, search?: string) {
+  return useQuery<{ total: number; page: number; limit: number; items: FornecedorRanking[] }>({
+    queryKey: ["compras", "fornecedores", companyId ?? "all", page, limit, search],
     queryFn: async () => {
-      try {
-        const { data } = await fetchApi<BackendFornecedorItem[]>(`/api/compras/fornecedores${companyParam(companyId)}`);
-        return data.map(adaptFornecedorRanking);
-      } catch {
-        return mockFornecedores;
-      }
+      let query = `?page=${page}&limit=${limit}`;
+      if (companyId && companyId !== "all") query += `&company_id=${encodeURIComponent(companyId)}`;
+      if (search) query += `&search=${encodeURIComponent(search)}`;
+      
+      const { data } = await fetchApi<{ total: number; page: number; limit: number; items: BackendFornecedorItem[] }>(`/api/compras/fornecedores${query}`);
+      return { ...data, items: data.items.map(adaptFornecedorRanking) };
     },
     staleTime: 60_000,
     refetchInterval: 120_000,
   });
 }
 
-export function useComprasProdutos(companyId?: string) {
-  return useQuery<ProdutoCritico[]>({
-    queryKey: ["compras", "produtos", companyId ?? "all"],
+export function useComprasProdutos(companyId?: string, page: number = 1, limit: number = 50, search?: string, fabricante?: string, urgencia?: string) {
+  return useQuery<{ total: number; page: number; limit: number; items: ProdutoCritico[] }>({
+    queryKey: ["compras", "produtos", companyId ?? "all", page, limit, search, fabricante, urgencia],
     queryFn: async () => {
-      try {
-        const { data } = await fetchApi<BackendProdutoItem[]>(`/api/compras/produtos${companyParam(companyId)}`);
-        return data.map(adaptProdutoCritico);
-      } catch {
-        return mockProdutos;
-      }
+      let query = `?page=${page}&limit=${limit}`;
+      if (companyId && companyId !== "all") query += `&company_id=${encodeURIComponent(companyId)}`;
+      if (search) query += `&search=${encodeURIComponent(search)}`;
+      if (fabricante) query += `&fabricante=${encodeURIComponent(fabricante)}`;
+      if (urgencia) query += `&urgencia=${encodeURIComponent(urgencia)}`;
+
+      const { data } = await fetchApi<{ total: number; page: number; limit: number; items: BackendProdutoItem[] }>(`/api/compras/produtos${query}`);
+      return { ...data, items: data.items.map(adaptProdutoCritico) };
     },
     staleTime: 60_000,
     refetchInterval: 120_000,
@@ -236,41 +251,41 @@ interface BackendProductSuggestion {
   quantidadeSugerida: number;
   coberturaDias: number;
   consumoMedioDiario: number;
+  ultimaValorCompra?: number | null;
 }
 
 export function useComprasSugestoes(companyId?: string) {
   return useQuery<SugestaoFornecedor[]>({
     queryKey: ["compras", "sugestoes", companyId ?? "all"],
     queryFn: async () => {
-      try {
-        const { data } = await fetchApi<BackendProductSuggestion[]>(`/api/compras/sugestoes${companyParam(companyId)}`);
-        const urgenciaOrder: Record<string, number> = { critica: 0, alta: 1, media: 2, baixa: 3, ok: 4 };
-        const fabricantesMap = new Map<string, { itens: number; urgenciaMaxima: string; criticidade: number }>();
-        for (const s of data) {
-          if (!fabricantesMap.has(s.fabricante)) {
-            fabricantesMap.set(s.fabricante, { itens: 0, urgenciaMaxima: "ok", criticidade: 0 });
-          }
-          const fab = fabricantesMap.get(s.fabricante)!;
-          if (s.quantidadeSugerida > 0) fab.itens++;
-          if ((urgenciaOrder[s.urgencia] ?? 5) < (urgenciaOrder[fab.urgenciaMaxima] ?? 5)) {
-            fab.urgenciaMaxima = s.urgencia;
-          }
-          if (s.criticidade > fab.criticidade) fab.criticidade = s.criticidade;
+      const { data } = await fetchApi<BackendProductSuggestion[]>(`/api/compras/sugestoes${companyParam(companyId)}`);
+      const urgenciaOrder: Record<string, number> = { critica: 0, alta: 1, media: 2, baixa: 3, ok: 4 };
+      const fabricantesMap = new Map<string, { itens: number; urgenciaMaxima: string; criticidade: number; valorEstimado: number }>();
+      for (const s of data) {
+        if (!fabricantesMap.has(s.fabricante)) {
+          fabricantesMap.set(s.fabricante, { itens: 0, urgenciaMaxima: "ok", criticidade: 0, valorEstimado: 0 });
         }
-        return Array.from(fabricantesMap.entries())
-          .filter(([, v]) => v.itens > 0)
-          .sort(([, a], [, b]) => b.criticidade - a.criticidade)
-          .slice(0, 8)
-          .map(([fabricante, v]) => ({
-            fornecedorId: encodeURIComponent(fabricante),
-            fornecedor: fabricante,
-            itens: v.itens,
-            valorEstimado: v.itens * 5000,
-            urgencia: urgenciaToCriticidade(v.urgenciaMaxima),
-          }));
-      } catch {
-        return mockSugestoes;
+        const fab = fabricantesMap.get(s.fabricante)!;
+        if (s.quantidadeSugerida > 0) {
+          fab.itens++;
+          fab.valorEstimado += s.quantidadeSugerida * Math.max(0, s.ultimaValorCompra ?? 0);
+        }
+        if ((urgenciaOrder[s.urgencia] ?? 5) < (urgenciaOrder[fab.urgenciaMaxima] ?? 5)) {
+          fab.urgenciaMaxima = s.urgencia;
+        }
+        if (s.criticidade > fab.criticidade) fab.criticidade = s.criticidade;
       }
+      return Array.from(fabricantesMap.entries())
+        .filter(([, v]) => v.itens > 0)
+        .sort(([, a], [, b]) => b.criticidade - a.criticidade)
+        .slice(0, 8)
+        .map(([fabricante, v]) => ({
+          fornecedorId: encodeURIComponent(fabricante),
+          fornecedor: fabricante,
+          itens: v.itens,
+          valorEstimado: Math.round(v.valorEstimado),
+          urgencia: urgenciaToCriticidade(v.urgenciaMaxima),
+        }));
     },
     staleTime: 60_000,
     refetchInterval: 120_000,
@@ -281,42 +296,35 @@ export function useComprasFornecedorDetalhe(id: string, companyId?: string) {
   return useQuery<FornecedorDetalhe>({
     queryKey: ["compras", "fornecedores", id, companyId ?? "all"],
     queryFn: async () => {
-      try {
-        const fabricante = decodeURIComponent(id);
-        const { data } = await fetchApi<{
-          fabricante: string;
-          ranking: BackendFornecedorItem | null;
-          produtos: BackendProdutoItem[];
-          alertas: unknown[];
-        }>(`/api/compras/fornecedores/${encodeURIComponent(fabricante)}${companyParam(companyId)}`);
+      const fabricante = decodeURIComponent(id);
+      const { data } = await fetchApi<{
+        fabricante: string;
+        ranking: BackendFornecedorItem | null;
+        produtos: BackendProdutoItem[];
+        alertas: unknown[];
+      }>(`/api/compras/fornecedores/${encodeURIComponent(fabricante)}${companyParam(companyId)}`);
 
-        const rank = data.ranking;
-        const produtos = (data.produtos ?? []).map(adaptProdutoCritico);
+      const rank = data.ranking;
+      const produtos = (data.produtos ?? []).map(adaptProdutoCritico);
 
-        const coberturaMediaDias = rank?.coberturaMediaDias ?? 0;
-        const coberturaPorProduto = (data.produtos ?? []).slice(0, 8).map(p => ({
-          produto: p.produtoNome.substring(0, 20),
-          dias: Math.round(p.coberturaDias),
-        }));
+      const coberturaMediaDias = rank?.coberturaMediaDias ?? 0;
+      const coberturaPorProduto = (data.produtos ?? []).slice(0, 8).map(p => ({
+        produto: p.produtoNome.substring(0, 20),
+        dias: Math.round(p.coberturaDias),
+      }));
 
-        return {
-          id,
-          nome: data.fabricante,
-          itensCriticos: rank?.skusCriticos ?? 0,
-          coberturaMedia: Math.round(coberturaMediaDias),
-          leadTime: 7,
-          valorEstimado: (rank?.skusCriticos ?? 0) * 8000 + (rank?.skusAlerta ?? 0) * 3000,
-          criticidade: urgenciaToCriticidade(rank?.urgenciaMaxima ?? "ok"),
-          totalProdutos: data.produtos?.length ?? 0,
-          produtos,
-          coberturaPorProduto,
-        };
-      } catch {
-        return mockFornecedorDetalhe[id] ?? {
-          id, nome: "Fornecedor", itensCriticos: 0, coberturaMedia: 0, leadTime: 0,
-          valorEstimado: 0, criticidade: "normal" as Criticidade, totalProdutos: 0, produtos: [], coberturaPorProduto: [],
-        };
-      }
+      return {
+        id,
+        nome: data.fabricante,
+        itensCriticos: rank?.skusCriticos ?? 0,
+        coberturaMedia: Math.round(coberturaMediaDias),
+        leadTime: 7,
+        valorEstimado: rank?.valorEstimadoCompra ?? 0,
+        criticidade: urgenciaToCriticidade(rank?.urgenciaMaxima ?? "ok"),
+        totalProdutos: data.produtos?.length ?? 0,
+        produtos,
+        coberturaPorProduto,
+      };
     },
     staleTime: 60_000,
     enabled: !!id,
@@ -327,8 +335,7 @@ export function useComprasProdutoDetalhe(id: string, companyId?: string) {
   return useQuery<ProdutoDetalhe>({
     queryKey: ["compras", "produtos", id, companyId ?? "all"],
     queryFn: async () => {
-      try {
-        const { data } = await fetchApi<{
+      const { data } = await fetchApi<{
           sugestao: {
             produtoId: string;
             produtoNome: string;
@@ -347,20 +354,21 @@ export function useComprasProdutoDetalhe(id: string, companyId?: string) {
             ultimaCompra: string | null;
             ultimaQtdComprada: number | null;
             ultimaValorCompra: number | null;
+            semHistorico?: boolean;
           } | null;
           historico: { periodo: string; total_vendido: number }[];
           alertas: unknown[];
-        }>(`/api/compras/produtos/${encodeURIComponent(id)}${companyParam(companyId)}`);
+      }>(`/api/compras/produtos/${encodeURIComponent(id)}${companyParam(companyId)}`);
 
-        const s = data.sugestao;
-        if (!s) throw new Error("Produto não encontrado");
+      const s = data.sugestao;
+      if (!s) throw new Error("Produto não encontrado");
 
-        const historico = (data.historico ?? []).map(h => ({
-          data: h.periodo,
-          consumo: Number(h.total_vendido) || 0,
-        }));
+      const historico = (data.historico ?? []).map(h => ({
+        data: h.periodo,
+        consumo: Number(h.total_vendido) || 0,
+      }));
 
-        return {
+      return {
           id: s.produtoId,
           codigo: s.produtoId,
           descricao: s.produtoNome,
@@ -372,28 +380,19 @@ export function useComprasProdutoDetalhe(id: string, companyId?: string) {
           estoqueSeguranca: s.estoqueSeguranca,
           pedidosAbertos: s.pedidosAbertos ?? 0,
           coberturaDias: Math.round(s.coberturaDias),
-          dataEstimadaRuptura: estimateRupturaDate(s.coberturaDias),
+          dataEstimadaRuptura: estimateRupturaDate(s.coberturaDias, s.semHistorico),
           sugestaoCompra: s.quantidadeSugerida,
           criticidade: urgenciaToCriticidade(s.urgencia),
           consumoDiario: Math.round(s.consumoMedioDiario * 10) / 10,
           consumoSemanal: Math.round(s.consumoMedioDiario * 7 * 10) / 10,
           consumoMensal: Math.round(s.consumoMedioDiario * 30 * 10) / 10,
+          semHistorico: s.semHistorico ?? false,
           estoqueErpDisponivel: s.estoqueErpDisponivel ?? false,
           ultimaCompra: s.ultimaCompra ?? undefined,
           ultimaQtdComprada: s.ultimaQtdComprada ?? undefined,
           ultimaValorCompra: s.ultimaValorCompra ?? undefined,
           historico,
-        };
-      } catch {
-        return mockProdutoDetalhe[id] ?? {
-          id, codigo: id, descricao: "Produto", fornecedor: "", fornecedorId: "",
-          estoqueAtual: 0, qtdReserva: 0, saldoDisponivel: 0, estoqueSeguranca: 0, pedidosAbertos: 0,
-          coberturaDias: 0, dataEstimadaRuptura: "-",
-          sugestaoCompra: 0, criticidade: "normal" as Criticidade,
-          consumoDiario: 0, consumoSemanal: 0, consumoMensal: 0,
-          estoqueErpDisponivel: false, historico: [],
-        };
-      }
+      };
     },
     staleTime: 60_000,
     enabled: !!id,

@@ -107,6 +107,7 @@ function SalesBarChart({ data }: { data: SalesChartData[] }) {
               fill="hsl(217 93% 52%)"
               radius={[5, 5, 0, 0]}
               maxBarSize={32}
+              isAnimationActive={false}
             />
             <Bar
               dataKey="anterior"
@@ -114,6 +115,7 @@ function SalesBarChart({ data }: { data: SalesChartData[] }) {
               fill="hsl(214 20% 85%)"
               radius={[5, 5, 0, 0]}
               maxBarSize={32}
+              isAnimationActive={false}
             />
           </ComposedChart>
         </ResponsiveContainer>

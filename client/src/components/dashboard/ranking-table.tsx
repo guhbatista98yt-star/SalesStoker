@@ -23,15 +23,15 @@ interface RankingTableProps {
 
 const criteriaLabels: Record<RankingCriteria, string> = {
   maior_valor_vendido: "Maior Valor Vendido",
-  maior_positivacao: "Maior Positivação",
+  maior_positivacao: "Maior Qtde. de Pedidos",
   maior_mix_produtos: "Maior Mix de Produtos",
   conexoes_sobre_tubos: "% Conexões/Tubos",
 };
 
 const criteriaDescriptions: Record<RankingCriteria, string> = {
   maior_valor_vendido: "Valor total de vendas",
-  maior_positivacao: "Clientes atendidos",
-  maior_mix_produtos: "Variedade de produtos",
+  maior_positivacao: "Pedidos distintos",
+  maior_mix_produtos: "Produtos distintos vendidos",
   conexoes_sobre_tubos: "% conexões sobre tubos",
 };
 
@@ -122,7 +122,7 @@ export function RankingTable({
       case "maior_valor_vendido":
         return formatCurrency(ranking.value);
       case "maior_positivacao":
-        return `${ranking.positivacao} clientes`;
+        return `${ranking.positivacao} pedidos`;
       case "maior_mix_produtos":
         return `${ranking.mixProdutos} produtos`;
       case "conexoes_sobre_tubos":
@@ -130,6 +130,22 @@ export function RankingTable({
           ? `${ranking.conexoesSobreTubos.toFixed(1)}%`
           : "N/A";
     }
+  };
+
+  const getDisplayName = (ranking: SalespersonRanking): string => {
+    const name = ranking.salesperson.name?.trim();
+    return name || ranking.salesperson.id || "Vendedor sem nome";
+  };
+
+  const getInitials = (name: string): string => {
+    const initials = name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+    return initials || "--";
   };
 
   return (
@@ -181,12 +197,14 @@ export function RankingTable({
           </div>
         ) : (
           <div className="divide-y divide-border -mx-1">
-            {rankings.map((ranking) => (
-              <div
-                key={ranking.salesperson.id}
-                className="flex items-center gap-3 px-1 py-2.5 rounded-lg hover:bg-muted/40 transition-colors cursor-default"
-                data-testid={`ranking-row-${ranking.salesperson.id}`}
-              >
+            {rankings.map((ranking) => {
+              const displayName = getDisplayName(ranking);
+              return (
+                <div
+                  key={ranking.salesperson.id}
+                  className="flex items-center gap-3 px-1 py-2.5 rounded-lg hover:bg-muted/40 transition-colors cursor-default"
+                  data-testid={`ranking-row-${ranking.salesperson.id}`}
+                >
                 <RankBadge rank={ranking.rank} />
 
                 <Avatar className="h-8 w-8 shrink-0">
@@ -199,20 +217,16 @@ export function RankingTable({
                         ? "bg-slate-100 text-slate-600"
                         : ranking.rank === 3
                         ? "bg-orange-100 text-orange-700"
-                        : "bg-primary/10 text-primary",
+                      : "bg-primary/10 text-primary",
                     )}
                   >
-                    {ranking.salesperson.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join("")}
+                    {getInitials(displayName)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate leading-tight">
-                    {ranking.salesperson.name}
+                    {displayName}
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
                     {getMainValue(ranking)}
@@ -220,8 +234,9 @@ export function RankingTable({
                 </div>
 
                 <TrendChip value={ranking.yoyVariacao} />
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>

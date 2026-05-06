@@ -316,5 +316,14 @@ export function validateCampaignStructure(campaign: any): string[] {
     errors.push("Ao menos uma faixa de premiação é obrigatória.");
   }
 
+  // Validate conditions are not empty — a campaign without conditions does nothing
+  const conds = campaign.conditions;
+  if (!conds || (typeof conds === "object" && Object.keys(conds).length === 0)) {
+    errors.push("Condições da campanha são obrigatórias. Defina ao menos uma regra.");
+  } else if (conds.conditions && Array.isArray(conds.conditions) && conds.conditions.length === 0
+    && (!conds.groups || (Array.isArray(conds.groups) && conds.groups.length === 0))) {
+    errors.push("Condições da campanha estão vazias. Defina ao menos uma regra.");
+  }
+
   return errors;
 }

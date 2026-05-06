@@ -49,6 +49,7 @@ export interface ProdutoCritico {
   dataEstimadaRuptura: string;
   sugestaoCompra: number;
   criticidade: Criticidade;
+  semHistorico?: boolean;
 }
 
 export interface SugestaoFornecedor {
@@ -93,6 +94,7 @@ export interface ProdutoDetalhe {
   consumoDiario: number;
   consumoSemanal: number;
   consumoMensal: number;
+  semHistorico?: boolean;
   /** True quando estoqueAtual/pedidosAbertos vêm do ERP real (cache_estoque_sugestao) */
   estoqueErpDisponivel: boolean;
   ultimaCompra?: string;

@@ -187,7 +187,9 @@ async function getUserAlertPreferences(userId: number): Promise<{
 async function getPurchasingUsers(): Promise<number[]> {
   try {
     const rows = await pgAll<{ id: number }>(
-      `SELECT id FROM users WHERE role IN ('admin', 'comprador') AND status = 'ativo'`
+      `SELECT id FROM users
+       WHERE role IN ('admin', 'supervisor', 'gerente', 'diretor', 'comprador')
+         AND status = 'ativo'`
     );
     return rows.map(r => r.id);
   } catch {

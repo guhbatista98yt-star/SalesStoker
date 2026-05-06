@@ -15,29 +15,107 @@ import usersAdminRouter from "./routes/users-admin";
 import { db } from "./db";
 import { pgAll } from "./pg-client";
 import { users } from "@shared/models/auth";
+import { APP_MODULE_LABELS } from "@shared/module-catalog";
 import { eq } from "drizzle-orm";
+
+const NO_VENDOR_MATCH = "__NO_VENDOR_MATCH__";
 
 async function resolveGroupTeamMembers(groupId: string, supervisorTeam?: string[]): Promise<string[]> {
   try {
     const memberRows = await pgAll<{ salesperson_id: string }>(
-      `SELECT salesperson_id FROM vendor_group_members WHERE group_id = ?`, [groupId]
+      `SELECT DISTINCT TRIM(CAST(salesperson_id AS TEXT)) as salesperson_id
+       FROM vendor_group_members
+       WHERE group_id = ? AND TRIM(CAST(salesperson_id AS TEXT)) != ''
+       ORDER BY salesperson_id`,
+      [groupId]
     );
-    if (memberRows.length === 0) return supervisorTeam ?? [];
-    const ids = memberRows.map(r => r.salesperson_id);
-    const placeholders = ids.map((_, i) => `$${i + 1}`).join(",");
-    const nameRows = await pgAll<{ NOME_VENDEDOR: string }>(
-      `SELECT DISTINCT "NOME_VENDEDOR" FROM cache_vendas WHERE "IDVENDEDOR" IN (${placeholders}) LIMIT 100`, ids
+
+    const groupIds = memberRows.map(r => String(r.salesperson_id ?? "").trim()).filter(Boolean);
+    if (groupIds.length === 0) return [NO_VENDOR_MATCH];
+    if (!supervisorTeam || supervisorTeam.length === 0) return groupIds;
+
+    const normalizedSupervisorTeam = supervisorTeam.map(member => String(member ?? "").trim()).filter(Boolean);
+    if (normalizedSupervisorTeam.length === 0) return [NO_VENDOR_MATCH];
+
+    const supervisorIdSet = new Set(normalizedSupervisorTeam);
+    const directIdMatches = groupIds.filter(id => supervisorIdSet.has(id));
+    if (directIdMatches.length > 0) return directIdMatches;
+
+    const placeholders = groupIds.map(() => "?").join(",");
+    const nameRows = await pgAll<{ id: string; name: string }>(
+      `SELECT DISTINCT
+         TRIM(CAST("IDVENDEDOR" AS TEXT)) as id,
+         TRIM("NOME_VENDEDOR") as name
+       FROM cache_vendas
+       WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) IN (${placeholders})`,
+      groupIds
     );
-    const groupNames = nameRows.map(r => r.NOME_VENDEDOR);
-    if (supervisorTeam && supervisorTeam.length > 0) {
-      return groupNames.filter(name =>
-        supervisorTeam.some(tm => name.toUpperCase().includes(tm.toUpperCase()))
-      );
+
+    const supervisorNames = normalizedSupervisorTeam.map(member => member.toUpperCase());
+    const nameMatches = nameRows
+      .filter(row => supervisorNames.some(name => String(row.name ?? "").toUpperCase().includes(name)))
+      .map(row => String(row.id ?? "").trim())
+      .filter(Boolean);
+
+    if (nameMatches.length > 0) {
+      return Array.from(new Set(nameMatches));
     }
-    return groupNames;
+
+    return [NO_VENDOR_MATCH];
   } catch {
-    return supervisorTeam ?? [];
+    return [NO_VENDOR_MATCH];
   }
+}
+
+function parseCompanyParam(raw: string | undefined, res: Response): string | null {
+  const value = String(raw ?? "").trim();
+  if (value === "all") return "all";
+  if (/^\d+$/.test(value) && Number(value) > 0) return String(Number(value));
+  res.status(400).json({ error: "Empresa invalida" });
+  return null;
+}
+
+function parseDateRangeParams(
+  startRaw: string | undefined,
+  endRaw: string | undefined,
+  res: Response,
+): { startDate: string; endDate: string } | null {
+  const startDate = String(startRaw ?? "").trim();
+  const endDate = String(endRaw ?? "").trim();
+  const validDate = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const [year, month, day] = value.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return parsed.getUTCFullYear() === year
+      && parsed.getUTCMonth() === month - 1
+      && parsed.getUTCDate() === day;
+  };
+  if (!validDate(startDate) || !validDate(endDate)) {
+    res.status(400).json({ error: "Periodo invalido. Use YYYY-MM-DD." });
+    return null;
+  }
+  if (startDate > endDate) {
+    res.status(400).json({ error: "Periodo invalido: data inicial maior que data final." });
+    return null;
+  }
+  return { startDate, endDate };
+}
+
+function parseMonthYearParams(monthRaw: string | undefined, yearRaw: string | undefined, res: Response): { month: number; year: number } | null {
+  const month = Number(monthRaw);
+  const year = Number(yearRaw);
+  if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2000 || year > 2100) {
+    res.status(400).json({ error: "Mes ou ano invalido" });
+    return null;
+  }
+  return { month, year };
+}
+
+function isRankingCriteria(value: string): value is RankingCriteria {
+  return value === "maior_valor_vendido"
+    || value === "maior_positivacao"
+    || value === "maior_mix_produtos"
+    || value === "conexoes_sobre_tubos";
 }
 
 export async function registerRoutes(
@@ -80,7 +158,9 @@ export async function registerRoutes(
 
   app.get("/api/teams/:companyId", isAuthenticated, async (req, res) => {
     try {
-      const teams = await storage.getTeams(req.params.companyId as string);
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      if (!companyId) return;
+      const teams = await storage.getTeams(companyId);
       res.json(teams);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar equipes" });
@@ -89,11 +169,11 @@ export async function registerRoutes(
 
   app.get("/api/salespersons/:companyId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
-      const startDate = req.params.startDate as string;
-      const endDate = req.params.endDate as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      const period = parseDateRangeParams(req.params.startDate as string, req.params.endDate as string, res);
+      if (!companyId || !period) return;
       const showHidden = req.query.showHidden === "true";
-      const salespersons = await storage.getSalespersonsWithStats(companyId, startDate, endDate, req.teamMembers, showHidden);
+      const salespersons = await storage.getSalespersonsWithStats(companyId, period.startDate, period.endDate, req.teamMembers, showHidden);
       res.json(salespersons);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar vendedores" });
@@ -102,7 +182,9 @@ export async function registerRoutes(
 
   app.get("/api/products/:companyId", isAuthenticated, async (req, res) => {
     try {
-      const products = await storage.getProducts(req.params.companyId as string);
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      if (!companyId) return;
+      const products = await storage.getProducts(companyId);
       res.json(products);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar produtos" });
@@ -120,12 +202,12 @@ export async function registerRoutes(
 
   app.get("/api/kpis/:companyId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
-      const startDate = req.params.startDate as string;
-      const endDate = req.params.endDate as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      const period = parseDateRangeParams(req.params.startDate as string, req.params.endDate as string, res);
+      if (!companyId || !period) return;
       const groupId = req.query.groupId as string | undefined;
       const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
-      const kpis = await storage.getKPISummary(companyId, startDate, endDate, team);
+      const kpis = await storage.getKPISummary(companyId, period.startDate, period.endDate, team);
       res.json(kpis);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar KPIs" });
@@ -134,17 +216,20 @@ export async function registerRoutes(
 
   app.get("/api/rankings/:companyId/:startDate/:endDate/:criteria", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
-      const startDate = req.params.startDate as string;
-      const endDate = req.params.endDate as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      const period = parseDateRangeParams(req.params.startDate as string, req.params.endDate as string, res);
+      if (!companyId || !period) return;
       const criteria = req.params.criteria as string;
+      if (!isRankingCriteria(criteria)) {
+        return res.status(400).json({ error: "Criterio de ranking invalido" });
+      }
       const groupId = req.query.groupId as string | undefined;
       const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const rankings = await storage.getRankings(
         companyId,
-        startDate,
-        endDate,
-        criteria as RankingCriteria,
+        period.startDate,
+        period.endDate,
+        criteria,
         team
       );
       res.json(rankings);
@@ -155,12 +240,12 @@ export async function registerRoutes(
 
   app.get("/api/product-mix/:companyId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
-      const startDate = req.params.startDate as string;
-      const endDate = req.params.endDate as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      const period = parseDateRangeParams(req.params.startDate as string, req.params.endDate as string, res);
+      if (!companyId || !period) return;
       const groupId = req.query.groupId as string | undefined;
       const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
-      const productMix = await storage.getProductMix(companyId, startDate, endDate, team);
+      const productMix = await storage.getProductMix(companyId, period.startDate, period.endDate, team);
       res.json(productMix);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar mix de produtos" });
@@ -169,15 +254,15 @@ export async function registerRoutes(
 
   app.get("/api/goals/:companyId/:month/:year", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
-      const month = req.params.month as string;
-      const year = req.params.year as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      const parsed = parseMonthYearParams(req.params.month as string, req.params.year as string, res);
+      if (!companyId || !parsed) return;
       const groupId = req.query.groupId as string | undefined;
       const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const goals = await storage.getGoals(
         companyId,
-        parseInt(month),
-        parseInt(year),
+        parsed.month,
+        parsed.year,
         team
       );
       res.json(goals);
@@ -188,6 +273,13 @@ export async function registerRoutes(
 
   app.post("/api/goals", isAuthenticated, isAdmin, async (req, res) => {
     try {
+      const { companyId, salespersonId, type, targetValue, month, year, week } = req.body;
+      if (!salespersonId || !type || targetValue === undefined || !month || !year) {
+        return res.status(400).json({ error: "Campos obrigatórios: salespersonId, type, targetValue, month, year" });
+      }
+      if (typeof targetValue !== "number" || targetValue < 0) {
+        return res.status(400).json({ error: "targetValue deve ser um número positivo" });
+      }
       const goal = await storage.createGoal(req.body);
       res.json(goal);
     } catch (error) {
@@ -213,7 +305,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/goals-config/:month/:year", isAuthenticated, async (req: AuthRequest, res) => {
+  app.get("/api/goals-config/:month/:year", isAuthenticated, isAdmin, async (req: AuthRequest, res) => {
     try {
       const month = parseInt(req.params.month as string);
       const year = parseInt(req.params.year as string);
@@ -317,14 +409,16 @@ export async function registerRoutes(
 
   app.get("/api/alerts/:companyId", isAuthenticated, async (req, res) => {
     try {
-      const alerts = await storage.getAlertNotifications(req.params.companyId as string);
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      if (!companyId) return;
+      const alerts = await storage.getAlertNotifications(companyId);
       res.json(alerts);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar alertas" });
     }
   });
 
-  app.post("/api/alerts/:id/read", isAuthenticated, async (req, res) => {
+  app.post("/api/alerts/:id/read", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const found = await storage.markAlertRead(req.params.id as string);
       if (!found) return res.status(404).json({ error: "Alerta não encontrado" });
@@ -334,7 +428,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/alerts/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/alerts/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const found = await storage.dismissAlert(req.params.id as string);
       if (!found) return res.status(404).json({ error: "Alerta não encontrado" });
@@ -346,7 +440,8 @@ export async function registerRoutes(
 
   app.get("/api/alert-configs", isAuthenticated, async (req, res) => {
     try {
-      const companyId = (req.query.companyId as string) || "all";
+      const companyId = parseCompanyParam((req.query.companyId as string) || "all", res);
+      if (!companyId) return;
       const configs = await storage.getAlertConfigs(companyId);
       res.json(configs);
     } catch (error) {
@@ -370,7 +465,8 @@ export async function registerRoutes(
 
   app.get("/api/afaturar-vendedores/:companyId", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      if (!companyId) return;
       const groupId = req.query.groupId as string | undefined;
       const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const afaturar = await storage.getAFaturarPorVendedor(companyId, team);
@@ -382,10 +478,10 @@ export async function registerRoutes(
 
   app.get("/api/weekly-view/:companyId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
-      const startDate = req.params.startDate as string;
-      const endDate = req.params.endDate as string;
-      const weeklyData = await storage.getWeeklyView(companyId, startDate, endDate, req.teamMembers);
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      const period = parseDateRangeParams(req.params.startDate as string, req.params.endDate as string, res);
+      if (!companyId || !period) return;
+      const weeklyData = await storage.getWeeklyView(companyId, period.startDate, period.endDate, req.teamMembers);
       res.json(weeklyData);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar visão semanal" });
@@ -394,10 +490,10 @@ export async function registerRoutes(
 
   app.get("/api/monthly-view/:companyId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
-      const startDate = req.params.startDate as string;
-      const endDate = req.params.endDate as string;
-      const monthlyData = await storage.getMonthlyView(companyId, startDate, endDate, req.teamMembers);
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      const period = parseDateRangeParams(req.params.startDate as string, req.params.endDate as string, res);
+      if (!companyId || !period) return;
+      const monthlyData = await storage.getMonthlyView(companyId, period.startDate, period.endDate, req.teamMembers);
       res.json(monthlyData);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar visão mensal" });
@@ -406,7 +502,8 @@ export async function registerRoutes(
 
   app.get("/api/afaturar/:companyId", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      if (!companyId) return;
       const afaturar = await storage.getAFaturarPorVendedor(companyId, req.teamMembers);
       res.json(afaturar);
     } catch (error) {
@@ -416,7 +513,8 @@ export async function registerRoutes(
 
   app.get("/api/sales-evolution/:companyId", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const companyId = req.params.companyId as string;
+      const companyId = parseCompanyParam(req.params.companyId as string, res);
+      if (!companyId) return;
       const groupId = req.query.groupId as string | undefined;
       const team = groupId ? await resolveGroupTeamMembers(groupId, req.teamMembers) : req.teamMembers;
       const salesEvolution = await storage.getSalesEvolution(companyId, team);
@@ -429,6 +527,10 @@ export async function registerRoutes(
   // TV Mode Routes
   app.get("/api/tv/dashboard", isAuthenticated, async (req: AuthRequest, res) => {
     try {
+      // Restrict TV dashboard to admin, supervisor, gerente, diretor, and loja
+      if (req.userRole === "vendedor" || req.userRole === "comprador") {
+        return res.status(403).json({ error: "Acesso restrito ao painel de TV" });
+      }
       const { weekStart, weekEnd } = req.query;
       if (!weekStart || !weekEnd) {
         return res.status(400).json({ error: "weekStart e weekEnd são obrigatórios" });
@@ -468,7 +570,7 @@ export async function registerRoutes(
   // Vendor visibility management (admin + supervisor)
   app.get("/api/admin/vendor-visibility", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      if (req.userRole !== "admin" && req.userRole !== "supervisor" && req.userRole !== "manager") {
+      if (req.userRole !== "admin" && req.userRole !== "supervisor" && req.userRole !== "gerente") {
         return res.status(403).json({ error: "Sem permissão" });
       }
       const vendors = await storage.getAllSalespersonsWithVisibility();
@@ -480,7 +582,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/vendor-visibility/:vendorId", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      if (req.userRole !== "admin" && req.userRole !== "supervisor" && req.userRole !== "manager") {
+      if (req.userRole !== "admin" && req.userRole !== "supervisor" && req.userRole !== "gerente") {
         return res.status(403).json({ error: "Sem permissão" });
       }
       const { vendorId } = req.params;
@@ -521,10 +623,25 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/app-settings/:key", isAuthenticated, async (req, res) => {
+  app.get("/api/app-settings/:key", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const value = await storage.getAppSetting(String(req.params.key));
-      res.json({ key: req.params.key, value });
+      // Only admin/supervisor can read arbitrary settings; other roles only get whitelisted keys
+      const key = String(req.params.key);
+      const PUBLIC_KEYS = [
+        "dtrGracePeriodDays",
+        "showAcompanhamentoTab",
+        "showDtrAmancoTab",
+        "showTvAmancoTab",
+        "showTintasElitTab",
+        "dtrAmancoLogoUrl",
+        "tvAmancoLogoUrl",
+        "tintasElitLogoUrl",
+      ];
+      if (req.userRole !== "admin" && req.userRole !== "supervisor" && !PUBLIC_KEYS.includes(key)) {
+        return res.status(403).json({ error: "Sem permissão para acessar esta configuração" });
+      }
+      const value = await storage.getAppSetting(key);
+      res.json({ key, value });
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar configuração" });
     }
@@ -786,13 +903,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Permissões inválidas" });
       }
 
-      const ALLOWED_MODULES = [
-        "Dashboard", "Vendedores", "Metas", "Alertas",
-        "Visão Semanal", "Visão Mensal", "Visão em Loja", "Campanhas",
-      ];
-
       const sanitized: Record<string, boolean> = {};
-      for (const key of ALLOWED_MODULES) {
+      for (const key of APP_MODULE_LABELS) {
         if (key in modulePermissions) {
           sanitized[key] = Boolean(modulePermissions[key]);
         }
@@ -842,14 +954,14 @@ export async function registerRoutes(
   // Movimentações por vendedor
   app.get("/api/movimentacoes/:vendedorId/:startDate/:endDate", isAuthenticated, async (req: AuthRequest, res) => {
     try {
-      const vendedorId = String(req.params.vendedorId);
+      const vendedorId = String(req.params.vendedorId ?? "").trim();
       const startDate = String(req.params.startDate);
       const endDate = String(req.params.endDate);
 
       // Vendedores only see their own data; admin/supervisor can see any
       if (req.userRole !== "admin" && req.userRole !== "supervisor") {
         // Resolve vendedorId from the authenticated user's email/identity
-        const ownId = await storage.getVendedorIdByEmail(req.userEmail || "");
+        const ownId = String(await storage.getVendedorIdByEmail(req.userEmail || "")).trim();
         if (ownId !== vendedorId) {
           return res.status(403).json({ error: "Acesso negado: vendedor pode consultar apenas suas próprias movimentações" });
         }

@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Bell, AlertTriangle, Info, AlertCircle, X, Check } from "lucide-react";
 import type { AlertNotification } from "@shared/schema";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface AlertsPanelProps {
@@ -36,6 +36,13 @@ function getSeverityBadge(severity: "info" | "warning" | "critical") {
     case "warning": return <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Atenção</Badge>;
     case "info": return <Badge variant="secondary" className="text-xs">Info</Badge>;
   }
+}
+
+function formatAlertTime(value: string): string {
+  const date = new Date(value);
+  return isValid(date)
+    ? formatDistanceToNow(date, { addSuffix: true, locale: ptBR })
+    : "data indisponivel";
 }
 
 export function AlertsPanel({ alerts, onDismiss, onMarkRead, loading, dragHandle }: AlertsPanelProps) {
@@ -88,10 +95,7 @@ export function AlertsPanel({ alerts, onDismiss, onMarkRead, loading, dragHandle
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       {getSeverityBadge(alert.severity)}
                       <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(alert.triggeredAt), {
-                          addSuffix: true,
-                          locale: ptBR,
-                        })}
+                        {formatAlertTime(alert.triggeredAt)}
                       </span>
                     </div>
                     <p className="text-sm">{alert.message}</p>

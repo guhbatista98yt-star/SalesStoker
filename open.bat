@@ -49,7 +49,7 @@ timeout /t 25 /nobreak >nul
 
 echo.
 echo Iniciando Sync DB2...
-start "CONECTUBOS - Sync DB2" cmd /k "cd /d ""%APP_DIR%"" && python sync/bootstrap_historico.py && :loop & python sync/erp_sync.py all & timeout /t 300 /nobreak >nul & goto loop"
+start "CONECTUBOS - Sync DB2" cmd /k "cd /d ""%APP_DIR%"" && python sync/bootstrap_historico.py && python sync/erp_sync.py all --loop 60"
 
 echo.
 echo Sistema iniciado! Acesse: http://localhost:%PORT%

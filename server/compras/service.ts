@@ -55,6 +55,7 @@ export interface FornecedorRankingItem {
   urgenciaMaxima: string;
   coberturaMediaDias: number;
   consumoMedioDiario: number;
+  valorEstimadoCompra: number;
 }
 
 export interface ProdutoRankingItem {
@@ -84,6 +85,12 @@ async function getSugestoesComConfig(companyId?: number): Promise<ProductSuggest
   return calcularTodasSugestoes(await getEngineConfig(), companyId);
 }
 
+function getValorEstimadoCompra(s: ProductSuggestion): number {
+  const quantidade = Math.max(0, Number(s.quantidadeSugerida) || 0);
+  const valorUnitario = Math.max(0, Number(s.ultimaValorCompra) || 0);
+  return quantidade * valorUnitario;
+}
+
 export async function getDashboardKPIs(companyId?: number): Promise<ComprasDashboardKPIs> {
   const sugestoes = await getSugestoesComConfig(companyId);
 
@@ -110,7 +117,7 @@ export async function getDashboardKPIs(companyId?: number): Promise<ComprasDashb
     if (s.coberturaDias > s.coberturaAlvoDias * 3 && s.consumoMedioDiario > 0) produtosExcesso++;
 
     if (s.quantidadeSugerida > 0) {
-      valorEstimadoCompra += s.quantidadeSugerida;
+      valorEstimadoCompra += getValorEstimadoCompra(s);
     }
 
     if (!fabricantesMap.has(s.fabricante)) {
@@ -157,7 +164,12 @@ export async function getDashboardKPIs(companyId?: number): Promise<ComprasDashb
   };
 }
 
-export async function getRankingFornecedores(companyId?: number): Promise<FornecedorRankingItem[]> {
+export async function getRankingFornecedores(
+  companyId?: number,
+  page: number = 1,
+  limit: number = 50,
+  busca?: string
+): Promise<{ total: number; page: number; limit: number; items: FornecedorRankingItem[] }> {
   const sugestoes = await getSugestoesComConfig(companyId);
 
   const fabricantesMap = new Map<string, ProductSuggestion[]>();
@@ -170,6 +182,8 @@ export async function getRankingFornecedores(companyId?: number): Promise<Fornec
 
   const ranking: FornecedorRankingItem[] = [];
   for (const [fab, skus] of Array.from(fabricantesMap.entries())) {
+    if (busca && !fab.toLowerCase().includes(busca.toLowerCase())) continue;
+
     const skusCriticos = skus.filter(
       (s: ProductSuggestion) => s.urgencia === "critica" || s.urgencia === "alta",
     ).length;
@@ -180,6 +194,7 @@ export async function getRankingFornecedores(companyId?: number): Promise<Fornec
     const coberturaMedia =
       skus.reduce((sum: number, s: ProductSuggestion) => sum + s.coberturaDias, 0) / Math.max(1, skus.length);
     const consumoTotal = skus.reduce((sum: number, s: ProductSuggestion) => sum + s.consumoMedioDiario, 0);
+    const valorEstimadoCompra = skus.reduce((sum: number, s: ProductSuggestion) => sum + getValorEstimadoCompra(s), 0);
     const urgenciaMaxima = skus
       .map((s: ProductSuggestion) => s.urgencia)
       .sort((a: string, b: string) => (urgenciaOrder[a] ?? 5) - (urgenciaOrder[b] ?? 5))[0];
@@ -194,10 +209,22 @@ export async function getRankingFornecedores(companyId?: number): Promise<Fornec
       urgenciaMaxima,
       coberturaMediaDias: Math.round(coberturaMedia * 10) / 10,
       consumoMedioDiario: Math.round(consumoTotal * 100) / 100,
+      valorEstimadoCompra: Math.round(valorEstimadoCompra),
     });
   }
 
-  return ranking.sort((a, b) => b.criticidadeMedia - a.criticidadeMedia);
+  const sorted = ranking.sort((a, b) => b.criticidadeMedia - a.criticidadeMedia);
+  const total = sorted.length;
+  
+  const offset = (page - 1) * limit;
+  const paginated = sorted.slice(offset, offset + limit);
+
+  return {
+    total,
+    page,
+    limit,
+    items: paginated
+  };
 }
 
 export async function getDetalheFornecedor(fabricante: string, companyId?: number): Promise<{
@@ -241,6 +268,9 @@ export async function getDetalheFornecedor(fabricante: string, companyId?: numbe
             Math.round(
               sugestoes.reduce((sum, s) => sum + s.consumoMedioDiario, 0) * 100,
             ) / 100,
+          valorEstimadoCompra: Math.round(
+            sugestoes.reduce((sum, s) => sum + getValorEstimadoCompra(s), 0),
+          ),
         }
       : null;
 
@@ -269,18 +299,35 @@ export async function getDetalheFornecedor(fabricante: string, companyId?: numbe
 }
 
 export async function getRankingProdutos(
-  filtros: { urgencia?: string; fabricante?: string } = {},
+  filtros: { urgencia?: string; fabricante?: string; busca?: string } = {},
   companyId?: number,
-): Promise<ProdutoRankingItem[]> {
+  page: number = 1,
+  limit: number = 50,
+): Promise<{ total: number; page: number; limit: number; items: ProdutoRankingItem[] }> {
   const sugestoes = await getSugestoesComConfig(companyId);
 
   let filtered = sugestoes;
-  if (filtros.urgencia) filtered = filtered.filter((s) => s.urgencia === filtros.urgencia);
+  if (filtros.urgencia && filtros.urgencia !== "todos") filtered = filtered.filter((s) => s.urgencia === filtros.urgencia);
   if (filtros.fabricante) filtered = filtered.filter((s) => s.fabricante === filtros.fabricante);
+  if (filtros.busca) {
+    const term = filtros.busca.toLowerCase();
+    filtered = filtered.filter(s => 
+      s.produtoNome.toLowerCase().includes(term) || 
+      s.produtoId.toLowerCase().includes(term)
+    );
+  }
 
-  return filtered
-    .sort((a, b) => b.criticidade - a.criticidade)
-    .map((s) => ({
+  const sorted = filtered.sort((a, b) => b.criticidade - a.criticidade);
+  const total = sorted.length;
+  
+  const offset = (page - 1) * limit;
+  const paginated = sorted.slice(offset, offset + limit);
+
+  return {
+    total,
+    page,
+    limit,
+    items: paginated.map((s) => ({
       produtoId: s.produtoId,
       produtoNome: s.produtoNome,
       fabricante: s.fabricante,
@@ -291,7 +338,8 @@ export async function getRankingProdutos(
       consumoMedioDiario: s.consumoMedioDiario,
       quantidadeSugerida: s.quantidadeSugerida,
       estoqueAtual: s.estoqueAtual,
-    }));
+    }))
+  };
 }
 
 export async function getDetalheProduto(produtoId: string, companyId?: number): Promise<{
@@ -357,11 +405,13 @@ export interface SimulacaoResultado {
 export async function runSimulacao(
   produtoIds: string[],
   quantidades: Record<string, number>,
+  companyId?: number,
 ): Promise<SimulacaoResultado> {
   const sugestoes: ProductSuggestion[] = [];
+  const config = await getEngineConfig();
 
   for (const id of produtoIds) {
-    const s = await calcularSugestaoProduto(id);
+    const s = await calcularSugestaoProduto(id, config, {}, companyId);
     if (s) sugestoes.push(s);
   }
 

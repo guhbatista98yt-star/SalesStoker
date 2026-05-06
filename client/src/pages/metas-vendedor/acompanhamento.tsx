@@ -234,7 +234,7 @@ function Skeleton() {
 export default function AcompanhamentoTab() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["/api/metas/acompanhamento"],
-    refetchInterval: 300000,
+    refetchInterval: 60_000,
   });
 
   if (isLoading) return <Skeleton />;

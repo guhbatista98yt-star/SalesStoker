@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar } from "lucide-react";
+import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar, RotateCcw, AlertCircle } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import type { DateRange } from "react-day-picker";
 import { useToast } from "@/hooks/use-toast";
@@ -92,36 +92,94 @@ function SortableItem({ id, children, className }: { id: string; children: (drag
   );
 }
 
-import { useLocation } from "wouter";
+type DashboardPeriodMode = "semana" | "mes" | "fechado" | "custom";
+
+interface DashboardSavedFilters {
+  companyId?: string;
+  rankingCriteria?: RankingCriteria;
+  periodMode?: DashboardPeriodMode;
+  selectedGroupId?: string | null;
+  customStart?: string;
+  customEnd?: string;
+}
+
+const DASHBOARD_FILTERS_KEY = "sales_dashboard_filters_v1";
+const LIVE_REFETCH_INTERVAL_MS = 60_000;
+
+function isDateString(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day;
+}
+
+function readSavedFilters(): DashboardSavedFilters {
+  try {
+    const raw = localStorage.getItem(DASHBOARD_FILTERS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as DashboardSavedFilters;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeSavedCompanyId(value: unknown): string {
+  if (value === "all") return "all";
+  return typeof value === "string" && /^\d+$/.test(value) && Number(value) > 0 ? String(Number(value)) : "all";
+}
+
+function normalizeRankingCriteria(value: unknown): RankingCriteria {
+  return value === "maior_valor_vendido"
+    || value === "maior_positivacao"
+    || value === "maior_mix_produtos"
+    || value === "conexoes_sobre_tubos"
+    ? value
+    : "maior_valor_vendido";
+}
+
+function normalizePeriodMode(value: unknown): DashboardPeriodMode {
+  return value === "semana" || value === "mes" || value === "fechado" || value === "custom" ? value : "semana";
+}
+
 import { useAuth } from "@/lib/auth-context";
 
 export default function Dashboard() {
-  const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-
-  // Redirect Gestor to Visão em Loja
-  if (user?.role === "gerente") {
-    setLocation("/analises/visao-em-loja");
-    return null;
-  }
+  const savedFilters = useMemo(() => readSavedFilters(), []);
 
   const today = new Date();
   const [helpOpen, setHelpOpen] = useState(false);
-  const [companyId, setCompanyId] = useState<string>("all");
-  const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>("maior_valor_vendido");
+  const [companyId, setCompanyId] = useState<string>(() => normalizeSavedCompanyId(savedFilters.companyId));
+  const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>(() => normalizeRankingCriteria(savedFilters.rankingCriteria));
   const [isScrolled, setIsScrolled] = useState(false);
-  const [periodMode, setPeriodMode] = useState<"semana" | "mes" | "fechado" | "custom">("semana");
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [periodMode, setPeriodMode] = useState<DashboardPeriodMode>(() => normalizePeriodMode(savedFilters.periodMode));
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(savedFilters.selectedGroupId ?? null);
   const [periodOpen, setPeriodOpen] = useState(false);
 
   // Custom date range state
   const [customStart, setCustomStart] = useState<string>(() => {
     const d = new Date(); d.setDate(d.getDate() - 7);
-    return d.toISOString().slice(0, 10);
+    return isDateString(savedFilters.customStart) ? savedFilters.customStart : d.toISOString().slice(0, 10);
   });
-  const [customEnd, setCustomEnd] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [customEnd, setCustomEnd] = useState<string>(() => isDateString(savedFilters.customEnd) ? savedFilters.customEnd : new Date().toISOString().slice(0, 10));
   const [customDraft, setCustomDraft] = useState<DateRange | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DASHBOARD_FILTERS_KEY, JSON.stringify({
+        companyId,
+        rankingCriteria,
+        periodMode,
+        selectedGroupId,
+        customStart,
+        customEnd,
+      }));
+    } catch {}
+  }, [companyId, rankingCriteria, periodMode, selectedGroupId, customStart, customEnd]);
 
   const currentWeek = getCurrentWeekPeriod();
   const monthPeriod = useMemo(() => getCurrentMonthPeriod(), [today.getMonth(), today.getFullYear()]);
@@ -183,46 +241,55 @@ export default function Dashboard() {
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
   const { data: groups = [] } = useQuery<VendorGroup[]>({
     queryKey: ["/api/vendor-groups"],
     enabled: user?.role === "admin" || user?.role === "supervisor",
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
-  const { data: kpis, isLoading: kpisLoading } = useQuery<KPISummary>({
+  const { data: kpis, isLoading: kpisLoading, isError: kpisError, error: kpisErrorObj } = useQuery<KPISummary>({
     queryKey: [gUrl(`/api/kpis/${companyId}/${period.startDate}/${period.endDate}`)],
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
-  const { data: rankings = [], isLoading: rankingsLoading } = useQuery<SalespersonRanking[]>({
+  const { data: rankings = [], isLoading: rankingsLoading, isError: rankingsError } = useQuery<SalespersonRanking[]>({
     queryKey: [gUrl(`/api/rankings/${companyId}/${period.startDate}/${period.endDate}/${rankingCriteria}`)],
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
-  const { data: productMix = [], isLoading: productMixLoading } = useQuery<ProductMix[]>({
+  const { data: productMix = [], isLoading: productMixLoading, isError: productMixError } = useQuery<ProductMix[]>({
     queryKey: [gUrl(`/api/product-mix/${companyId}/${period.startDate}/${period.endDate}`)],
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
-  const { data: alerts = [], isLoading: alertsLoading } = useQuery<AlertNotification[]>({
+  const { data: alerts = [], isLoading: alertsLoading, isError: alertsError } = useQuery<AlertNotification[]>({
     queryKey: [gUrl(`/api/alerts/${companyId}`)],
-    refetchInterval: 60 * 1000,
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
 
-  const { data: goals = [], isLoading: goalsLoading } = useQuery<GoalWithProgress[]>({
+  const { data: goals = [], isLoading: goalsLoading, isError: goalsError } = useQuery<GoalWithProgress[]>({
     queryKey: [gUrl(`/api/goals/${companyId}/${currentMonth}/${currentYear}`)],
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
-  const { data: salesData, isLoading: salesLoading } = useQuery<SalesEvolutionData>({
+  const { data: salesData, isLoading: salesLoading, isError: salesError } = useQuery<SalesEvolutionData>({
     queryKey: [gUrl(`/api/sales-evolution/${companyId}`)],
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
-  const { data: aFaturarData = [], isLoading: aFaturarLoading } = useQuery<SalespersonAFaturar[]>({
+  const { data: aFaturarData = [], isLoading: aFaturarLoading, isError: aFaturarError } = useQuery<SalespersonAFaturar[]>({
     queryKey: [gUrl(`/api/afaturar-vendedores/${companyId}`)],
+    refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
   const isLoading = companiesLoading || kpisLoading;
+  const hasDashboardError = kpisError || rankingsError || productMixError || alertsError || goalsError || salesError || aFaturarError;
 
   function handleExport() {
     const now = new Date();
@@ -254,13 +321,13 @@ export default function Dashboard() {
       lines.push(row([periodoCardTitle, fmt(kpis.totalVendasSemanal)]));
       lines.push(row(["Mês Atual", fmt(kpis.totalVendasMensal)]));
       lines.push(row(["A Faturar Total", fmt(kpis.valorAFaturar)]));
-      lines.push(row(["Pedidos Atendidos", kpis.pedidosAtendidos]));
+      lines.push(row(["Pedidos em aberto", kpis.pedidosAtendidos]));
     }
     lines.push("");
 
     // ── Ranking de Vendedores ──────────────────────────────────
     lines.push(row(["=== RANKING DE VENDEDORES ==="]));
-    lines.push(row(["Posição", "Vendedor", "Empresa", "Valor Vendido", "Variação YoY", "Positivação", "Mix de Produtos", "Conexões/Tubos"]));
+    lines.push(row(["Posição", "Vendedor", "Empresa", "Valor Vendido", "Variação YoY", "Pedidos", "Produtos distintos", "Conexões/Tubos"]));
     for (const r of rankings) {
       lines.push(row([
         r.rank,
@@ -268,8 +335,8 @@ export default function Dashboard() {
         r.salesperson.companyId ?? "",
         fmt(r.value),
         r.yoyVariacao != null ? pct(r.yoyVariacao) : "-",
-        pct(r.positivacao),
-        pct(r.mixProdutos),
+        r.positivacao,
+        r.mixProdutos,
         r.conexoesSobreTubos != null ? pct(r.conexoesSobreTubos) : "-",
       ]));
     }
@@ -289,10 +356,10 @@ export default function Dashboard() {
       lines.push("");
     }
 
-    // ── Mix de Produtos ───────────────────────────────────────
+    // ── Mix por fabricante ─────────────────────────────────────
     if (productMix.length > 0) {
-      lines.push(row(["=== MIX DE PRODUTOS ==="]));
-      lines.push(row(["Produto", "Valor Total", "Quantidade", "Participação (%)"]));
+      lines.push(row(["=== MIX POR FABRICANTE ==="]));
+      lines.push(row(["Fabricante", "Valor Total", "Quantidade", "Participação (%)"]));
       for (const p of productMix) {
         lines.push(row([
           p.product.name,
@@ -314,7 +381,7 @@ export default function Dashboard() {
           g.type === "weekly" ? "Semanal" : "Mensal",
           fmt(g.targetValue),
           fmt(g.currentValue),
-          `${(g.progress * 100).toFixed(1)}%`,
+          `${g.progress.toFixed(1)}%`,
         ]));
       }
       lines.push("");
@@ -412,12 +479,12 @@ export default function Dashboard() {
         return (
           <KPICard
             title={periodoCardTitle}
-            value={kpis?.totalVendasSemanal ?? 0}
+            value={kpisError ? "Erro" : kpis?.totalVendasSemanal ?? 0}
             format="currency"
             icon={DollarSign}
             loading={isLoading}
-            subtitle={periodoCardSubtitle}
-            yoyChange={weeklyVariacao}
+            subtitle={kpisError ? "falha ao carregar KPI" : periodoCardSubtitle}
+            yoyChange={kpisError ? null : weeklyVariacao}
             dragHandle={dragHandle}
             sparklineData={weeklySparkline}
             sparklineId="spark-semanal"
@@ -427,12 +494,12 @@ export default function Dashboard() {
         return (
           <KPICard
             title="Mês Atual"
-            value={kpis?.totalVendasMensal ?? 0}
+            value={kpisError ? "Erro" : kpis?.totalVendasMensal ?? 0}
             format="currency"
             icon={Receipt}
             loading={isLoading}
             subtitle="acumulado do mês corrente"
-            yoyChange={kpis?.yoyMesAtual ?? null}
+            yoyChange={kpisError ? null : kpis?.yoyMesAtual ?? null}
             dragHandle={dragHandle}
             sparklineData={monthlySparkline}
             sparklineId="spark-mensal"
@@ -442,7 +509,7 @@ export default function Dashboard() {
         return (
           <KPICard
             title="A Faturar Total"
-            value={kpis?.valorAFaturar ?? 0}
+            value={kpisError ? "Erro" : kpis?.valorAFaturar ?? 0}
             format="currency"
             icon={Package}
             loading={isLoading}
@@ -524,12 +591,35 @@ export default function Dashboard() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { resetLayout(); queryClient.invalidateQueries(); }}
+              onClick={() => queryClient.invalidateQueries()}
               className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
               data-testid="button-refresh-data"
               title="Atualizar dados"
             >
               <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetLayout}
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
+              data-testid="button-reset-layout"
+              title="Restaurar layout"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleExport}
+              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
+              data-testid="button-export-csv"
+              title="Exportar relatório CSV"
+              disabled={isLoading}
+            >
+              <Download className="h-3.5 w-3.5" />
             </Button>
 
             <CompanySelector
@@ -649,8 +739,10 @@ export default function Dashboard() {
                     disabled={!customDraft?.from || !customDraft?.to}
                     onClick={() => {
                       if (!customDraft?.from || !customDraft?.to) return;
-                      const start = customDraft.from.toISOString().slice(0, 10);
-                      const end = customDraft.to.toISOString().slice(0, 10);
+                      const from = customDraft.from <= customDraft.to ? customDraft.from : customDraft.to;
+                      const to = customDraft.from <= customDraft.to ? customDraft.to : customDraft.from;
+                      const start = from.toISOString().slice(0, 10);
+                      const end = to.toISOString().slice(0, 10);
                       setCustomStart(start);
                       setCustomEnd(end);
                       setPeriodMode("custom");
@@ -680,6 +772,17 @@ export default function Dashboard() {
       </div>
 
       <div onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+        {hasDashboardError && (
+          <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">Falha ao carregar dados reais do dashboard.</p>
+              <p className="text-xs opacity-80">
+                {kpisErrorObj instanceof Error ? kpisErrorObj.message : "Atualize a pagina ou ajuste os filtros."}
+              </p>
+            </div>
+          </div>
+        )}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

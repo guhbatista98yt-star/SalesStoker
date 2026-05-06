@@ -56,6 +56,7 @@ export interface ProductSuggestion {
   ultimaQtdComprada: number | null;
   /** Valor unitário da última compra (de ESTOQUE_ANALITICO com OI.TIPOCATEGORIA = 'C') */
   ultimaValorCompra: number | null;
+  semHistorico: boolean;
 }
 
 interface FornecedorConfig {
@@ -331,8 +332,7 @@ export async function calcularTodasSugestoes(
        WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
          AND "IDPRODUTO" IS NOT NULL AND "IDPRODUTO" != ''${coCl.sql}
        GROUP BY "IDPRODUTO", "FABRICANTE"
-       ORDER BY total_vendido DESC
-       LIMIT 500`,
+       ORDER BY total_vendido DESC`,
       [dataInicioMax, dataFim, ...coCl.params],
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
     // Produtos com estoque mas sem vendas no período — aparecem com consumo 0
@@ -346,8 +346,7 @@ export async function calcularTodasSugestoes(
            WHERE c."IDPRODUTO" = e."IDPRODUTO"
              AND c."FABRICANTE" = e."FABRICANTE"
              AND c."DTMOVIMENTO" >= ? AND c."DTMOVIMENTO" <= ?${coCl.sql}
-         )
-       LIMIT 500`,
+         )`,
       [dataInicioMax, dataFim, ...coCl.params],
     ).catch(() => [] as { IDPRODUTO: string; FABRICANTE: string; total_vendido: number }[]),
     pgAll<{ IDPRODUTO: string; FABRICANTE: string; ultima_compra: string; ultima_qtd: number }>(
@@ -440,20 +439,28 @@ export async function calcularSugestaoProduto(
       [produtoId, dataInicio, dataFim, ...coCl.params],
     ),
     pgGet<{
+      IDPRODUTO: string;
+      FABRICANTE: string;
       DESCRICAO: string;
       SALDO_ATUAL: number; QTDRESERVA: number; SALDO_DISPONIVEL: number;
       QTDREPOSICAO: number; DTULT_COMPRA: string | null; VAL_UNITARIO: number; QTDPENDENTE: number;
     }>(
-      `SELECT "DESCRICAO","SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
+      `SELECT "IDPRODUTO","FABRICANTE","DESCRICAO","SALDO_ATUAL","QTDRESERVA","SALDO_DISPONIVEL",
               "QTDREPOSICAO","DTULT_COMPRA","VAL_UNITARIO","QTDPENDENTE"
        FROM cache_estoque_sugestao WHERE "IDPRODUTO" = ? LIMIT 1`,
       [produtoId],
     ).catch(() => null),
   ]);
 
-  if (!row) return null;
+  const baseRow = row ?? (estoqueRow ? {
+    IDPRODUTO: estoqueRow.IDPRODUTO ?? produtoId,
+    FABRICANTE: estoqueRow.FABRICANTE ?? "",
+    total_vendido: 0,
+  } : null);
 
-  return buildSuggestion(row, cfg, dataFim, {
+  if (!baseRow) return null;
+
+  return buildSuggestion(baseRow, cfg, dataFim, {
     ...overrides,
     produtoNome: estoqueRow?.DESCRICAO || undefined,
     estoqueErp: estoqueRow ? {
@@ -550,8 +557,13 @@ function buildSuggestion(
 
   const finalQty = Math.max(quantidadeSugerida, quantidadeSugerida > 0 ? loteMinimo : 0);
 
-  const urgencia   = calcUrgencia(coberturaDias, pontoReposicaoDias, leadTimeDias);
-  const criticidade = calcCriticidade(urgencia, consumoMedioDiario, coberturaDias);
+  const semHistorico = consumoMedioDiario <= 0;
+  const urgencia = semHistorico
+    ? (estoqueAtual + pedidosAbertos < estoqueSeguranca ? "baixa" : "ok")
+    : calcUrgencia(coberturaDias, pontoReposicaoDias, leadTimeDias);
+  const criticidade = semHistorico
+    ? (estoqueAtual + pedidosAbertos < estoqueSeguranca ? 25 : 5)
+    : calcCriticidade(urgencia, consumoMedioDiario, coberturaDias);
 
   // Last purchase: prefer ERP data (more accurate) over cache_campanhas proxy
   const ultimaCompra = erp?.dtUltCompra ?? overrides.ultimaCompra ?? null;
@@ -588,6 +600,7 @@ function buildSuggestion(
     ultimaCompra,
     ultimaQtdComprada: overrides.ultimaQtdComprada ?? null,
     ultimaValorCompra,
+    semHistorico,
   };
 }
 

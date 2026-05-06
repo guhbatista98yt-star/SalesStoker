@@ -1,4 +1,5 @@
 import { pgTable, text, integer, serial } from "drizzle-orm/pg-core";
+export { DEFAULT_MODULE_PERMISSIONS } from "../module-catalog";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -27,16 +28,3 @@ export const users = pgTable("users", {
 
 export type InsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
-
-export const DEFAULT_MODULE_PERMISSIONS: Record<string, boolean> = {
-  Dashboard: true,
-  Vendedores: true,
-  Metas: true,
-  Alertas: true,
-  "Visão Semanal": true,
-  "Visão Mensal": true,
-  "Visão em Loja": true,
-  Campanhas: true,
-  Comissões: true,
-  Compras: true,
-};

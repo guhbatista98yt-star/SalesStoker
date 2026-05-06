@@ -77,6 +77,7 @@ export interface ApuracaoResult {
   valorTotalApuracao: number;
   valorTotalPagamento: number;
   valorTotalPremio: number;
+  crescimentoLojaPerc?: number | null;
   detalhes: VendedorApuracao[];
 }
 

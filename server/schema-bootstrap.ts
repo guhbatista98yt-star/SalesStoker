@@ -528,6 +528,8 @@ async function bootstrapCacheTables(): Promise<void> {
       "IDPLANILHA"      TEXT,
       "DT_MOVIMENTO"    DATE,
       "TOTALVENDA_LINHA" NUMERIC(18,2) NOT NULL DEFAULT 0,
+      "IDCLIENTE"       TEXT,
+      "NOME_CLIENTE"    TEXT,
       synced_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
@@ -581,6 +583,7 @@ async function bootstrapCacheTables(): Promise<void> {
       "IDEMPRESA"        INTEGER,
       "DT_MOVIMENTO"     DATE,
       "TOTALVENDA_LINHA" NUMERIC(18,2) NOT NULL DEFAULT 0,
+      "TIPO_PRODUTO"     TEXT NOT NULL DEFAULT '',
       synced_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
@@ -588,6 +591,8 @@ async function bootstrapCacheTables(): Promise<void> {
     ON cache_tubos_conexoes ("IDVENDEDOR", "DT_MOVIMENTO")`);
   await exec(`CREATE INDEX IF NOT EXISTS idx_ctc_empresa_dt
     ON cache_tubos_conexoes ("IDEMPRESA", "DT_MOVIMENTO")`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_ctc_tipo
+    ON cache_tubos_conexoes ("TIPO_PRODUTO")`);
 
   // Stock snapshot for Copiloto de Compras suggestion engine
   // One row per (IDPRODUTO, FABRICANTE) — matches cache_campanhas join keys.
@@ -646,6 +651,11 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["cache_estoque_sugestao", "DESCRICAO", "TEXT NOT NULL DEFAULT ''"],
     // cache_campanhas — company ID from ERP (enables per-company filtering)
     ["cache_campanhas", "IDEMPRESA", "TEXT NOT NULL DEFAULT ''"],
+    // cache_tubos_conexoes — product type classification (Tubo/Conexao)
+    ["cache_tubos_conexoes", "TIPO_PRODUTO", "TEXT NOT NULL DEFAULT ''"],
+    // cache_vendas — client data for positivação and movimentações
+    ["cache_vendas", "IDCLIENTE", "TEXT"],
+    ["cache_vendas", "NOME_CLIENTE", "TEXT"],
     // compras config tables — company isolation
     ["compras_fornecedores_config", "company_id", "INTEGER NOT NULL DEFAULT 1"],
     ["compras_produtos_config",     "company_id", "INTEGER NOT NULL DEFAULT 1"],

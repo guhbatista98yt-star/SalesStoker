@@ -9,7 +9,10 @@
     "start": "cross-env NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "reset-admin": "node --env-file=.env --import tsx/esm scripts/reset-admin.ts"
+    "reset-admin": "node --env-file=.env --import tsx/esm scripts/reset-admin.ts",
+    "test": "vitest run",
+    "sync:once": "python sync/erp_sync.py all",
+    "sync:watch": "python sync/erp_sync.py all --loop 60"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -98,6 +101,8 @@
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "^5.0.0",
     "@types/express-session": "^1.18.2",
@@ -111,11 +116,13 @@
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.31.8",
     "esbuild": "^0.25.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^7.3.0"
+    "vite": "^7.3.0",
+    "vitest": "^4.1.5"
   },
   "overrides": {
     "drizzle-kit": {

@@ -23,7 +23,7 @@ import {
 import {
   Plus, Search, Filter, MoreVertical, Eye, Edit2, Copy, Play,
   Pause, StopCircle, XCircle, AlertTriangle, Layers, Zap,
-  Calendar, ArrowUpDown, ChevronLeft, Trophy, Clock, Check, RefreshCw,
+  Calendar, ArrowUpDown, ChevronLeft, Trophy, Clock, Check, RefreshCw, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -60,9 +60,10 @@ interface CampaignCardProps {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onRenew: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
-function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit, onRenew }: CampaignCardProps) {
+function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit, onRenew, onDelete, cloning, renewing }: CampaignCardProps & { cloning?: boolean; renewing?: boolean }) {
   const actions = STATUS_ACTIONS[c.status] || [];
   const isActive = c.status === "ativa";
   const isPast = c.status === "encerrada" || c.status === "cancelada";
@@ -170,13 +171,13 @@ function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit,
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="text-xs">
-                  <DropdownMenuItem className="text-xs gap-2" onClick={() => onClone(c.id)}>
+                  <DropdownMenuItem className="text-xs gap-2" onClick={() => onClone(c.id)} disabled={cloning}>
                     <Copy className="h-3.5 w-3.5" /> Clonar
                   </DropdownMenuItem>
                   {c.status === "encerrada" && c.cycle_type && c.cycle_type !== "none" && c.auto_renew && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-xs gap-2 text-cyan-700 focus:text-cyan-700" onClick={() => onRenew(c.id)}>
+                      <DropdownMenuItem className="text-xs gap-2 text-cyan-700 focus:text-cyan-700" onClick={() => onRenew(c.id)} disabled={renewing}>
                         <RefreshCw className="h-3.5 w-3.5" /> Renovar Ciclo
                       </DropdownMenuItem>
                     </>
@@ -199,6 +200,17 @@ function CampaignCard({ campaign: c, isAdmin, onClone, onStatus, onView, onEdit,
                         onClick={() => onStatus(c.id, "cancelada")}
                       >
                         <XCircle className="h-3.5 w-3.5" /> Cancelar
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-xs gap-2 text-red-600 focus:text-red-600"
+                        onClick={() => onDelete(c.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Excluir campanha
                       </DropdownMenuItem>
                     </>
                   )}
@@ -310,6 +322,22 @@ export default function CampanhasList() {
     onError: (e: any) => toast({ title: "Erro ao renovar ciclo", description: e.message, variant: "destructive" }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/campaigns/${id}`);
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Erro ao excluir"); }
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({ title: "Campanha excluída!" });
+    },
+    onError: (e: any) => toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" }),
+  });
+
+  const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
+  const deleteCampaign = campaigns.find(c => c.id === deleteDialogId);
+
   function handleStatus(id: string, targetStatus: CampaignStatus) {
     const campaign = campaigns.find(c => c.id === id);
     if (!campaign) return;
@@ -342,7 +370,7 @@ export default function CampanhasList() {
           <div className="flex items-center gap-3">
             {!isVendedor && (
               <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
-                <Link href="/configuracoes"><ChevronLeft className="h-4 w-4" /></Link>
+                <Link href="/"><ChevronLeft className="h-4 w-4" /></Link>
               </Button>
             )}
             <div>
@@ -439,6 +467,9 @@ export default function CampanhasList() {
                 onClone={id => cloneMutation.mutate(id)}
                 onStatus={handleStatus}
                 onRenew={id => renewMutation.mutate(id)}
+                onDelete={isAdmin ? id => setDeleteDialogId(id) : undefined}
+                cloning={cloneMutation.isPending}
+                renewing={renewMutation.isPending}
               />
             ))}
             <p className="text-xs text-center text-muted-foreground pt-2">
@@ -483,6 +514,45 @@ export default function CampanhasList() {
               })}
             >
               Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete campaign dialog */}
+      <AlertDialog open={Boolean(deleteDialogId)} onOpenChange={open => !open && setDeleteDialogId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              Excluir campanha?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                {deleteCampaign ? (
+                  <>
+                    Você está prestes a apagar <strong>{deleteCampaign.name}</strong>
+                    {" "}({STATUS_LABEL[deleteCampaign.status]}).
+                  </>
+                ) : (
+                  "Você está prestes a apagar esta campanha."
+                )}
+              </span>
+              <span className="block">
+                Esta campanha será excluída permanentemente. Esta ação não pode ser desfeita.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteDialogId) deleteMutation.mutate(deleteDialogId);
+                setDeleteDialogId(null);
+              }}
+            >
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

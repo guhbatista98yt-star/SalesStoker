@@ -1,0 +1,198 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development node --env-file=.env --import tsx/esm server/index.ts
+
+[1G[0K[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...
+Criados 30 usuários de vendedores.
+[schema-bootstrap] Colunas adicionadas: cache_estoque_sugestao.DESCRICAO, cache_campanhas.IDEMPRESA
+[schema-bootstrap] Schema OK — 38 tabelas verificadas em 1233ms
+[Campanhas] Módulo inicializado.
+[Comissões] Módulo inicializado.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Started. Evaluating every 10 minutes.
+[ComprasAlertEngine] Iniciado. Avaliando a cada 30 minutos.
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Evaluation cycle complete.
+2:21:02 AM [express] serving on http://localhost:5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+[ComprasAlertEngine] Ciclo BI completo. 1000 produtos avaliados.
+Loaded 0 goals from database
+Loaded 0 goals from database
+[AI Assistant] Error: Error: Limite de requisições Groq atingido (429). O plano gratuito tem limites por minuto — aguarde alguns segundos.
+    at callGroq [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:729:11[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async <anonymous> [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:809:14[90m)[39m
+[AI Assistant] Error: Error: Limite de requisições Groq atingido (429). O plano gratuito tem limites por minuto — aguarde alguns segundos.
+    at callGroq [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:729:11[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async <anonymous> [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:809:14[90m)[39m
+[AI Assistant] Error: Error: Limite de requisições Groq atingido (429). O plano gratuito tem limites por minuto — aguarde alguns segundos.
+    at callGroq [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:729:11[90m)[39m
+[90m    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)[39m
+    at async <anonymous> [90m(/home/runner/workspace/[39mserver/campaigns/ai-assistant.ts:809:14[90m)[39m
+2:27:34 AM [express] admin is logged in
+2:27:59 AM [express] admin is logged in
+2:28:45 AM [express] admin is logged in
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+2:31:41 AM [express] C6183 is logged in
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:37:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/lib/auth-context.tsx, /src/index.css[22m
+[2m2:37:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/lib/auth-context.tsx[22m Could not Fast Refresh ("getAuthToken" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m2:37:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/lib/auth-context.tsx[22m[2m (circular import invalidate)[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:39:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/vendor-dashboard.tsx[22m
+2:39:29 AM [express] admin is logged in
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:40:41 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/vendor-dashboard.tsx[22m [33m(x2)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:40:43 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/vendor-dashboard.tsx[22m [33m(x3)[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:40:47 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/vendor-dashboard.tsx[22m [33m(x4)[39m
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+2:46:24 AM [express] admin is logged in
+2:46:44 AM [express] C8512 is logged in
+[AlertEngine] Running evaluation cycle...
+[ComprasAlertEngine] Iniciando ciclo de avaliação BI...
+[AlertEngine] Evaluation cycle complete.
+[ComprasAlertEngine] Ciclo BI completo. 1000 produtos avaliados.
+[AlertEngine] Running evaluation cycle...
+[AlertEngine] Evaluation cycle complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m3:01:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/pages/campanhas/vendor-dashboard.tsx[22m [33m(x5)[39m
+3:02:18 AM [express] C4821 is logged in
+3:02:26 AM [express] C4821 is logged in

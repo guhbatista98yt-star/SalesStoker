@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthToken } from "@/lib/auth-context";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
@@ -20,6 +20,14 @@ interface VendorGroup {
   id: string;
   name: string;
   members: string[];
+}
+
+function normalizeVendorId(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function normalizeVendorName(value: unknown): string {
+  return String(value ?? "").trim();
 }
 
 export default function Vendedores() {
@@ -50,7 +58,7 @@ export default function Vendedores() {
     if (companies.length > 0 && !companies.find(c => c.id === companyId)) {
       setCompanyId(companies[0].id);
     }
-  }, [companies]);
+  }, [companies, companyId]);
 
   const { data: hiddenVendors = [] } = useQuery<{ id: string; isHidden: boolean }[]>({
     queryKey: ["/api/admin/vendor-visibility"],
@@ -90,19 +98,63 @@ export default function Vendedores() {
     enabled: isSupervisor,
   });
 
-  const selectedGroup = groups.find(g => g.id === selectedGroupId);
+  const normalizedGroups = useMemo<VendorGroup[]>(() => (
+    groups.map(group => ({
+      ...group,
+      id: String(group.id),
+      name: normalizeVendorName(group.name),
+      members: Array.from(new Set((group.members ?? []).map(normalizeVendorId).filter(Boolean))),
+    }))
+  ), [groups]);
 
-  const filteredSalespersons = salespersons.filter(({ salesperson }) => {
-    const matchesSearch =
-      salesperson.name.toLowerCase().includes(search.toLowerCase()) ||
-      (salesperson.email ?? "").toLowerCase().includes(search.toLowerCase());
+  const dedupedSalespersons = useMemo(() => {
+    const byId = new Map<string, SalespersonWithStats>();
 
-    const matchesGroup =
-      !selectedGroup ||
-      selectedGroup.members.includes(String(salesperson.id));
+    for (const row of salespersons) {
+      const normalizedId = normalizeVendorId(row.salesperson.id);
+      if (!normalizedId) continue;
 
-    return matchesSearch && matchesGroup;
-  });
+      const normalizedRow: SalespersonWithStats = {
+        ...row,
+        salesperson: {
+          ...row.salesperson,
+          id: normalizedId,
+          name: normalizeVendorName(row.salesperson.name),
+          email: String(row.salesperson.email ?? ""),
+        },
+      };
+
+      const current = byId.get(normalizedId);
+      if (!current || normalizedRow.stats.totalVendas > current.stats.totalVendas) {
+        byId.set(normalizedId, normalizedRow);
+      }
+    }
+
+    return Array.from(byId.values());
+  }, [salespersons]);
+
+  const selectedGroup = selectedGroupId === "all"
+    ? undefined
+    : normalizedGroups.find(g => g.id === selectedGroupId);
+
+  const filteredSalespersons = useMemo(() => {
+    const searchTerm = search.trim().toLowerCase();
+    const groupMembers = selectedGroup
+      ? new Set(selectedGroup.members.map(normalizeVendorId))
+      : null;
+
+    return dedupedSalespersons.filter(({ salesperson }) => {
+      const matchesSearch =
+        !searchTerm ||
+        salesperson.name.toLowerCase().includes(searchTerm) ||
+        (salesperson.email ?? "").toLowerCase().includes(searchTerm);
+
+      if (!matchesSearch) return false;
+      if (!groupMembers) return true;
+
+      return groupMembers.has(normalizeVendorId(salesperson.id));
+    });
+  }, [dedupedSalespersons, search, selectedGroup]);
 
   function showMovimentacoesButton(): boolean {
     if (isAdmin) return true;
@@ -113,7 +165,7 @@ export default function Vendedores() {
     return false;
   }
 
-  const showGroupFilter = (isAdmin || isSupervisor) && groups.length > 0;
+  const showGroupFilter = (isAdmin || isSupervisor) && normalizedGroups.length > 0;
 
   return (
     <div className="h-full overflow-auto">
@@ -153,7 +205,7 @@ export default function Vendedores() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-xs">Todos os grupos</SelectItem>
-                  {groups.map(g => (
+                  {normalizedGroups.map(g => (
                     <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -185,7 +237,7 @@ export default function Vendedores() {
             </div>
             {selectedGroup && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {filteredSalespersons.length} de {salespersons.length} vendedores
+                {filteredSalespersons.length} de {dedupedSalespersons.length} vendedores
               </span>
             )}
           </div>
