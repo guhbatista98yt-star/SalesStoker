@@ -24,6 +24,7 @@ USAGE
   python erp_sync.py tubos             # run incremental tubos/conexoes sync
   python erp_sync.py pendentes         # run pending orders sync
   python erp_sync.py estoque_sugestao  # run stock snapshot for Copiloto (TRUNCATE+INSERT)
+  python erp_sync.py contas_receber     # run full receivables snapshot
   python erp_sync.py all               # run all routines
 
 DEPENDENCIES
@@ -47,7 +48,7 @@ from typing import Any, Generator, Iterator
 import psycopg2
 import psycopg2.extras
 import pyodbc
-from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS, SQL_PENDENTES, SQL_ESTOQUE_SUGESTAO
+from erp_queries import SQL_VENDAS, SQL_CAMPANHAS, SQL_TUBOS, SQL_PENDENTES, SQL_ESTOQUE_SUGESTAO, SQL_CONTAS_RECEBER
 from dotenv import load_dotenv
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -713,6 +714,181 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
     return total_read, total_written
 
 
+# ─── Routine: cache_contas_receber ───────────────────────────────────────────
+#
+# Full-replace snapshot: TRUNCATE + INSERT every run.
+# No watermark/date window — the view already returns only open titles.
+# Status is computed in Python against today's date.
+#
+# Column index reference (matches SQL_CONTAS_RECEBER order):
+#   [0]  IDEMPRESA              [1]  IDVENDEDOR        [2]  NOME_VENDEDOR
+#   [3]  IDCLIFOR               [4]  NOME_CLIENTE
+#   [5]  IDTITULO               [6]  DIGITOTITULO      [7]  SERIENOTA
+#   [8]  NUMNOTA                [9]  IDPLANILHA
+#   [10] DTMOVIMENTO            [11] DTVENCIMENTO      [12] DTULTIMOPAGAMENTO
+#   [13] DIAS_VENCIDO (DB2)
+#   [14] VALOR_TITULO           [15] VALOR_SALDO_TITULO  [16] VALOR_LIQUIDO_TITULO
+#   [17] VALOR_JUROS_PENDENTE   [18] VALOR_DESCONTO      [19] VALOR_PAGO
+#   [20] FORMA_RECEBIMENTO      [21] ORIGEM_MOVIMENTO    [22] OBS_TITULO
+#   [23] ENDERECO_COBRANCA      [24] BAIRRO_COBRANCA
+#   [25] CIDADE_COBRANCA        [26] UF_COBRANCA
+
+def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
+    """
+    Full snapshot of open receivables from DB2 → cache_contas_receber.
+
+    Strategy: full TRUNCATE + INSERT (like estoque_sugestao) because:
+      - Titles may be paid/cancelled between runs and must be removed.
+      - Status changes daily (A_VENCER → VENCIDO) as days pass.
+      - The view is already pre-filtered for open balances.
+
+    Status is computed in Python (not in DB2 SQL) to keep the query portable
+    and to use the application server's timezone reference.
+    """
+    routine = "contas_receber"
+    today   = date.today()
+    total_read = 0
+    total_written = 0
+
+    # ── DB2 read (connection closed before any heavy processing) ────────────
+    all_rows: list[tuple] = []
+    with db2_connection() as db2conn:
+        cur = db2conn.cursor()
+        cur.execute(SQL_CONTAS_RECEBER)
+        log.info(f"[{routine}] Consulta DB2 executada. Lendo em lotes de {BATCH_SIZE}…")
+        for batch in _fetch_batches(cur):
+            all_rows.extend(batch)
+            total_read += len(batch)
+        cur.close()
+
+    log.info(f"[{routine}] {total_read} títulos lidos do DB2. Gravando no PostgreSQL…")
+
+    # ── PostgreSQL write ─────────────────────────────────────────────────────
+    with pg.cursor() as pgcur:
+        pgcur.execute("TRUNCATE TABLE cache_contas_receber")
+
+        def _compute_status(dtvenc: Any, valor_aberto: float) -> str:
+            if valor_aberto <= 0:
+                return "RECEBIDO"
+            if not isinstance(dtvenc, date):
+                return "A_VENCER"
+            if dtvenc < today:
+                return "VENCIDO"
+            if dtvenc == today:
+                return "VENCE_HOJE"
+            return "A_VENCER"
+
+        def _to_date(v: Any) -> "date | None":
+            if v is None:
+                return None
+            if isinstance(v, date):
+                return v
+            try:
+                return date.fromisoformat(str(v)[:10])
+            except (ValueError, TypeError):
+                return None
+
+        rows_to_insert = []
+        for r in all_rows:
+            idempresa   = int(r[0]) if r[0] is not None else 0
+            idvendedor  = int(r[1]) if r[1] is not None else 0
+            idclifor    = int(r[3]) if r[3] is not None else 0
+            idtitulo    = int(r[5]) if r[5] is not None else 0
+            digitotitulo = int(r[6]) if r[6] is not None else 0
+            serienota   = str(r[7] or "").strip()
+            numnota     = int(r[8]) if r[8] is not None else 0
+            idplanilha  = int(r[9]) if r[9] is not None else 0
+
+            dtmov   = _to_date(r[10])
+            dtvenc  = _to_date(r[11])
+            dtultpg = _to_date(r[12])
+
+            # dias_atraso: use DB2-computed value if available, else compute locally
+            dias_db2 = int(r[13]) if r[13] is not None else 0
+            if isinstance(dtvenc, date) and dtvenc < today:
+                dias_atraso = max(dias_db2, (today - dtvenc).days)
+            else:
+                dias_atraso = 0
+
+            valor_original = _fix_monetary(r[14])
+            valor_aberto   = _fix_monetary(r[15])
+            valor_liquido  = _fix_monetary(r[16])
+            valor_juros    = _fix_monetary(r[17])
+            valor_desconto = _fix_monetary(r[18])
+            valor_pago     = _fix_monetary(r[19])
+
+            forma_rec   = str(r[20] or "").strip()[:100]
+            origem_mov  = str(r[21] or "").strip()[:20]
+            obs_titulo  = str(r[22] or "").strip()[:500]
+            end_cobr    = str(r[23] or "").strip()[:200]
+            bairro_cobr = str(r[24] or "").strip()[:100]
+            cidade_cobr = str(r[25] or "").strip()[:100]
+            uf_cobr     = str(r[26] or "").strip()[:2]
+            nome_vend   = str(r[2]  or "").strip()[:120]
+            nome_cli    = str(r[4]  or "").strip()[:200]
+
+            status = _compute_status(dtvenc, valor_aberto)
+
+            chave = f"{idempresa}-{idclifor}-{idtitulo}-{digitotitulo}-{serienota}"
+
+            rows_to_insert.append((
+                chave, idempresa, idvendedor, nome_vend, idclifor, nome_cli,
+                idtitulo, digitotitulo, serienota, numnota, idplanilha,
+                dtmov, dtvenc, dtultpg, dias_atraso,
+                valor_original, valor_aberto, valor_liquido,
+                valor_juros, valor_desconto, valor_pago,
+                forma_rec, origem_mov, obs_titulo,
+                end_cobr, bairro_cobr, cidade_cobr, uf_cobr,
+                status, datetime.now(timezone.utc),
+            ))
+
+        if rows_to_insert:
+            psycopg2.extras.execute_values(
+                pgcur,
+                """
+                INSERT INTO cache_contas_receber (
+                    chave_titulo, idempresa, idvendedor, nomevendedor, idclifor, nomecliente,
+                    idtitulo, digitotitulo, serienota, numnota, idplanilha,
+                    dtmovimento, dtvencimento, dtultimopagamento, dias_atraso,
+                    valor_original, valor_aberto, valor_liquido,
+                    valor_juros_pendente, valor_desconto_concedido, valor_pago,
+                    forma_recebimento, origem_movimento, observacao_titulo,
+                    endereco_cobranca, bairro_cobranca, cidade_cobranca, uf_cobranca,
+                    status, synced_at
+                ) VALUES %s
+                ON CONFLICT (chave_titulo) DO UPDATE SET
+                    idempresa               = EXCLUDED.idempresa,
+                    idvendedor              = EXCLUDED.idvendedor,
+                    nomevendedor            = EXCLUDED.nomevendedor,
+                    idclifor                = EXCLUDED.idclifor,
+                    nomecliente             = EXCLUDED.nomecliente,
+                    dtmovimento             = EXCLUDED.dtmovimento,
+                    dtvencimento            = EXCLUDED.dtvencimento,
+                    dtultimopagamento       = EXCLUDED.dtultimopagamento,
+                    dias_atraso             = EXCLUDED.dias_atraso,
+                    valor_original          = EXCLUDED.valor_original,
+                    valor_aberto            = EXCLUDED.valor_aberto,
+                    valor_liquido           = EXCLUDED.valor_liquido,
+                    valor_juros_pendente    = EXCLUDED.valor_juros_pendente,
+                    valor_desconto_concedido = EXCLUDED.valor_desconto_concedido,
+                    valor_pago              = EXCLUDED.valor_pago,
+                    forma_recebimento       = EXCLUDED.forma_recebimento,
+                    origem_movimento        = EXCLUDED.origem_movimento,
+                    observacao_titulo       = EXCLUDED.observacao_titulo,
+                    status                  = EXCLUDED.status,
+                    synced_at               = EXCLUDED.synced_at
+                """,
+                rows_to_insert,
+                page_size=BATCH_SIZE,
+            )
+            total_written = len(rows_to_insert)
+
+    pg.commit()
+    _update_watermark(pg, routine, today, total_read, total_written)
+    log.info(f"[{routine}] Concluído — lidos: {total_read}, gravados: {total_written}")
+    return total_read, total_written
+
+
 # ─── Routine: compras_fornecedores_config ────────────────────────────────────
 #
 # Populates compras_fornecedores_config directly from the local cache tables,
@@ -796,6 +972,7 @@ ROUTINES: dict[str, Any] = {
     "pendentes":         sync_pendentes,
     "estoque_sugestao":  sync_estoque_sugestao,
     "sync_config":       sync_fornecedores_config,
+    "contas_receber":    sync_contas_receber,
 }
 
 
@@ -855,6 +1032,9 @@ def run_routine(name: str, force: bool = False) -> None:
 #   - sync_pendentes         ~small aggregated set, current month only
 #   - sync_estoque_sugestao  snapshot query — TRUNCATE + INSERT, moderate volume
 #                            Recommended: every 30 min or on-demand after receiving purchases
+#   - contas_receber         full snapshot — TRUNCATE + INSERT of all open titles
+#                            Recommended: every 30–60 min during business hours
+#                            (daily at minimum, to keep status VENCIDO/A_VENCER accurate)
 #
 # MEDIUM (run every 30–60 min during business hours):
 #   - sync_vendas      incremental, 3-day overlap window

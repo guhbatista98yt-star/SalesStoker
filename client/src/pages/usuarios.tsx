@@ -46,6 +46,8 @@ const MODULES = [
   { key: "configuracoes", label: "Configurações" },
   { key: "usuarios",      label: "Usuários & Permissões" },
   { key: "relatorios",    label: "Relatórios & Exportações" },
+  { key: "financeiro",    label: "Financeiro (Contas a Receber)" },
+  { key: "compras",       label: "Compras (Copiloto)" },
 ];
 
 const ACTIONS = [

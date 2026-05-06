@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
-import { SalespersonCard } from "@/components/dashboard/salesperson-card";
+import { SalespersonCard, type FinancialSummary } from "@/components/dashboard/salesperson-card";
 import { Search, Grid3X3, List, Users, Eye, EyeOff } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
@@ -97,6 +97,30 @@ export default function Vendedores() {
     queryKey: ["/api/app-settings/showMovimentacoesButton"],
     enabled: isSupervisor,
   });
+
+  const canSeeFinanceiro = isAdmin || isSupervisor;
+
+  const { data: financialVendedores } = useQuery<{ data: FinancialSummary[] }>({
+    queryKey: ["/api/financeiro/contas-receber/vendedores"],
+    queryFn: async () => {
+      const token = getAuthToken();
+      const res = await fetch("/api/financeiro/contas-receber/vendedores", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: canSeeFinanceiro,
+    staleTime: 5 * 60_000,
+  });
+
+  const financialByVendedor = useMemo<Map<string, FinancialSummary>>(() => {
+    const map = new Map<string, FinancialSummary>();
+    for (const fs of financialVendedores?.data ?? []) {
+      map.set(String(fs.idvendedor), fs);
+    }
+    return map;
+  }, [financialVendedores]);
 
   const normalizedGroups = useMemo<VendorGroup[]>(() => (
     groups.map(group => ({
@@ -281,6 +305,7 @@ export default function Vendedores() {
                 stats={stats}
                 period={{ startDate: period.startDate, endDate: period.endDate }}
                 showMovimentacoesButton={showMovimentacoesButton()}
+                financialSummary={canSeeFinanceiro ? (financialByVendedor.get(salesperson.id) ?? null) : null}
               />
             ))}
           </div>

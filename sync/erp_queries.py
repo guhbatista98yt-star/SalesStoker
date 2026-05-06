@@ -1,6 +1,17 @@
 """
 DB2 SQL query strings shared by erp_sync.py and bootstrap_historico.py.
 
+SQL_CONTAS_RECEBER — full snapshot, NO date parameters.
+  Reads from CONTAS_RECEBER_SALDOS_VIEW and joins:
+    CLIENTE_FORNECEDOR (CF)   → client name, address, salesperson code
+    CLIENTE_FORNECEDOR (VEND) → salesperson name
+    FORMA_PAGREC (FPR)        → payment form description
+    NOTAS (N)                 → invoice number
+    CIDADES_IBGE (CI)         → city/state for billing address
+  Filters: VALSALDOTITULO > 0 (only open/partially-open titles)
+  Strategy: TRUNCATE + INSERT on every run (full state snapshot).
+  Status (VENCIDO/VENCE_HOJE/A_VENCER) computed in Python using dtvencimento vs today.
+
 All queries:
   - Use raw ERP tables (no views required in the DB2 schema)
   - Filter WITH UR (uncommitted read) — no shared locks on ERP pages
@@ -274,6 +285,71 @@ WHERE EA.IDEMPRESA IN (1, 2, 3)
         AND  N.IDPLANILHA     = EA.IDPLANILHA
         AND  N.FLAGNOTACANCEL = 'F'
   )
+WITH UR
+"""
+
+# ─── Contas a Receber (open receivables snapshot — TRUNCATE+INSERT per run) ───
+#
+# Source: CONTAS_RECEBER_SALDOS_VIEW (view provided by ERP vendor).
+# Columns returned (in order, referenced by index in erp_sync.py):
+#   [0]  IDEMPRESA       [1]  IDVENDEDOR       [2]  NOME_VENDEDOR
+#   [3]  IDCLIFOR        [4]  NOME_CLIENTE
+#   [5]  IDTITULO        [6]  DIGITOTITULO     [7]  SERIENOTA
+#   [8]  NUMNOTA         [9]  IDPLANILHA
+#   [10] DTMOVIMENTO     [11] DTVENCIMENTO     [12] DTULTIMOPAGAMENTO
+#   [13] DIAS_VENCIDO    (DAYS(CURRENT DATE) − DAYS(DTVENCIMENTO), negative = future)
+#   [14] VALOR_TITULO    [15] VALOR_SALDO_TITULO  [16] VALOR_LIQUIDO_TITULO
+#   [17] VALOR_JUROS_PENDENTE  [18] VALOR_DESCONTO  [19] VALOR_PAGO
+#   [20] FORMA_RECEBIMENTO  [21] ORIGEM_MOVIMENTO  [22] OBS_TITULO
+#   [23] ENDERECO_COBRANCA  [24] BAIRRO_COBRANCA
+#   [25] CIDADE_COBRANCA    [26] UF_COBRANCA
+#
+# No date parameters — fetches ALL open titles (VALSALDOTITULO > 0).
+# Status (VENCIDO / VENCE_HOJE / A_VENCER) computed in Python after fetch.
+SQL_CONTAS_RECEBER = """
+SELECT
+    CAST(CRSV.IDEMPRESA AS INTEGER)                                         AS IDEMPRESA,
+    CAST(COALESCE(CF.IDVENDEDOR, 0) AS INTEGER)                             AS IDVENDEDOR,
+    CAST(COALESCE(VEND.NOME, '<SEM VENDEDOR>') AS VARCHAR(120))             AS NOME_VENDEDOR,
+    CAST(CRSV.IDCLIFOR AS INTEGER)                                          AS IDCLIFOR,
+    CAST(COALESCE(CF.NOME, '') AS VARCHAR(200))                             AS NOME_CLIENTE,
+    CAST(CRSV.IDTITULO AS INTEGER)                                          AS IDTITULO,
+    CAST(CRSV.DIGITOTITULO AS INTEGER)                                      AS DIGITOTITULO,
+    CAST(COALESCE(CRSV.SERIENOTA, '') AS VARCHAR(10))                       AS SERIENOTA,
+    CAST(COALESCE(N.NUMNOTA, 0) AS INTEGER)                                 AS NUMNOTA,
+    CAST(COALESCE(CRSV.IDPLANILHA, 0) AS INTEGER)                           AS IDPLANILHA,
+    DATE(CRSV.DTMOVIMENTO)                                                  AS DTMOVIMENTO,
+    DATE(CRSV.DTVENCIMENTO)                                                 AS DTVENCIMENTO,
+    DATE(CRSV.DTULTIMOPAGAMENTO)                                            AS DTULTIMOPAGAMENTO,
+    CAST((DAYS(CURRENT DATE) - DAYS(CRSV.DTVENCIMENTO)) AS INTEGER)        AS DIAS_VENCIDO,
+    COALESCE(CRSV.VALTITULO,        0E0) * 1E0                              AS VALOR_TITULO,
+    COALESCE(CRSV.VALSALDOTITULO,   0E0) * 1E0                              AS VALOR_SALDO_TITULO,
+    COALESCE(CRSV.VALLIQUIDOTITULO, 0E0) * 1E0                              AS VALOR_LIQUIDO_TITULO,
+    COALESCE(CRSV.VALJUROSTITULO,   0E0) * 1E0                              AS VALOR_JUROS_PENDENTE,
+    COALESCE(CRSV.VALDESCONTOCONC,  0E0) * 1E0                              AS VALOR_DESCONTO,
+    (COALESCE(CRSV.VALTITULO, 0E0)
+     - COALESCE(CRSV.VALSALDOTITULO, 0E0)) * 1E0                           AS VALOR_PAGO,
+    CAST(COALESCE(FPR.DESCRRECEBIMENTO, '') AS VARCHAR(100))                AS FORMA_RECEBIMENTO,
+    CAST(COALESCE(CRSV.ORIGEMMOVIMENTO, '') AS VARCHAR(20))                 AS ORIGEM_MOVIMENTO,
+    CAST(COALESCE(CRSV.OBSTITULO, '') AS VARCHAR(500))                      AS OBS_TITULO,
+    CAST(COALESCE(CF.ENDCOBRANCA, '') AS VARCHAR(200))                      AS ENDERECO_COBRANCA,
+    CAST(COALESCE(CF.BAIRROCOBRANCA, '') AS VARCHAR(100))                   AS BAIRRO_COBRANCA,
+    CAST(COALESCE(CI.DESCRCIDADE, '') AS VARCHAR(100))                      AS CIDADE_COBRANCA,
+    CAST(COALESCE(CI.UF, '') AS VARCHAR(2))                                 AS UF_COBRANCA
+FROM DBA.CONTAS_RECEBER_SALDOS_VIEW CRSV
+INNER JOIN DBA.CLIENTE_FORNECEDOR CF
+    ON  CF.IDCLIFOR = CRSV.IDCLIFOR
+LEFT JOIN DBA.CLIENTE_FORNECEDOR VEND
+    ON  VEND.IDCLIFOR = CF.IDVENDEDOR
+LEFT JOIN DBA.FORMA_PAGREC FPR
+    ON  FPR.IDFORMAPAGREC = CRSV.IDFORMAPAGREC
+LEFT JOIN DBA.NOTAS N
+    ON  N.IDEMPRESA  = CRSV.IDEMPRESA
+    AND N.IDPLANILHA = CRSV.IDPLANILHA
+LEFT JOIN DBA.CIDADES_IBGE CI
+    ON  CI.IDCIDADE = CF.CIDADECOBRANCA
+WHERE CRSV.IDEMPRESA IN (1, 2, 3)
+  AND COALESCE(CRSV.VALSALDOTITULO, 0E0) > 0
 WITH UR
 """
 

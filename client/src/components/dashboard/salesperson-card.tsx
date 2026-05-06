@@ -4,13 +4,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TrendingUp, TrendingDown, Minus, List, Loader2, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  TrendingUp, TrendingDown, Minus, List, Loader2, AlertCircle,
+  AlertTriangle, CircleDollarSign, ChevronRight,
+} from "lucide-react";
 import { formatCurrency, formatPercentage } from "@/lib/calendar-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { Salesperson } from "@shared/schema";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface SalespersonStats {
   totalVendas: number;
@@ -22,12 +29,27 @@ interface SalespersonStats {
   metaProgress: number;
 }
 
+export interface FinancialSummary {
+  idvendedor: number;
+  nomevendedor: string;
+  clientes_pendencia: number;
+  clientes_vencidos: number;
+  qtd_titulos: number;
+  qtd_titulos_vencidos: number;
+  total_aberto: number;
+  total_vencido: number;
+  juros_pendente: number;
+  maior_atraso: number;
+  status_risco: "CRITICO" | "ATRASADO" | "ATENCAO" | "EM_DIA";
+}
+
 interface SalespersonCardProps {
   salesperson: Salesperson;
   stats: SalespersonStats;
   period?: { startDate: string; endDate: string };
   onClick?: () => void;
   showMovimentacoesButton?: boolean;
+  financialSummary?: FinancialSummary | null;
 }
 
 interface Movimentacao {
@@ -43,6 +65,20 @@ interface Movimentacao {
   lucro: number;
 }
 
+interface ClienteVencido {
+  idclifor: number;
+  nomecliente: string;
+  cidade_cobranca: string;
+  uf_cobranca: string;
+  qtd_titulos: number;
+  total_aberto: number;
+  total_vencido: number;
+  maior_atraso: number;
+  status_cliente: string;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
   const d = dateStr.split("T")[0];
@@ -50,6 +86,35 @@ function formatDate(dateStr: string): string {
   if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
   return dateStr;
 }
+
+function riskColor(risco: string): string {
+  switch (risco) {
+    case "CRITICO":  return "text-red-600 dark:text-red-400";
+    case "ATRASADO": return "text-orange-600 dark:text-orange-400";
+    case "ATENCAO":  return "text-amber-600 dark:text-amber-400";
+    default:         return "text-emerald-600 dark:text-emerald-400";
+  }
+}
+
+function riskBg(risco: string): string {
+  switch (risco) {
+    case "CRITICO":  return "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800";
+    case "ATRASADO": return "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800";
+    case "ATENCAO":  return "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800";
+    default:         return "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800";
+  }
+}
+
+function riskLabel(risco: string): string {
+  switch (risco) {
+    case "CRITICO":  return "Crítico";
+    case "ATRASADO": return "Atrasado";
+    case "ATENCAO":  return "Atenção";
+    default:         return "Em dia";
+  }
+}
+
+// ── Movimentações Modal ───────────────────────────────────────────────────────
 
 function MovimentacoesModal({
   salesperson,
@@ -160,6 +225,143 @@ function MovimentacoesModal({
   );
 }
 
+// ── Financial Details Sheet ───────────────────────────────────────────────────
+
+function FinancialSheet({
+  salesperson,
+  open,
+  onClose,
+}: {
+  salesperson: Salesperson;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { data, isLoading, error } = useQuery<{
+    resumo: FinancialSummary | null;
+    clientes: ClienteVencido[];
+  }>({
+    queryKey: ["/api/financeiro/contas-receber/vendedor", salesperson.id],
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/financeiro/contas-receber/vendedor/${encodeURIComponent(salesperson.id)}`
+      );
+      return res.json();
+    },
+    enabled: open,
+  });
+
+  const resumo = data?.resumo;
+  const clientes = data?.clientes ?? [];
+
+  return (
+    <Sheet open={open} onOpenChange={v => !v && onClose()}>
+      <SheetContent className="w-full sm:max-w-xl">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
+            Pendências Financeiras — {salesperson.name}
+          </SheetTitle>
+        </SheetHeader>
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Carregando...</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center justify-center py-16 gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <span>Erro ao carregar dados financeiros</span>
+          </div>
+        )}
+
+        {!isLoading && !error && (
+          <div className="mt-6 space-y-6">
+            {resumo ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Total Vencido</p>
+                    <p className="text-lg font-bold text-red-700 dark:text-red-400">{formatCurrency(Number(resumo.total_vencido))}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 bg-muted/40">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Total em Aberto</p>
+                    <p className="text-lg font-bold">{formatCurrency(Number(resumo.total_aberto))}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 bg-muted/40">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Clientes Vencidos</p>
+                    <p className="text-lg font-bold">{resumo.clientes_vencidos ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border p-3 bg-muted/40">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Maior Atraso</p>
+                    <p className="text-lg font-bold">{resumo.maior_atraso ?? 0}d</p>
+                  </div>
+                </div>
+
+                {clientes.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide text-[11px]">
+                      Clientes com Pendências
+                    </p>
+                    <ScrollArea className="h-[360px]">
+                      <div className="space-y-2 pr-2">
+                        {clientes.map(cli => (
+                          <div
+                            key={cli.idclifor}
+                            className="rounded-lg border p-3 text-sm flex flex-col gap-1"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium truncate flex-1">{cli.nomecliente}</span>
+                              <Badge
+                                variant="outline"
+                                className={cn("text-[10px] shrink-0", riskColor(cli.status_cliente))}
+                              >
+                                {riskLabel(cli.status_cliente)}
+                              </Badge>
+                            </div>
+                            {cli.cidade_cobranca && (
+                              <span className="text-[11px] text-muted-foreground">
+                                {cli.cidade_cobranca}{cli.uf_cobranca ? ` — ${cli.uf_cobranca}` : ""}
+                              </span>
+                            )}
+                            <div className="flex gap-4 text-[11px] mt-0.5">
+                              <span className="text-muted-foreground">
+                                Vencido: <span className="font-semibold text-red-600 dark:text-red-400">
+                                  {formatCurrency(Number(cli.total_vencido))}
+                                </span>
+                              </span>
+                              <span className="text-muted-foreground">
+                                Atraso: <span className="font-semibold">{cli.maior_atraso}d</span>
+                              </span>
+                              <span className="text-muted-foreground">
+                                Títulos: <span className="font-semibold">{cli.qtd_titulos}</span>
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-16 text-muted-foreground">
+                <CircleDollarSign className="h-8 w-8 mx-auto mb-3 opacity-40" />
+                <p>Nenhuma pendência financeira</p>
+              </div>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
 function MetaBar({ value }: { value: number }) {
   const clamped = Math.min(Math.max(value, 0), 100);
   const color =
@@ -198,15 +400,67 @@ function YoyBadge({ value }: { value: number }) {
   );
 }
 
+// ── Financial Indicator Strip ─────────────────────────────────────────────────
+
+function FinancialIndicator({
+  summary,
+  onDetails,
+}: {
+  summary: FinancialSummary;
+  onDetails: () => void;
+}) {
+  const totalVencido = Number(summary.total_vencido) || 0;
+  const clientesVencidos = Number(summary.clientes_vencidos) || 0;
+  const maiorAtraso = Number(summary.maior_atraso) || 0;
+  const risco = summary.status_risco;
+
+  if (totalVencido <= 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "mt-2.5 rounded-lg border px-2.5 py-2 cursor-pointer hover:opacity-80 transition-opacity",
+        riskBg(risco)
+      )}
+      onClick={e => { e.stopPropagation(); onDetails(); }}
+      title="Ver pendências financeiras"
+    >
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <div className="flex items-center gap-1">
+          <AlertTriangle className={cn("h-3 w-3 shrink-0", riskColor(risco))} />
+          <span className={cn("text-[10px] font-semibold uppercase tracking-wide", riskColor(risco))}>
+            Pendências Financeiras
+          </span>
+        </div>
+        <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+      </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className={cn("text-sm font-bold", riskColor(risco))}>
+          {formatCurrency(totalVencido)}
+        </span>
+        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+          {clientesVencidos > 0 && `${clientesVencidos} cliente${clientesVencidos !== 1 ? "s" : ""}`}
+          {clientesVencidos > 0 && maiorAtraso > 0 && " · "}
+          {maiorAtraso > 0 && `${maiorAtraso}d atraso`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Card ─────────────────────────────────────────────────────────────────
+
 export function SalespersonCard({
   salesperson,
   stats,
   period,
   onClick,
   showMovimentacoesButton = true,
+  financialSummary,
 }: SalespersonCardProps) {
   const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
   const [showMovimentacoes, setShowMovimentacoes] = useState(false);
+  const [showFinanceiro, setShowFinanceiro] = useState(false);
 
   const defaultPeriod = period ?? {
     startDate: new Date().toISOString().split("T")[0].slice(0, 7) + "-01",
@@ -288,9 +542,17 @@ export function SalespersonCard({
             </div>
           </div>
 
+          {/* ── Financial delinquency indicator ───────────────── */}
+          {financialSummary && (
+            <FinancialIndicator
+              summary={financialSummary}
+              onDetails={() => setShowFinanceiro(true)}
+            />
+          )}
+
           {/* ── Footer: movimentações ──────────────────────────── */}
           {showMovimentacoesButton && (
-            <div className="pt-2 border-t border-border/60">
+            <div className={cn("pt-2 border-t border-border/60", financialSummary ? "mt-2.5" : "")}>
               <Button
                 size="sm"
                 variant="outline"
@@ -314,6 +576,14 @@ export function SalespersonCard({
           period={defaultPeriod}
           open={showMovimentacoes}
           onClose={() => setShowMovimentacoes(false)}
+        />
+      )}
+
+      {showFinanceiro && (
+        <FinancialSheet
+          salesperson={salesperson}
+          open={showFinanceiro}
+          onClose={() => setShowFinanceiro(false)}
         />
       )}
     </>
