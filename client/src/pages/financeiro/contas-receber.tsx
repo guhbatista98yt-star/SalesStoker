@@ -248,6 +248,15 @@ export default function ContasReceber() {
   const [sortClientes, setSortClientes] = useState<{ sort: string; dir: string }>({ sort: "total_vencido", dir: "desc" });
   const [sortDuplicatas, setSortDuplicatas] = useState<{ sort: string; dir: string }>({ sort: "dtvencimento", dir: "asc" });
 
+  // ── Date anchors for card click filters ──────────────────────────────
+  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const yesterday = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0];
+  }, []);
+  const tomorrow = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0];
+  }, []);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -478,8 +487,11 @@ export default function ContasReceber() {
               icon={DollarSign}
               iconBg="bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400"
               loading={resumo.isLoading}
-              onClick={() => { setFilter("status", "todos"); setFilter("somente_vencidos", ""); setTab("clientes"); }}
-              active={filters.status === "todos" && !filters.somente_vencidos}
+              onClick={() => {
+                setFilters(f => ({ ...f, status: "todos", venc_de: "", venc_ate: "", somente_vencidos: "" }));
+                setClientePage(1); setDuplicataPage(1); setTab("clientes");
+              }}
+              active={!filters.venc_de && !filters.venc_ate && filters.status === "todos" && !filters.somente_vencidos}
             />
             <KPICard
               title="Total Vencido"
@@ -489,8 +501,11 @@ export default function ContasReceber() {
               iconBg="bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
               loading={resumo.isLoading}
               alert={(r?.total_vencido ?? 0) > 0}
-              onClick={() => { setFilter("status", "VENCIDO"); setTab("clientes"); }}
-              active={filters.status === "VENCIDO"}
+              onClick={() => {
+                setFilters(f => ({ ...f, status: "todos", venc_de: "", venc_ate: yesterday, somente_vencidos: "" }));
+                setClientePage(1); setDuplicataPage(1); setTab("clientes");
+              }}
+              active={!!filters.venc_ate && filters.venc_ate <= yesterday && !filters.venc_de}
             />
             <KPICard
               title="Vence Hoje"
@@ -499,8 +514,11 @@ export default function ContasReceber() {
               icon={Clock}
               iconBg="bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
               loading={resumo.isLoading}
-              onClick={() => { setFilter("status", "VENCE_HOJE"); setTab("clientes"); }}
-              active={filters.status === "VENCE_HOJE"}
+              onClick={() => {
+                setFilters(f => ({ ...f, status: "todos", venc_de: today, venc_ate: today, somente_vencidos: "" }));
+                setClientePage(1); setDuplicataPage(1); setTab("clientes");
+              }}
+              active={filters.venc_de === today && filters.venc_ate === today}
             />
             <KPICard
               title="A Vencer"
@@ -509,8 +527,11 @@ export default function ContasReceber() {
               icon={TrendingUp}
               iconBg="bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
               loading={resumo.isLoading}
-              onClick={() => { setFilter("status", "A_VENCER"); setTab("clientes"); }}
-              active={filters.status === "A_VENCER"}
+              onClick={() => {
+                setFilters(f => ({ ...f, status: "todos", venc_de: tomorrow, venc_ate: "", somente_vencidos: "" }));
+                setClientePage(1); setDuplicataPage(1); setTab("clientes");
+              }}
+              active={filters.venc_de === tomorrow && !filters.venc_ate}
             />
             <KPICard
               title="Juros Pendente"
@@ -519,8 +540,11 @@ export default function ContasReceber() {
               icon={Users}
               iconBg="bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
               loading={resumo.isLoading}
-              onClick={() => { setFilter("somente_vencidos", "1"); setTab("fila"); }}
-              active={filters.somente_vencidos === "1"}
+              onClick={() => {
+                setFilters(f => ({ ...f, status: "todos", venc_de: "", venc_ate: yesterday, somente_vencidos: "" }));
+                setClientePage(1); setDuplicataPage(1); setTab("fila");
+              }}
+              active={tab === "fila"}
             />
           </div>
           {/* KPI click hint */}
@@ -590,13 +614,6 @@ export default function ContasReceber() {
                 <SelectItem value="A_VENCER">A vencer</SelectItem>
               </SelectContent>
             </Select>
-            <select
-              value={perPage}
-              onChange={e => { setPerPage(Number(e.target.value)); setClientePage(1); setDuplicataPage(1); }}
-              className="h-9 text-sm border border-input rounded-md bg-background px-2 cursor-pointer hidden sm:block"
-            >
-              {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}/pág</option>)}
-            </select>
             <Button
               variant="outline" size="sm"
               onClick={() => setShowFiltros(v => !v)}
@@ -745,7 +762,7 @@ export default function ContasReceber() {
                     />
                   </div>
                   <div className="relative">
-                    <Label className="text-xs">Forma de Recebimento</Label>
+                    <Label className="text-xs">Forma de Pagamento</Label>
                     <div className="relative mt-1">
                       <Input
                         className="h-8 text-sm pr-8"
@@ -864,6 +881,7 @@ export default function ContasReceber() {
               page={clientePage}
               onPage={setClientePage}
               perPage={perPage}
+              onPerPage={n => { setPerPage(n); setClientePage(1); setDuplicataPage(1); }}
               sort={sortClientes}
               onSort={setSortClientes}
               onSelectCliente={setClienteDetalhe}
@@ -880,6 +898,7 @@ export default function ContasReceber() {
               page={duplicataPage}
               onPage={setDuplicataPage}
               perPage={perPage}
+              onPerPage={n => { setPerPage(n); setClientePage(1); setDuplicataPage(1); }}
               sort={sortDuplicatas}
               onSort={setSortDuplicatas}
               onSelectCliente={setClienteDetalhe}
@@ -971,10 +990,10 @@ export default function ContasReceber() {
 // ============================================================================
 
 function ClientesTab({
-  data, loading, page, onPage, perPage, sort, onSort, onSelectCliente,
+  data, loading, page, onPage, perPage, onPerPage, sort, onSort, onSelectCliente,
 }: {
   data: any; loading: boolean; page: number; onPage: (p: number) => void;
-  perPage: number;
+  perPage: number; onPerPage: (n: number) => void;
   sort: { sort: string; dir: string }; onSort: (s: { sort: string; dir: string }) => void;
   onSelectCliente: (id: number) => void;
 }) {
@@ -1098,9 +1117,8 @@ function ClientesTab({
         </Card>
       ))}
 
-      {/* Pagination */}
       {(pages > 1 || total > 0) && (
-        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={perPage} />
+        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={perPage} onPerPage={onPerPage} />
       )}
     </div>
   );
@@ -1111,10 +1129,10 @@ function ClientesTab({
 // ============================================================================
 
 function DuplicatasTab({
-  data, loading, page, onPage, perPage, sort, onSort, onSelectCliente,
+  data, loading, page, onPage, perPage, onPerPage, sort, onSort, onSelectCliente,
 }: {
   data: any; loading: boolean; page: number; onPage: (p: number) => void;
-  perPage: number;
+  perPage: number; onPerPage: (n: number) => void;
   sort: { sort: string; dir: string }; onSort: (s: { sort: string; dir: string }) => void;
   onSelectCliente: (id: number) => void;
 }) {
@@ -1225,7 +1243,7 @@ function DuplicatasTab({
       </div>
 
       {(pages > 1 || total > 0) && (
-        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={perPage} />
+        <Pagination page={page} pages={pages} total={total} onPage={onPage} perPage={perPage} onPerPage={onPerPage} />
       )}
     </div>
   );
@@ -1624,7 +1642,7 @@ function PrintReport({
   if (filters.busca) activeFilters.push(`Busca: "${filters.busca}"`);
   if (filters.venc_de) activeFilters.push(`Vencimento de: ${fmtDate(filters.venc_de)}`);
   if (filters.venc_ate) activeFilters.push(`Vencimento até: ${fmtDate(filters.venc_ate)}`);
-  if (filters.forma_recebimento) activeFilters.push(`Forma: ${filters.forma_recebimento}`);
+  if (filters.forma_recebimento) activeFilters.push(`Forma de Pagamento: ${filters.forma_recebimento}`);
   if (filters.somente_vencidos === "1") activeFilters.push("Somente vencidos");
   if (filters.cod_cliente) activeFilters.push(`Cód. Cliente: ${filters.cod_cliente}`);
   if (filters.cod_vendedor) activeFilters.push(`Cód. Vendedor: ${filters.cod_vendedor}`);
