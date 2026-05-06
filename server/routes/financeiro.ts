@@ -25,71 +25,79 @@ const router = Router();
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function buildWhereClause(q: Record<string, string | undefined>): { where: string; params: unknown[] } {
-  const conditions: string[] = ["valor_aberto > 0"];
+function buildWhereClause(
+  q: Record<string, string | undefined>,
+  opts: { tableAlias?: string; paramOffset?: number } = {}
+): { where: string; params: unknown[] } {
+  const t = opts.tableAlias ? `${opts.tableAlias}.` : "";
+  const conditions: string[] = [`${t}valor_aberto > 0`];
   const params: unknown[] = [];
-  let n = 1;
+  let n = (opts.paramOffset ?? 0) + 1;
 
   const p = () => `$${n++}`;
 
   if (q.status && q.status !== "todos") {
-    conditions.push(`status = ${p()}`);
+    conditions.push(`${t}status = ${p()}`);
     params.push(q.status.toUpperCase());
   }
   if (q.empresa && q.empresa !== "all") {
-    conditions.push(`idempresa = ${p()}`);
+    conditions.push(`${t}idempresa = ${p()}`);
     params.push(Number(q.empresa));
   }
   if (q.idclifor) {
-    conditions.push(`idclifor = ${p()}`);
+    conditions.push(`${t}idclifor = ${p()}`);
     params.push(Number(q.idclifor));
   }
   if (q.idvendedor) {
-    conditions.push(`idvendedor = ${p()}`);
+    conditions.push(`${t}idvendedor = ${p()}`);
     params.push(Number(q.idvendedor));
   }
   if (q.venc_de) {
-    conditions.push(`dtvencimento >= ${p()}`);
+    conditions.push(`${t}dtvencimento >= ${p()}`);
     params.push(q.venc_de);
   }
   if (q.venc_ate) {
-    conditions.push(`dtvencimento <= ${p()}`);
+    conditions.push(`${t}dtvencimento <= ${p()}`);
     params.push(q.venc_ate);
   }
   if (q.busca) {
     const like = `%${q.busca}%`;
-    conditions.push(`(LOWER(nomecliente) LIKE LOWER(${p()}) OR LOWER(nomevendedor) LIKE LOWER(${p()}) OR CAST(idclifor AS TEXT) LIKE ${p()} OR CAST(idtitulo AS TEXT) LIKE ${p()} OR LOWER(cidade_cobranca) LIKE LOWER(${p()}) OR LOWER(uf_cobranca) LIKE LOWER(${p()}))`);
+    conditions.push(
+      `(LOWER(${t}nomecliente) LIKE LOWER(${p()}) OR LOWER(${t}nomevendedor) LIKE LOWER(${p()}) ` +
+      `OR CAST(${t}idclifor AS TEXT) LIKE ${p()} OR CAST(${t}idtitulo AS TEXT) LIKE ${p()} ` +
+      `OR LOWER(${t}cidade_cobranca) LIKE LOWER(${p()}) OR LOWER(${t}uf_cobranca) LIKE LOWER(${p()}))`
+    );
     params.push(like, like, like, like, like, like);
-    n += 5;
+    // p() already incremented n 6 times in the template above — no extra n+= needed
   }
   if (q.somente_vencidos === "1") {
-    conditions.push(`status = 'VENCIDO'`);
+    conditions.push(`${t}status = 'VENCIDO'`);
   }
   if (q.somente_com_juros === "1") {
-    conditions.push(`valor_juros_pendente > 0`);
+    conditions.push(`${t}valor_juros_pendente > 0`);
   }
   if (q.uf) {
-    conditions.push(`uf_cobranca = ${p()}`);
+    conditions.push(`${t}uf_cobranca = ${p()}`);
     params.push(q.uf.toUpperCase());
   }
   if (q.forma_recebimento) {
-    conditions.push(`LOWER(forma_recebimento) LIKE LOWER(${p()})`);
+    conditions.push(`LOWER(${t}forma_recebimento) LIKE LOWER(${p()})`);
     params.push(`%${q.forma_recebimento}%`);
   }
   if (q.idtitulo) {
-    conditions.push(`idtitulo = ${p()}`);
+    conditions.push(`${t}idtitulo = ${p()}`);
     params.push(Number(q.idtitulo));
   }
   if (q.numnota) {
-    conditions.push(`CAST(numnota AS TEXT) LIKE ${p()}`);
+    conditions.push(`CAST(${t}numnota AS TEXT) LIKE ${p()}`);
     params.push(`%${q.numnota}%`);
   }
   if (q.valor_min) {
-    conditions.push(`valor_aberto >= ${p()}`);
+    conditions.push(`${t}valor_aberto >= ${p()}`);
     params.push(Number(q.valor_min));
   }
   if (q.valor_max) {
-    conditions.push(`valor_aberto <= ${p()}`);
+    conditions.push(`${t}valor_aberto <= ${p()}`);
     params.push(Number(q.valor_max));
   }
 
@@ -97,50 +105,53 @@ function buildWhereClause(q: Record<string, string | undefined>): { where: strin
 }
 
 // ── GET /resumo ─────────────────────────────────────────────────────────────
+// Accepts the same filter params as /clientes so KPI cards stay in sync
 
 router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const hoje = new Date().toISOString().split("T")[0];
+    const q = req.query as Record<string, string | undefined>;
+    const hasFilters = Object.values(q).some(v => v && v !== "" && v !== "todos" && v !== "all" && v !== "0");
 
-    const [totais] = await Promise.all([
-      pgGet<{
-        total_aberto: number; total_vencido: number; total_vence_hoje: number;
-        total_a_vencer: number; total_juros: number;
-        qtd_total: number; qtd_vencido: number; qtd_hoje: number; qtd_a_vencer: number;
-        clientes_pendencia: number; clientes_vencidos: number;
-        maior_atraso: number;
-      }>(`
-        SELECT
-          COALESCE(SUM(valor_aberto), 0) AS total_aberto,
-          COALESCE(SUM(CASE WHEN status = 'VENCIDO'     THEN valor_aberto ELSE 0 END), 0) AS total_vencido,
-          COALESCE(SUM(CASE WHEN status = 'VENCE_HOJE'  THEN valor_aberto ELSE 0 END), 0) AS total_vence_hoje,
-          COALESCE(SUM(CASE WHEN status = 'A_VENCER'    THEN valor_aberto ELSE 0 END), 0) AS total_a_vencer,
-          COALESCE(SUM(valor_juros_pendente), 0) AS total_juros,
-          COUNT(*) AS qtd_total,
-          COUNT(CASE WHEN status = 'VENCIDO'    THEN 1 END) AS qtd_vencido,
-          COUNT(CASE WHEN status = 'VENCE_HOJE' THEN 1 END) AS qtd_hoje,
-          COUNT(CASE WHEN status = 'A_VENCER'   THEN 1 END) AS qtd_a_vencer,
-          COUNT(DISTINCT idclifor) AS clientes_pendencia,
-          COUNT(DISTINCT CASE WHEN status = 'VENCIDO' THEN idclifor END) AS clientes_vencidos,
-          COALESCE(MAX(dias_atraso), 0) AS maior_atraso
-        FROM cache_contas_receber
-        WHERE valor_aberto > 0
-      `),
-    ]);
+    // Build where clause from filters (same helper as /clientes / /duplicatas)
+    const { where, params } = buildWhereClause(q);
 
-    // Maior devedor (cliente com maior valor vencido)
+    const totais = await pgGet<{
+      total_aberto: number; total_vencido: number; total_vence_hoje: number;
+      total_a_vencer: number; total_juros: number;
+      qtd_total: number; qtd_vencido: number; qtd_hoje: number; qtd_a_vencer: number;
+      clientes_pendencia: number; clientes_vencidos: number;
+      maior_atraso: number;
+    }>(`
+      SELECT
+        COALESCE(SUM(valor_aberto), 0) AS total_aberto,
+        COALESCE(SUM(CASE WHEN status = 'VENCIDO'     THEN valor_aberto ELSE 0 END), 0) AS total_vencido,
+        COALESCE(SUM(CASE WHEN status = 'VENCE_HOJE'  THEN valor_aberto ELSE 0 END), 0) AS total_vence_hoje,
+        COALESCE(SUM(CASE WHEN status = 'A_VENCER'    THEN valor_aberto ELSE 0 END), 0) AS total_a_vencer,
+        COALESCE(SUM(valor_juros_pendente), 0) AS total_juros,
+        COUNT(*) AS qtd_total,
+        COUNT(CASE WHEN status = 'VENCIDO'    THEN 1 END) AS qtd_vencido,
+        COUNT(CASE WHEN status = 'VENCE_HOJE' THEN 1 END) AS qtd_hoje,
+        COUNT(CASE WHEN status = 'A_VENCER'   THEN 1 END) AS qtd_a_vencer,
+        COUNT(DISTINCT idclifor) AS clientes_pendencia,
+        COUNT(DISTINCT CASE WHEN status = 'VENCIDO' THEN idclifor END) AS clientes_vencidos,
+        COALESCE(MAX(dias_atraso), 0) AS maior_atraso
+      FROM cache_contas_receber
+      WHERE ${where}
+    `, params);
+
+    // Maior devedor no contexto do filtro atual
     const maiorDevedor = await pgGet<{ nomecliente: string; idclifor: number; valor_vencido: number; maior_atraso: number }>(`
       SELECT nomecliente, idclifor,
         SUM(CASE WHEN status = 'VENCIDO' THEN valor_aberto ELSE 0 END) AS valor_vencido,
         MAX(dias_atraso) AS maior_atraso
       FROM cache_contas_receber
-      WHERE status = 'VENCIDO'
+      WHERE ${where} AND status = 'VENCIDO'
       GROUP BY idclifor, nomecliente
       ORDER BY valor_vencido DESC
       LIMIT 1
-    `);
+    `, params);
 
-    // Última atualização
+    // Última atualização (sempre global, independente de filtro)
     const ultima = await pgGet<{ atualizado_em: string }>(`
       SELECT MAX(atualizado_em) AS atualizado_em FROM cache_contas_receber
     `);
@@ -160,6 +171,7 @@ router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) =
       maior_atraso: Number(totais?.maior_atraso ?? 0),
       maior_devedor: maiorDevedor ?? null,
       ultima_atualizacao: ultima?.atualizado_em ?? null,
+      filtros_ativos: hasFilters,
     });
   } catch (err) {
     console.error("[financeiro] /resumo:", err);
@@ -354,9 +366,13 @@ router.get("/duplicatas", isAuthenticated, async (req: AuthRequest, res: Respons
 });
 
 // ── GET /vendedores ─────────────────────────────────────────────────────────
+// Accepts the same filter params to stay consistent with cards and other tabs
 
 router.get("/vendedores", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
+    const q = req.query as Record<string, string | undefined>;
+    const { where, params } = buildWhereClause(q);
+
     const rows = await pgAll(`
       SELECT
         idvendedor, nomevendedor,
@@ -377,10 +393,10 @@ router.get("/vendedores", isAuthenticated, async (req: AuthRequest, res: Respons
           ELSE 'EM_DIA'
         END AS status_risco
       FROM cache_contas_receber
-      WHERE valor_aberto > 0
+      WHERE ${where}
       GROUP BY idvendedor, nomevendedor
       ORDER BY total_vencido DESC
-    `);
+    `, params);
     res.json({ data: rows });
   } catch (err) {
     console.error("[financeiro] /vendedores:", err);
@@ -507,10 +523,24 @@ router.get("/aging", isAuthenticated, async (req: AuthRequest, res: Response) =>
 });
 
 // ── GET /fila-cobranca ──────────────────────────────────────────────────────
+// Accepts filter params (idvendedor, empresa, venc_de, venc_ate, idclifor)
 
 router.get("/fila-cobranca", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
+    const q = req.query as Record<string, string | undefined>;
     const hoje = new Date().toISOString().split("T")[0];
+
+    // $1 = hoje (used in the ORDER BY promise check)
+    // User filters start at $2, so paramOffset=1 shifts placeholders accordingly
+    const filaQ = { ...q, status: undefined, somente_vencidos: undefined };
+    const { where: filaWhere, params: filaParams } = buildWhereClause(filaQ, {
+      tableAlias: "cr",
+      paramOffset: 1,
+    });
+
+    // Append VENCIDO/VENCE_HOJE restriction (fila always shows only critical items)
+    const fullWhere = `${filaWhere} AND cr.status IN ('VENCIDO','VENCE_HOJE')`;
+    const allParams = [hoje, ...filaParams];
 
     const rows = await pgAll(`
       SELECT
@@ -544,7 +574,7 @@ router.get("/fila-cobranca", isAuthenticated, async (req: AuthRequest, res: Resp
         ORDER BY atualizado_em DESC
         LIMIT 1
       ) fc ON TRUE
-      WHERE cr.status IN ('VENCIDO','VENCE_HOJE') AND cr.valor_aberto > 0
+      WHERE ${fullWhere}
       GROUP BY cr.idclifor, cr.nomecliente, cr.idvendedor, cr.nomevendedor,
                cr.cidade_cobranca, cr.uf_cobranca,
                fc.status_interno, fc.data_cobranca, fc.proxima_acao,
@@ -554,7 +584,7 @@ router.get("/fila-cobranca", isAuthenticated, async (req: AuthRequest, res: Resp
         SUM(CASE WHEN cr.status='VENCIDO' THEN cr.valor_aberto ELSE 0 END) DESC,
         MAX(cr.dias_atraso) DESC
       LIMIT 200
-    `, [hoje]);
+    `, allParams);
 
     res.json({ data: rows.map(r => ({
       ...r,

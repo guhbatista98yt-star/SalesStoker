@@ -167,17 +167,6 @@ function KPICard({
   );
 }
 
-// ── Resumo hook ────────────────────────────────────────────────────────────
-
-function useResumo() {
-  return useQuery({
-    queryKey: ["/api/financeiro/contas-receber/resumo"],
-    queryFn: () => apiFetch("/api/financeiro/contas-receber/resumo"),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  });
-}
-
 // ── Filters ────────────────────────────────────────────────────────────────
 
 interface Filters {
@@ -294,7 +283,15 @@ export default function ContasReceber() {
 
   // ── Queries ────────────────────────────────────────────────────────────
 
-  const resumo = useResumo();
+  // Resumo (KPI cards) — passes same filters so cards stay consistent with all tabs
+  const resumoQS = buildQS(filters);
+  const resumoQ = useQuery({
+    queryKey: ["/api/financeiro/contas-receber/resumo", resumoQS],
+    queryFn: () => apiFetch(`/api/financeiro/contas-receber/resumo${resumoQS}`),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const resumo = resumoQ;
 
   const clientesQS = buildQS(filters, { page: clientePage, limit: perPage, ...sortClientes });
   const clientesQ = useQuery({
@@ -311,16 +308,20 @@ export default function ContasReceber() {
     staleTime: 30_000,
   });
 
+  // Vendedores — passes same filters so tab totals match cards
+  const vendedoresQS = buildQS(filters);
   const vendedoresQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/vendedores"],
-    queryFn: () => apiFetch("/api/financeiro/contas-receber/vendedores"),
+    queryKey: ["/api/financeiro/contas-receber/vendedores", vendedoresQS],
+    queryFn: () => apiFetch(`/api/financeiro/contas-receber/vendedores${vendedoresQS}`),
     enabled: tab === "vendedores",
     staleTime: 30_000,
   });
 
+  // Fila de cobrança — passes same filters (status always forced to VENCIDO/VENCE_HOJE server-side)
+  const filaQS = buildQS(filters);
   const filaQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/fila-cobranca"],
-    queryFn: () => apiFetch("/api/financeiro/contas-receber/fila-cobranca"),
+    queryKey: ["/api/financeiro/contas-receber/fila-cobranca", filaQS],
+    queryFn: () => apiFetch(`/api/financeiro/contas-receber/fila-cobranca${filaQS}`),
     enabled: tab === "fila",
     staleTime: 30_000,
   });
@@ -477,8 +478,8 @@ export default function ContasReceber() {
               icon={DollarSign}
               iconBg="bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400"
               loading={resumo.isLoading}
-              onClick={() => { setFilter("status", "todos"); setFilter("somente_vencidos", "0"); setTab("clientes"); }}
-              active={filters.status === "todos" && filters.somente_vencidos === "0"}
+              onClick={() => { setFilter("status", "todos"); setFilter("somente_vencidos", ""); setTab("clientes"); }}
+              active={filters.status === "todos" && !filters.somente_vencidos}
             />
             <KPICard
               title="Total Vencido"
@@ -791,7 +792,7 @@ export default function ContasReceber() {
                       <input
                         type="checkbox"
                         checked={filters.somente_vencidos === "1"}
-                        onChange={e => setFilter("somente_vencidos", e.target.checked ? "1" : "0")}
+                        onChange={e => setFilter("somente_vencidos", e.target.checked ? "1" : "")}
                         className="rounded"
                       />
                       <span className="text-sm">Somente vencidos</span>
