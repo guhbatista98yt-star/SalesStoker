@@ -948,6 +948,109 @@ async function bootstrapCompras(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Financeiro — Contas a Receber
+// ---------------------------------------------------------------------------
+
+async function bootstrapFinanceiro(): Promise<void> {
+  // Cache principal de contas a receber (populado pelo sync ERP/DB2)
+  await exec(`
+    CREATE TABLE IF NOT EXISTS cache_contas_receber (
+      id                      SERIAL PRIMARY KEY,
+      chave_titulo            TEXT UNIQUE,
+      idempresa               INTEGER,
+      idvendedor              INTEGER,
+      nomevendedor            TEXT,
+      idclifor                INTEGER,
+      nomecliente             TEXT,
+      idtitulo                INTEGER,
+      digitotitulo            TEXT,
+      serienota               TEXT,
+      numnota                 TEXT,
+      idplanilha              INTEGER,
+      dtmovimento             TEXT,
+      dtvencimento            TEXT,
+      dtultimopagamento       TEXT,
+      dias_atraso             INTEGER NOT NULL DEFAULT 0,
+      valor_original          REAL    NOT NULL DEFAULT 0,
+      valor_aberto            REAL    NOT NULL DEFAULT 0,
+      valor_liquido           REAL    NOT NULL DEFAULT 0,
+      valor_juros_pendente    REAL    NOT NULL DEFAULT 0,
+      valor_desconto_concedido REAL   NOT NULL DEFAULT 0,
+      valor_pago              REAL    NOT NULL DEFAULT 0,
+      forma_recebimento       TEXT,
+      origem_movimento        TEXT,
+      observacao_titulo       TEXT,
+      endereco_cobranca       TEXT,
+      bairro_cobranca         TEXT,
+      cidade_cobranca         TEXT,
+      uf_cobranca             TEXT,
+      status                  TEXT    NOT NULL DEFAULT 'A_VENCER',
+      atualizado_em           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cr_chave_titulo    ON cache_contas_receber (chave_titulo)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_empresa               ON cache_contas_receber (idempresa)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_cliente               ON cache_contas_receber (idclifor)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_vendedor              ON cache_contas_receber (idvendedor)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_vencimento            ON cache_contas_receber (dtvencimento)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_status                ON cache_contas_receber (status)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_valor_aberto          ON cache_contas_receber (valor_aberto)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_nomecliente           ON cache_contas_receber (nomecliente)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cr_nomevendedor          ON cache_contas_receber (nomevendedor)`).catch(() => {});
+
+  // Controle de cobrança interna (não altera ERP)
+  await exec(`
+    CREATE TABLE IF NOT EXISTS financeiro_cobrancas (
+      id                      SERIAL PRIMARY KEY,
+      chave_titulo            TEXT,
+      idempresa               INTEGER,
+      idclifor                INTEGER,
+      idtitulo                INTEGER,
+      digitotitulo            TEXT,
+      serienota               TEXT,
+      status_interno          TEXT    NOT NULL DEFAULT 'A COBRAR',
+      observacao              TEXT,
+      motivo_atraso           TEXT,
+      canal_contato           TEXT,
+      responsavel             TEXT,
+      data_cobranca           TEXT,
+      proxima_acao            TEXT,
+      data_proxima_acao       TEXT,
+      promessa_pagamento      TEXT    NOT NULL DEFAULT 'N',
+      data_promessa_pagamento TEXT,
+      criado_em               TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      atualizado_em           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      usuario                 TEXT
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fc_chave          ON financeiro_cobrancas (chave_titulo)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fc_cliente        ON financeiro_cobrancas (idclifor)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fc_status         ON financeiro_cobrancas (status_interno)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fc_proxima_acao   ON financeiro_cobrancas (data_proxima_acao)`).catch(() => {});
+
+  // Histórico de interações de cobrança
+  await exec(`
+    CREATE TABLE IF NOT EXISTS financeiro_cobrancas_historico (
+      id              SERIAL PRIMARY KEY,
+      id_cobranca     INTEGER,
+      chave_titulo    TEXT,
+      idempresa       INTEGER,
+      idclifor        INTEGER,
+      idtitulo        INTEGER,
+      digitotitulo    TEXT,
+      serienota       TEXT,
+      acao            TEXT,
+      valor_anterior  TEXT,
+      valor_novo      TEXT,
+      usuario         TEXT,
+      criado_em       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fch_chave    ON financeiro_cobrancas_historico (chave_titulo)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fch_cliente  ON financeiro_cobrancas_historico (idclifor)`).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
 // Schema validation  (warns loudly if a critical table is still missing)
 // ---------------------------------------------------------------------------
 
@@ -965,6 +1068,7 @@ const REQUIRED_TABLES = [
   "purchase_alerts", "purchase_alert_events", "purchase_settings",
   "user_alert_preferences", "alert_delivery_state",
   "compras_fornecedores_config", "compras_produtos_config",
+  "cache_contas_receber", "financeiro_cobrancas", "financeiro_cobrancas_historico",
 ];
 
 async function validateSchema(): Promise<void> {
@@ -1024,6 +1128,9 @@ export async function runSchemaBootstrap(): Promise<void> {
 
     // ── Compras / Copiloto de Compras ──────────────────────────────────────
     await bootstrapCompras();
+
+    // ── Financeiro / Contas a Receber ──────────────────────────────────────
+    await bootstrapFinanceiro();
 
     // ── Runtime column migrations ─────────────────────────────────────────
     const addedCols: string[] = [];

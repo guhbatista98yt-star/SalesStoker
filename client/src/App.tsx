@@ -52,11 +52,13 @@ const ComprasDashboard = lazy(() => import("@/pages/compras/index"));
 const FornecedorDetalhe = lazy(() => import("@/pages/compras/fornecedor"));
 const ProdutoDetalhe = lazy(() => import("@/pages/compras/produto"));
 const ComprasConfiguracoes = lazy(() => import("@/pages/compras/configuracoes"));
+const ContasReceber = lazy(() => import("@/pages/financeiro/contas-receber"));
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ── Guards ──────────────────────────────────────────────────────────────────── */
 const COMPRAS_ALLOWED_ROLES = ["admin", "supervisor", "gerente", "diretor", "comprador"];
+const FINANCEIRO_ALLOWED_ROLES = ["admin", "supervisor", "gerente", "diretor", "financeiro"];
 
 function VendedorGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -66,6 +68,23 @@ function VendedorGuard({ children }: { children: React.ReactNode }) {
         <div className="text-center text-muted-foreground flex flex-col items-center gap-4">
           <AlertCircle className="w-12 h-12 text-destructive" />
           <p className="text-lg font-medium">Acesso restrito a vendedores.</p>
+        </div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
+function FinanceiroGuard({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const role = user?.role ?? "";
+  if (!FINANCEIRO_ALLOWED_ROLES.includes(role)) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center text-muted-foreground flex flex-col items-center gap-4">
+          <AlertCircle className="w-12 h-12 text-destructive" />
+          <p className="text-lg font-medium">Acesso não autorizado.</p>
+          <p className="text-sm">Este módulo é restrito ao perfil Financeiro.</p>
         </div>
       </div>
     );
@@ -150,6 +169,7 @@ function Router() {
             </ComprasGuard>
           )}
         </Route>
+        <Route path="/financeiro/contas-receber" component={() => <FinanceiroGuard><ContasReceber /></FinanceiroGuard>} />
         {(role === "admin" || role === "supervisor") && (
           <>
             <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
@@ -246,8 +266,9 @@ function CommandPalette() {
     { label: "Comissões",            href: "/comissoes",   icon: DollarSign },
     { label: "Usuários & Permissões", href: "/usuarios",   icon: Users },
     { label: "Configurações",        href: "/configuracoes", icon: Settings },
-    { label: "Copiloto de Compras",       href: "/compras",                icon: ShoppingCart },
-    { label: "Configuração de Compras",   href: "/compras/configuracoes",  icon: Settings },
+    { label: "Copiloto de Compras",       href: "/compras",                          icon: ShoppingCart },
+    { label: "Configuração de Compras",   href: "/compras/configuracoes",            icon: Settings },
+    { label: "Contas a Receber",          href: "/financeiro/contas-receber",        icon: DollarSign },
   ];
 
   const lojaItems = [

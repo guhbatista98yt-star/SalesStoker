@@ -15,6 +15,7 @@ import {
   Target,
   TrendingUp,
   Users,
+  Receipt,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,6 +41,10 @@ const coreItems = [
 const comprasItems = [
   { title: "Copiloto de Compras", url: "/compras", icon: ShoppingCart },
   { title: "Configuração de Compras", url: "/compras/configuracoes", icon: Settings },
+];
+
+const financeiroItems = [
+  { title: "Contas a Receber", url: "/financeiro/contas-receber", icon: Receipt },
 ];
 
 const analysisItems = [
@@ -110,6 +115,8 @@ export function AppSidebar() {
   const showCampanhas = role === "admin" && isModuleEnabled("Campanhas");
   const COMPRAS_ROLES = ["admin", "supervisor", "gerente", "diretor", "comprador"];
   const showCompras = COMPRAS_ROLES.includes(role) && isModuleEnabled("Compras");
+  const FINANCEIRO_ROLES = ["admin", "supervisor", "gerente", "diretor", "financeiro"];
+  const showFinanceiro = FINANCEIRO_ROLES.includes(role) && isModuleEnabled("Financeiro");
 
   return (
     <Sidebar className="border-r border-sidebar-border bg-sidebar">
@@ -193,6 +200,25 @@ export function AppSidebar() {
                         ? location === "/compras" || (location.startsWith("/compras/") && !location.startsWith("/compras/configuracoes"))
                         : location.startsWith(item.url)
                     }
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {showFinanceiro && (
+          <SidebarGroup className="mb-2">
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 mb-1">
+              Financeiro
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {financeiroItems.map((item) => (
+                  <NavItem
+                    key={item.title}
+                    item={item}
+                    active={location.startsWith(item.url)}
                   />
                 ))}
               </SidebarMenu>
