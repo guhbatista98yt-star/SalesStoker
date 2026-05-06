@@ -335,6 +335,14 @@ export default function ContasReceber() {
     staleTime: 30_000,
   });
 
+  // Print query — always fetches all records (up to 500) regardless of active tab
+  const printDupsQS = buildQS(filters, { limit: 500, sort: "nomecliente", dir: "asc" });
+  const printDupsQ = useQuery({
+    queryKey: ["/api/financeiro/contas-receber/duplicatas/print", printDupsQS],
+    queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas${printDupsQS}`),
+    staleTime: 30_000,
+  });
+
   const clienteDetalheQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/cliente", clienteDetalhe],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/cliente/${clienteDetalhe}`),
@@ -404,7 +412,7 @@ export default function ContasReceber() {
     <div className="flex flex-col h-full overflow-hidden bg-background print:bg-white print:h-auto print:overflow-visible">
 
       {/* ── Professional Print Layout ─────────────────────────────────── */}
-      <PrintReport filters={filters} resumo={r} clientesData={clientesQ.data} dupsData={dupsQ.data} tab={tab} />
+      <PrintReport filters={filters} resumo={r} clientesData={clientesQ.data} dupsData={printDupsQ.data} tab={tab} />
 
       {/* ── Page header ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 shrink-0 border-b border-border print:hidden">
@@ -1634,217 +1642,249 @@ function PrintReport({
   tab: string;
 }) {
   const now = new Date().toLocaleString("pt-BR");
-  const clientes = clientesData?.data ?? [];
-  const dups = dupsData?.data ?? [];
+  const allDups: any[] = dupsData?.data ?? [];
 
-  const activeFilters: string[] = [];
-  if (filters.status !== "todos") activeFilters.push(`Status: ${STATUS_CONFIG[filters.status]?.label ?? filters.status}`);
-  if (filters.busca) activeFilters.push(`Busca: "${filters.busca}"`);
-  if (filters.venc_de) activeFilters.push(`Vencimento de: ${fmtDate(filters.venc_de)}`);
-  if (filters.venc_ate) activeFilters.push(`Vencimento até: ${fmtDate(filters.venc_ate)}`);
-  if (filters.forma_recebimento) activeFilters.push(`Forma de Pagamento: ${filters.forma_recebimento}`);
-  if (filters.somente_vencidos === "1") activeFilters.push("Somente vencidos");
-  if (filters.cod_cliente) activeFilters.push(`Cód. Cliente: ${filters.cod_cliente}`);
-  if (filters.cod_vendedor) activeFilters.push(`Cód. Vendedor: ${filters.cod_vendedor}`);
-  if (filters.idtitulo) activeFilters.push(`Nº Título: ${filters.idtitulo}`);
-  if (filters.numnota) activeFilters.push(`Nota Fiscal: ${filters.numnota}`);
+  // ── Group duplicatas by client, preserving order ───────────────────
+  const byClient = new Map<number, { info: any; rows: any[] }>();
+  for (const row of allDups) {
+    if (!byClient.has(row.idclifor)) {
+      byClient.set(row.idclifor, { info: row, rows: [] });
+    }
+    byClient.get(row.idclifor)!.rows.push(row);
+  }
+  const clientGroups = Array.from(byClient.values());
 
-  const tabLabel = tab === "clientes" ? "Clientes com Pendência"
-    : tab === "duplicatas" ? "Duplicatas (Títulos)"
-    : tab === "vendedores" ? "Resumo por Vendedor"
-    : "Fila de Cobrança";
+  // ── Grand totals ────────────────────────────────────────────────────
+  let grandVencido = 0, grandAVencer = 0, grandJuros = 0, grandPago = 0, grandSaldo = 0;
+  for (const row of allDups) {
+    if (row.status === "VENCIDO") grandVencido += Number(row.valor_original) || 0;
+    else grandAVencer += Number(row.valor_original) || 0;
+    grandJuros += Number(row.valor_juros_pendente) || 0;
+    grandPago  += Number(row.valor_pago) || 0;
+    grandSaldo += Number(row.valor_aberto) || 0;
+  }
+
+  // ── ERP-style number formatter ──────────────────────────────────────
+  function fmtN(v: number) {
+    if (!v || v === 0) return ",00";
+    return new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(v);
+  }
+
+  // ── Active filter description lines ────────────────────────────────
+  const filterLines: string[] = [];
+  filterLines.push(`Informe a(s) empresa(s) = ( ${filters.empresa === "all" ? "Todas" : filters.empresa} )`);
+  filterLines.push(`Informe o cliente ou branco para todos = ${filters.cod_cliente || ""}`);
+  filterLines.push(`Informe a(s) forma(s) de pagto ou branco p/ todas = ${filters.forma_recebimento || ""}`);
+  if (filters.venc_de) filterLines.push(`Data de vencimento inicial = '${fmtDate(filters.venc_de)}'`);
+  if (filters.venc_ate) filterLines.push(`Data de vencimento final = '${fmtDate(filters.venc_ate)}'`);
+  if (filters.busca)   filterLines.push(`Busca = "${filters.busca}"`);
+
+  // ── Column widths (percentages, must sum to 100) ────────────────────
+  const W = {
+    nota:     "14%",
+    titulo:   "11%",
+    forma:    "5%",
+    vencido:  "9%",
+    avencer:  "9%",
+    atraso:   "5%",
+    juros:    "8%",
+    pago:     "8%",
+    saldo:    "9%",
+    emissao:  "8%",
+    vencto:   "8%",
+    ref:      "6%",
+  } as const;
+
+  const thStyle = (align: "left" | "right" | "center" = "left"): React.CSSProperties => ({
+    textAlign: align,
+    padding: "1px 3px",
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+  });
+
+  const tdStyle = (align: "left" | "right" | "center" = "left", extra: React.CSSProperties = {}): React.CSSProperties => ({
+    textAlign: align,
+    padding: "0px 3px",
+    ...extra,
+  });
+
+  const pageStyle: React.CSSProperties = {
+    fontFamily: "'Courier New', Courier, monospace",
+    fontSize: "7.5pt",
+    color: "#000",
+    backgroundColor: "#fff",
+    padding: "8mm 6mm",
+    lineHeight: "1.35",
+  };
 
   return (
-    <div className="hidden print:block print:text-black print:bg-white">
-      {/* ── Cabeçalho ─────────────────────────────────────────────────── */}
-      <div style={{ borderBottom: "2px solid #1e293b", paddingBottom: "12px", marginBottom: "16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontSize: "20px", fontWeight: "800", letterSpacing: "-0.5px", color: "#0f172a" }}>
-              CONECTUBOS
-            </div>
-            <div style={{ fontSize: "13px", fontWeight: "600", color: "#334155", marginTop: "2px" }}>
-              Relatório de Contas a Receber — {tabLabel}
-            </div>
-          </div>
-          <div style={{ textAlign: "right", fontSize: "10px", color: "#64748b" }}>
-            <div>Emitido em: {now}</div>
-            {resumo?.ultima_atualizacao && (
-              <div>Dados de: {fmtDatetime(resumo.ultima_atualizacao)}</div>
-            )}
-          </div>
-        </div>
+    <div className="hidden print:block" style={pageStyle}>
 
-        {/* Filtros ativos */}
-        {activeFilters.length > 0 && (
-          <div style={{ marginTop: "8px", fontSize: "10px", color: "#475569" }}>
-            <span style={{ fontWeight: "600" }}>Filtros aplicados: </span>
-            {activeFilters.join(" · ")}
-          </div>
-        )}
+      {/* ── Cabeçalho ────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2px" }}>
+        <div style={{ fontWeight: "bold", fontSize: "8pt" }}>Conectubos Atacarejo da Construção</div>
+        <div style={{ fontSize: "7.5pt" }}>{now}</div>
+      </div>
+      <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "8pt", marginBottom: "3px" }}>
+        Extrato para Cobrança
+      </div>
+      <div style={{ textAlign: "center", fontSize: "7pt", lineHeight: "1.6", marginBottom: "3px" }}>
+        {filterLines.map((line, i) => (
+          <div key={i}>{line}</div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "7pt", marginBottom: "3px" }}>
+        <span>Financeiro</span>
+        <span>{allDups.length} título(s) · {clientGroups.length} cliente(s)</span>
+        <span>V. 05</span>
       </div>
 
-      {/* ── Resumo KPI ────────────────────────────────────────────────── */}
-      {resumo && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "8px", marginBottom: "20px" }}>
-          {[
-            { label: "Total em Aberto", value: fmtBRL(resumo.total_aberto), sub: `${resumo.qtd_total} títulos` },
-            { label: "Total Vencido", value: fmtBRL(resumo.total_vencido), sub: `${resumo.qtd_vencido} títulos`, alert: resumo.total_vencido > 0 },
-            { label: "Vence Hoje", value: fmtBRL(resumo.total_vence_hoje), sub: `${resumo.qtd_hoje} títulos` },
-            { label: "A Vencer", value: fmtBRL(resumo.total_a_vencer), sub: `${resumo.qtd_a_vencer} títulos` },
-            { label: "Juros Pendente", value: fmtBRL(resumo.total_juros), sub: `${resumo.clientes_vencidos} clientes em atraso` },
-          ].map(({ label, value, sub, alert }) => (
-            <div key={label} style={{
-              border: `1px solid ${alert ? "#fca5a5" : "#e2e8f0"}`,
-              borderRadius: "6px",
-              padding: "8px 10px",
-              backgroundColor: alert ? "#fef2f2" : "#f8fafc",
-            }}>
-              <div style={{ fontSize: "9px", color: "#64748b", fontWeight: "500", marginBottom: "2px" }}>{label}</div>
-              <div style={{ fontSize: "13px", fontWeight: "700", color: alert ? "#dc2626" : "#0f172a" }}>{value}</div>
-              <div style={{ fontSize: "9px", color: "#94a3b8" }}>{sub}</div>
+      {/* ── Cabeçalho das colunas ─────────────────────────────────────── */}
+      <table style={{ width: "100%", borderCollapse: "collapse", borderTop: "1px solid #000", borderBottom: "1px solid #000", marginBottom: "2px" }}>
+        <thead>
+          <tr style={{ fontSize: "6.5pt" }}>
+            <th style={{ ...thStyle("left"),   width: W.nota    }}>Nota / Série</th>
+            <th style={{ ...thStyle("left"),   width: W.titulo  }}>Titulo / Dígito</th>
+            <th style={{ ...thStyle("center"), width: W.forma   }}>Pgto.</th>
+            <th style={{ ...thStyle("right"),  width: W.vencido }}>Valor Vencido</th>
+            <th style={{ ...thStyle("right"),  width: W.avencer }}>Valor a Vencer</th>
+            <th style={{ ...thStyle("center"), width: W.atraso  }}>Atraso</th>
+            <th style={{ ...thStyle("right"),  width: W.juros   }}>Juros</th>
+            <th style={{ ...thStyle("right"),  width: W.pago    }}>Valor Pago</th>
+            <th style={{ ...thStyle("right"),  width: W.saldo   }}>Saldo a Pagar</th>
+            <th style={{ ...thStyle("center"), width: W.emissao }}>Emissão</th>
+            <th style={{ ...thStyle("center"), width: W.vencto  }}>Vencimento</th>
+            <th style={{ ...thStyle("left"),   width: W.ref     }}></th>
+          </tr>
+        </thead>
+      </table>
+
+      {/* ── Grupos por cliente ────────────────────────────────────────── */}
+      {clientGroups.map(({ info, rows }) => {
+        let clVencido = 0, clAVencer = 0, clJuros = 0, clPago = 0, clSaldo = 0;
+        for (const r of rows) {
+          if (r.status === "VENCIDO") clVencido += Number(r.valor_original) || 0;
+          else clAVencer += Number(r.valor_original) || 0;
+          clJuros += Number(r.valor_juros_pendente) || 0;
+          clPago  += Number(r.valor_pago) || 0;
+          clSaldo += Number(r.valor_aberto) || 0;
+        }
+
+        const locParts = [
+          info.endereco_cobranca,
+          info.bairro_cobranca,
+          info.cidade_cobranca,
+          info.uf_cobranca,
+        ].filter(Boolean);
+
+        return (
+          <div key={info.idclifor} style={{ marginBottom: "4px", pageBreakInside: "avoid" }}>
+
+            {/* Client header */}
+            <div style={{ fontWeight: "bold", marginBottom: "0px" }}>
+              Cliente: {info.idclifor} - {info.nomecliente}
+              {info.nomevendedor
+                ? <span style={{ fontWeight: "normal" }}>{"   "}Vendedor: {info.nomevendedor}</span>
+                : null}
             </div>
-          ))}
-        </div>
+            {locParts.length > 0 && (
+              <div>
+                Localização: {"  "}{locParts.join("   ")}
+              </div>
+            )}
+
+            {/* Title rows */}
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                {rows.map((row: any) => {
+                  const isVencido = row.status === "VENCIDO";
+                  const valVencido = isVencido ? (Number(row.valor_original) || 0) : 0;
+                  const valAVencer = !isVencido ? (Number(row.valor_original) || 0) : 0;
+                  const nota = row.numnota ?? "PRE";
+                  const serie = row.serienota ? ` - ${row.serienota}` : "";
+                  const titulo = `${row.idtitulo} - ${String(row.digitotitulo ?? "01").padStart(2, "0")}`;
+
+                  return (
+                    <tr key={row.id}>
+                      <td style={{ ...tdStyle("left"),   width: W.nota    }}>{nota}{serie}</td>
+                      <td style={{ ...tdStyle("left"),   width: W.titulo  }}>{titulo}</td>
+                      <td style={{ ...tdStyle("center"), width: W.forma   }}>{row.forma_recebimento ?? "—"}</td>
+                      <td style={{ ...tdStyle("right"),  width: W.vencido }}>{fmtN(valVencido)}</td>
+                      <td style={{ ...tdStyle("right"),  width: W.avencer }}>{fmtN(valAVencer)}</td>
+                      <td style={{ ...tdStyle("center"), width: W.atraso  }}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
+                      <td style={{ ...tdStyle("right"),  width: W.juros   }}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
+                      <td style={{ ...tdStyle("right"),  width: W.pago    }}>{fmtN(Number(row.valor_pago) || 0)}</td>
+                      <td style={{ ...tdStyle("right"),  width: W.saldo   }}>{fmtN(Number(row.valor_aberto) || 0)}</td>
+                      <td style={{ ...tdStyle("center"), width: W.emissao }}>{fmtDate(row.dtmovimento)}</td>
+                      <td style={{ ...tdStyle("center"), width: W.vencto  }}>{fmtDate(row.dtvencimento)}</td>
+                      <td style={{ ...tdStyle("left"),   width: W.ref,  fontSize: "6.5pt" }}>{row.numnota ?? ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Client total */}
+            <table style={{ width: "100%", borderCollapse: "collapse", borderTop: "1px solid #aaa", marginTop: "1px", marginBottom: "3px" }}>
+              <tbody>
+                <tr style={{ fontWeight: "bold" }}>
+                  <td style={{ ...tdStyle("left"), width: "25%" }}>Total do Cliente:</td>
+                  <td style={{ ...tdStyle("right"), width: W.vencido }}>{fmtN(clVencido)}</td>
+                  <td style={{ ...tdStyle("right"), width: W.avencer }}>{fmtN(clAVencer)}</td>
+                  <td style={{ width: W.atraso }}></td>
+                  <td style={{ ...tdStyle("right"), width: W.juros }}>{fmtN(clJuros)}</td>
+                  <td style={{ ...tdStyle("right"), width: W.pago }}>{fmtN(clPago)}</td>
+                  <td style={{ ...tdStyle("right"), width: W.saldo }}>{fmtN(clSaldo)}</td>
+                  <td style={{ width: "calc(8% + 8% + 6%)" }}></td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+        );
+      })}
+
+      {/* ── Totais gerais ─────────────────────────────────────────────── */}
+      {allDups.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", borderTop: "2px solid #000", marginTop: "4px", paddingTop: "2px" }}>
+          <tbody>
+            <tr style={{ fontWeight: "bold", fontSize: "8pt" }}>
+              <td style={{ ...tdStyle("left"), width: "25%" }}>TOTAL GERAL:</td>
+              <td style={{ ...tdStyle("right"), width: W.vencido }}>{fmtN(grandVencido)}</td>
+              <td style={{ ...tdStyle("right"), width: W.avencer }}>{fmtN(grandAVencer)}</td>
+              <td style={{ width: W.atraso }}></td>
+              <td style={{ ...tdStyle("right"), width: W.juros }}>{fmtN(grandJuros)}</td>
+              <td style={{ ...tdStyle("right"), width: W.pago }}>{fmtN(grandPago)}</td>
+              <td style={{ ...tdStyle("right"), width: W.saldo }}>{fmtN(grandSaldo)}</td>
+              <td style={{ width: "calc(8% + 8% + 6%)" }}></td>
+            </tr>
+          </tbody>
+        </table>
       )}
 
-      {/* ── Tabela de Clientes ────────────────────────────────────────── */}
-      {tab === "clientes" && clientes.length > 0 && (
-        <div>
-          <div style={{ fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Clientes com Pendência ({clientesData?.total ?? clientes.length} total)
-          </div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#1e293b", color: "#fff" }}>
-                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Cliente</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Vendedor</th>
-                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Vencido</th>
-                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Total Aberto</th>
-                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Atraso</th>
-                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Juros</th>
-                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Títulos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientes.map((row: any, i: number) => (
-                <tr key={row.idclifor} style={{ backgroundColor: i % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                  <td style={{ padding: "5px 8px", fontWeight: "500" }}>
-                    <div>{row.nomecliente}</div>
-                    {row.cidade_cobranca && (
-                      <div style={{ fontSize: "8px", color: "#94a3b8" }}>{row.cidade_cobranca}/{row.uf_cobranca}</div>
-                    )}
-                  </td>
-                  <td style={{ padding: "5px 8px", color: "#64748b" }}>{row.nomevendedor ?? "—"}</td>
-                  <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: "600", color: row.total_vencido > 0 ? "#dc2626" : "#0f172a" }}>
-                    {fmtBRL(row.total_vencido)}
-                  </td>
-                  <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: "500" }}>{fmtBRL(row.total_aberto)}</td>
-                  <td style={{ padding: "5px 8px", textAlign: "center", color: row.maior_atraso > 30 ? "#dc2626" : row.maior_atraso > 7 ? "#d97706" : "#64748b" }}>
-                    {row.maior_atraso > 0 ? `${row.maior_atraso}d` : "—"}
-                  </td>
-                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#64748b" }}>{fmtBRL(row.juros_pendente)}</td>
-                  <td style={{ padding: "5px 8px", textAlign: "center", color: "#64748b" }}>{row.qtd_titulos}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ backgroundColor: "#1e293b", color: "#fff", fontWeight: "700" }}>
-                <td colSpan={2} style={{ padding: "6px 8px" }}>TOTAL</td>
-                <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                  {fmtBRL(clientes.reduce((s: number, r: any) => s + (Number(r.total_vencido) || 0), 0))}
-                </td>
-                <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                  {fmtBRL(clientes.reduce((s: number, r: any) => s + (Number(r.total_aberto) || 0), 0))}
-                </td>
-                <td></td>
-                <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                  {fmtBRL(clientes.reduce((s: number, r: any) => s + (Number(r.juros_pendente) || 0), 0))}
-                </td>
-                <td style={{ padding: "6px 8px", textAlign: "center" }}>
-                  {clientes.reduce((s: number, r: any) => s + (Number(r.qtd_titulos) || 0), 0)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-          {clientesData?.total > clientes.length && (
-            <div style={{ fontSize: "9px", color: "#94a3b8", marginTop: "4px", textAlign: "right" }}>
-              * Exibindo {clientes.length} de {clientesData.total} clientes. Para relatório completo, aumente o limite de registros por página.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Tabela de Duplicatas ──────────────────────────────────────── */}
-      {tab === "duplicatas" && dups.length > 0 && (
-        <div>
-          <div style={{ fontSize: "11px", fontWeight: "700", color: "#334155", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Duplicatas / Títulos ({dupsData?.total ?? dups.length} total)
-          </div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#1e293b", color: "#fff" }}>
-                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Cliente</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Título</th>
-                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Vencimento</th>
-                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Atraso</th>
-                <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Forma</th>
-                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>V. Original</th>
-                <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>V. Aberto</th>
-                <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dups.map((row: any, i: number) => (
-                <tr key={row.id} style={{ backgroundColor: i % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                  <td style={{ padding: "5px 8px" }}>
-                    <div style={{ fontWeight: "500" }}>{row.nomecliente}</div>
-                    <div style={{ fontSize: "8px", color: "#94a3b8" }}>{row.nomevendedor}</div>
-                  </td>
-                  <td style={{ padding: "5px 8px", fontFamily: "monospace", fontSize: "9px" }}>
-                    {row.idtitulo}/{row.digitotitulo}
-                    {row.numnota ? ` · NF ${row.numnota}` : ""}
-                  </td>
-                  <td style={{ padding: "5px 8px", textAlign: "center" }}>{fmtDate(row.dtvencimento)}</td>
-                  <td style={{ padding: "5px 8px", textAlign: "center", color: row.dias_atraso > 30 ? "#dc2626" : row.dias_atraso > 0 ? "#d97706" : "#64748b" }}>
-                    {row.dias_atraso > 0 ? `${row.dias_atraso}d` : "—"}
-                  </td>
-                  <td style={{ padding: "5px 8px", color: "#64748b", fontSize: "9px" }}>{row.forma_recebimento ?? "—"}</td>
-                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#64748b" }}>{fmtBRL(row.valor_original)}</td>
-                  <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: "600" }}>{fmtBRL(row.valor_aberto)}</td>
-                  <td style={{ padding: "5px 8px", textAlign: "center", fontSize: "9px", fontWeight: "600",
-                    color: row.status === "VENCIDO" ? "#dc2626" : row.status === "VENCE_HOJE" ? "#d97706" : "#2563eb" }}>
-                    {STATUS_CONFIG[row.status]?.label ?? row.status}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ backgroundColor: "#1e293b", color: "#fff", fontWeight: "700" }}>
-                <td colSpan={6} style={{ padding: "6px 8px" }}>TOTAL</td>
-                <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                  {fmtBRL(dups.reduce((s: number, r: any) => s + (Number(r.valor_aberto) || 0), 0))}
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
+      {dupsData?.total > allDups.length && (
+        <div style={{ fontSize: "6.5pt", color: "#555", marginTop: "4px", textAlign: "right" }}>
+          * Exibindo {allDups.length} de {dupsData.total} títulos. Para relatório completo, aplique filtros mais específicos.
         </div>
       )}
 
       {/* ── Rodapé ────────────────────────────────────────────────────── */}
       <div style={{
-        marginTop: "24px",
-        paddingTop: "8px",
-        borderTop: "1px solid #e2e8f0",
+        marginTop: "8px",
+        paddingTop: "4px",
+        borderTop: "1px solid #ccc",
         display: "flex",
         justifyContent: "space-between",
-        fontSize: "9px",
-        color: "#94a3b8",
+        fontSize: "6.5pt",
       }}>
         <span>CONECTUBOS — Relatório Financeiro Confidencial</span>
         <span>Emitido em {now}</span>
       </div>
+
     </div>
   );
 }

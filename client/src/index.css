@@ -356,8 +356,8 @@
 /* ── Print / A4 ──────────────────────────────────────────────────────────── */
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 16mm 12mm;
+    size: A4 landscape;
+    margin: 10mm 8mm;
   }
 
   * {
