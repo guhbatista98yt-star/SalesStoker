@@ -1644,7 +1644,7 @@ function PrintReport({
   const now = new Date().toLocaleString("pt-BR");
   const allDups: any[] = dupsData?.data ?? [];
 
-  // Group by client preserving server order (already sorted by nomecliente, idclifor, dtvencimento)
+  // Group by client (server already sorted by nomecliente, idclifor, dtvencimento)
   const byClient = new Map<number, { info: any; rows: any[] }>();
   for (const row of allDups) {
     if (!byClient.has(row.idclifor)) {
@@ -1664,152 +1664,112 @@ function PrintReport({
     grandSaldo += Number(row.valor_aberto) || 0;
   }
 
-  // ERP-style number formatter — zeros as ",00"
+  // ERP-style number formatter — zeros shown as ",00"
   function fmtN(v: number | null | undefined) {
     const n = Number(v) || 0;
     if (n === 0) return ",00";
     return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
   }
 
-  // Active filters as display tags
-  const filterTags: { label: string; value: string }[] = [];
-  filterTags.push({ label: "Empresa", value: filters.empresa === "all" ? "Todas" : filters.empresa });
-  if (filters.venc_de)           filterTags.push({ label: "Venc. de",  value: fmtDate(filters.venc_de) });
-  if (filters.venc_ate)          filterTags.push({ label: "Venc. até", value: fmtDate(filters.venc_ate) });
-  if (filters.forma_recebimento) filterTags.push({ label: "Forma",     value: filters.forma_recebimento });
-  if (filters.busca)             filterTags.push({ label: "Busca",     value: `"${filters.busca}"` });
-  if (filters.cod_cliente)       filterTags.push({ label: "Cliente",   value: filters.cod_cliente });
-  if (filters.cod_vendedor)      filterTags.push({ label: "Vendedor",  value: filters.cod_vendedor });
-  if (filters.idtitulo)          filterTags.push({ label: "Título",    value: filters.idtitulo });
-  if (filters.numnota)           filterTags.push({ label: "NF",        value: filters.numnota });
-  if (filters.somente_vencidos === "1") filterTags.push({ label: "Filtro", value: "Somente vencidos" });
-  if (filters.status !== "todos") filterTags.push({ label: "Status",  value: STATUS_CONFIG[filters.status]?.label ?? filters.status });
+  // Base font/color for all cells
+  const MONO = "'Courier New', Courier, monospace";
+  const base: React.CSSProperties = { fontFamily: MONO, fontSize: "7.5pt", color: "#000", lineHeight: "1.3" };
 
-  // Column widths — must add to ~100%
-  // nota(13) + titulo(11) + forma(5) + vencido(9) + avencer(9) + dias(4) + juros(8) + pago(7) + saldo(9) + emissao(8) + vencto(8) + ref(9) = 100
-  const W = ["13%","11%","5%","9%","9%","4%","8%","7%","9%","8%","8%","9%"] as const;
-
-  const BASE: React.CSSProperties = { fontFamily: "'Courier New', Courier, monospace", fontSize: "7pt", color: "#000" };
+  // th/td helpers
   const th = (align: React.CSSProperties["textAlign"]): React.CSSProperties => ({
-    ...BASE, textAlign: align, padding: "3px 3px", fontWeight: "bold",
-    backgroundColor: "#1e293b", color: "#fff", whiteSpace: "nowrap",
+    ...base, textAlign: align, padding: "2px 3px", fontWeight: "bold",
+    borderTop: "1px solid #000", borderBottom: "1px solid #000",
+    whiteSpace: "nowrap",
   });
   const td = (align: React.CSSProperties["textAlign"], extra: React.CSSProperties = {}): React.CSSProperties => ({
-    ...BASE, textAlign: align, padding: "1px 3px", verticalAlign: "top", ...extra,
+    ...base, textAlign: align, padding: "0px 3px", verticalAlign: "top", ...extra,
   });
 
-  return (
-    <div className="hidden print:block" style={{ ...BASE, backgroundColor: "#fff" }}>
+  // Column widths
+  const W = ["13%","11%","5%","9%","9%","4%","8%","7%","9%","8%","8%","9%"] as const;
 
-      {/* Inject print-specific CSS */}
+  // Filter params lines (ERP style)
+  const filterLines = [
+    `Informe a(s) empresa(s) = ( ${filters.empresa === "all" ? "Todas" : filters.empresa} )`,
+    `Informe o cliente ou branco para todos = ${filters.cod_cliente || ""}`,
+    `Informe a(s) forma(s) de pagto ou branco p/ todas = ${filters.forma_recebimento || ""}`,
+    filters.venc_de  ? `Data de vencimento inicial = '${fmtDate(filters.venc_de)}'` : null,
+    filters.venc_ate ? `Data de vencimento final = '${fmtDate(filters.venc_ate)}'`   : null,
+    filters.busca    ? `Busca = "${filters.busca}"` : null,
+    filters.cod_vendedor ? `Vendedor = ${filters.cod_vendedor}` : null,
+    filters.somente_vencidos === "1" ? "Somente vencidos = Sim" : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className="hidden print:block" style={{ ...base, backgroundColor: "#fff", padding: "0" }}>
+
+      {/* Print-specific CSS: repeat thead on every page, keep tbody groups together */}
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 8mm 7mm; }
+          @page { size: A4 landscape; margin: 10mm 8mm; }
           .pr-thead { display: table-header-group; }
           .pr-tfoot { display: table-footer-group; }
           .pr-tbody { page-break-inside: avoid; }
         }
       `}</style>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div style={{ borderBottom: "2px solid #1e293b", paddingBottom: "5px", marginBottom: "5px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontWeight: "bold", fontSize: "10pt", letterSpacing: "0.3px" }}>
-              CONECTUBOS Atacarejo da Construção
-            </div>
-            <div style={{ fontSize: "7.5pt", color: "#334155", marginTop: "1px" }}>
-              Extrato para Cobrança — Contas a Receber em Aberto
-            </div>
-          </div>
-          <div style={{ textAlign: "right", fontSize: "7pt", color: "#475569" }}>
-            <div style={{ fontWeight: "bold" }}>{now}</div>
-            {resumo?.ultima_atualizacao && (
-              <div>Dados sincronizados: {fmtDatetime(resumo.ultima_atualizacao)}</div>
-            )}
-          </div>
-        </div>
-
-        {/* Filter tags row */}
-        <div style={{ marginTop: "4px", display: "flex", flexWrap: "wrap", gap: "6px", fontSize: "6.5pt" }}>
-          {filterTags.map(({ label, value }) => (
-            <span key={label} style={{
-              border: "1px solid #94a3b8", borderRadius: "3px",
-              padding: "1px 5px", background: "#f1f5f9",
-            }}>
-              <span style={{ color: "#64748b" }}>{label}:</span>{" "}
-              <span style={{ fontWeight: "bold" }}>{value}</span>
-            </span>
-          ))}
-        </div>
+      {/* ── Cabeçalho ──────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1px", ...base }}>
+        <div style={{ fontWeight: "bold" }}>Conectubos Atacarejo da Construção</div>
+        <div>{now}</div>
+      </div>
+      <div style={{ textAlign: "center", fontWeight: "bold", marginBottom: "2px", ...base }}>
+        150020-Extrato para Cobrança 2.0
+      </div>
+      <div style={{ textAlign: "center", fontSize: "7pt", lineHeight: "1.7", ...base }}>
+        {filterLines.map((line, i) => <div key={i}>{line}</div>)}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", marginBottom: "3px", ...base, fontSize: "7pt" }}>
+        <span>Financeiro</span>
+        <span>{allDups.length} título(s) · {clientGroups.length} cliente(s)</span>
+        <span>V. 05</span>
       </div>
 
-      {/* ── Summary bar ────────────────────────────────────────────────── */}
-      <div style={{
-        display: "flex", gap: "0", marginBottom: "5px",
-        border: "1px solid #cbd5e1", borderRadius: "4px", overflow: "hidden",
-        fontSize: "7pt",
-      }}>
-        {[
-          { label: "Clientes",    value: clientGroups.length.toString(),     bg: "#f8fafc" },
-          { label: "Títulos",     value: allDups.length.toString(),          bg: "#f8fafc" },
-          { label: "Total Vencido", value: fmtN(grandVencido),              bg: "#fff5f5", bold: true, red: true },
-          { label: "A Vencer",    value: fmtN(grandAVencer),                bg: "#f0f9ff", bold: true },
-          { label: "Juros",       value: fmtN(grandJuros),                  bg: "#fffbeb" },
-          { label: "Valor Pago",  value: fmtN(grandPago),                   bg: "#f0fdf4" },
-          { label: "Saldo Total", value: fmtN(grandSaldo),                  bg: "#f8fafc", bold: true },
-        ].map(({ label, value, bg, bold, red }) => (
-          <div key={label} style={{
-            flex: 1, padding: "4px 6px", background: bg,
-            borderRight: "1px solid #e2e8f0", textAlign: "center",
-          }}>
-            <div style={{ color: "#64748b", fontSize: "6pt", marginBottom: "1px" }}>{label}</div>
-            <div style={{ fontWeight: bold ? "bold" : "normal", color: red ? "#dc2626" : "#0f172a" }}>
-              {value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Main table — thead repeats on every printed page ────────────── */}
+      {/* ── Main table ─────────────────────────────────────────────────── */}
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
 
+        {/* thead repeats on every printed page automatically */}
         <thead className="pr-thead">
           <tr>
             <th style={{ ...th("left"),   width: W[0]  }}>Nota / Série</th>
-            <th style={{ ...th("left"),   width: W[1]  }}>Título / Díg.</th>
+            <th style={{ ...th("left"),   width: W[1]  }}>Titulo / Dígito</th>
             <th style={{ ...th("center"), width: W[2]  }}>Pgto.</th>
             <th style={{ ...th("right"),  width: W[3]  }}>Valor Vencido</th>
             <th style={{ ...th("right"),  width: W[4]  }}>Valor a Vencer</th>
-            <th style={{ ...th("center"), width: W[5]  }}>Dias</th>
+            <th style={{ ...th("center"), width: W[5]  }}>Atraso</th>
             <th style={{ ...th("right"),  width: W[6]  }}>Juros</th>
             <th style={{ ...th("right"),  width: W[7]  }}>Valor Pago</th>
             <th style={{ ...th("right"),  width: W[8]  }}>Saldo a Pagar</th>
             <th style={{ ...th("center"), width: W[9]  }}>Emissão</th>
             <th style={{ ...th("center"), width: W[10] }}>Vencimento</th>
-            <th style={{ ...th("left"),   width: W[11] }}>Ref. NF</th>
+            <th style={{ ...th("left"),   width: W[11] }}>Nota</th>
           </tr>
         </thead>
 
-        {/* Grand total footer — prints at bottom of last page */}
+        {/* tfoot prints at the bottom of the last page */}
         <tfoot className="pr-tfoot">
-          <tr style={{ backgroundColor: "#1e293b", color: "#fff", fontWeight: "bold", fontSize: "7.5pt" }}>
-            <td colSpan={3} style={{ ...td("right"), backgroundColor: "#1e293b", color: "#fff", padding: "3px 4px" }}>
-              TOTAL GERAL — {allDups.length} título(s) · {clientGroups.length} cliente(s)
+          <tr style={{ borderTop: "2px solid #000" }}>
+            <td colSpan={3} style={{ ...td("left"), fontWeight: "bold", padding: "1px 3px" }}>
+              TOTAL GERAL:
             </td>
-            <td style={{ ...td("right"), backgroundColor: "#1e293b", color: "#fff", padding: "3px 4px" }}>{fmtN(grandVencido)}</td>
-            <td style={{ ...td("right"), backgroundColor: "#1e293b", color: "#fff", padding: "3px 4px" }}>{fmtN(grandAVencer)}</td>
-            <td style={{ backgroundColor: "#1e293b" }}></td>
-            <td style={{ ...td("right"), backgroundColor: "#1e293b", color: "#fff", padding: "3px 4px" }}>{fmtN(grandJuros)}</td>
-            <td style={{ ...td("right"), backgroundColor: "#1e293b", color: "#fff", padding: "3px 4px" }}>{fmtN(grandPago)}</td>
-            <td style={{ ...td("right"), backgroundColor: "#1e293b", color: "#fff", padding: "3px 4px" }}>{fmtN(grandSaldo)}</td>
-            <td colSpan={3} style={{ backgroundColor: "#1e293b", padding: "3px 4px", fontSize: "6.5pt", color: "#94a3b8" }}>
-              Emitido: {now}
+            <td style={{ ...td("right"), fontWeight: "bold", padding: "1px 3px" }}>{fmtN(grandVencido)}</td>
+            <td style={{ ...td("right"), fontWeight: "bold", padding: "1px 3px" }}>{fmtN(grandAVencer)}</td>
+            <td></td>
+            <td style={{ ...td("right"), fontWeight: "bold", padding: "1px 3px" }}>{fmtN(grandJuros)}</td>
+            <td style={{ ...td("right"), fontWeight: "bold", padding: "1px 3px" }}>{fmtN(grandPago)}</td>
+            <td style={{ ...td("right"), fontWeight: "bold", padding: "1px 3px" }}>{fmtN(grandSaldo)}</td>
+            <td colSpan={3} style={{ ...td("right"), fontSize: "6.5pt", color: "#555", padding: "1px 3px" }}>
+              {allDups.length} títulos · {clientGroups.length} clientes · Emitido: {now}
             </td>
           </tr>
         </tfoot>
 
-        {/* One <tbody> per client — page-break-inside: avoid keeps each client together */}
+        {/* One <tbody> per client — browser keeps each group on the same page */}
         {clientGroups.map(({ info, rows }) => {
           let clVencido = 0, clAVencer = 0, clJuros = 0, clPago = 0, clSaldo = 0;
           for (const r of rows) {
@@ -1827,69 +1787,63 @@ function PrintReport({
           return (
             <tbody key={info.idclifor} className="pr-tbody">
 
-              {/* Client header row */}
-              <tr style={{ backgroundColor: "#e8edf2", borderTop: "1.5px solid #475569" }}>
-                <td colSpan={12} style={{ padding: "2px 4px", fontWeight: "bold", fontSize: "7.5pt", borderBottom: "1px solid #cbd5e1" }}>
-                  <span style={{ color: "#64748b", fontSize: "6.5pt", fontWeight: "normal" }}>Cliente </span>
-                  {info.idclifor} — {info.nomecliente}
+              {/* Client info rows */}
+              <tr style={{ borderTop: "1px solid #999" }}>
+                <td colSpan={12} style={{ ...td("left"), fontWeight: "bold", paddingTop: "2px" }}>
+                  Cliente: {info.idclifor} - {info.nomecliente}
                   {info.nomevendedor && (
-                    <span style={{ fontWeight: "normal", marginLeft: "14px", fontSize: "6.5pt", color: "#475569" }}>
+                    <span style={{ fontWeight: "normal", marginLeft: "20px" }}>
                       Vendedor: {info.nomevendedor}
-                    </span>
-                  )}
-                  {locParts.length > 0 && (
-                    <span style={{ fontWeight: "normal", marginLeft: "14px", fontSize: "6.5pt", color: "#64748b" }}>
-                      {locParts.join(" · ")}
                     </span>
                   )}
                 </td>
               </tr>
+              {locParts.length > 0 && (
+                <tr>
+                  <td colSpan={12} style={{ ...td("left"), paddingBottom: "1px" }}>
+                    Localização:{"\u00A0\u00A0"}{locParts.join("\u00A0\u00A0\u00A0")}
+                  </td>
+                </tr>
+              )}
 
               {/* Title rows */}
-              {rows.map((row: any, idx: number) => {
+              {rows.map((row: any) => {
                 const isVencido = row.status === "VENCIDO";
-                const isHoje    = row.status === "VENCE_HOJE";
                 const valVencido = isVencido ? (Number(row.valor_original) || 0) : 0;
                 const valAVencer = !isVencido ? (Number(row.valor_original) || 0) : 0;
-                const nota   = row.numnota ?? "PRE";
-                const serie  = row.serienota ? ` - ${row.serienota}` : "";
+                const nota  = row.numnota ?? "PRE";
+                const serie = row.serienota ? ` - ${row.serienota}` : "";
                 const titulo = `${row.idtitulo} - ${String(row.digitotitulo ?? "01").padStart(2, "0")}`;
-                const rowBg  = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
-                const atrasoColor = row.dias_atraso > 30 ? "#cc0000" : row.dias_atraso > 0 ? "#b45309" : "inherit";
 
                 return (
-                  <tr key={row.id} style={{ backgroundColor: rowBg }}>
+                  <tr key={row.id}>
                     <td style={td("left")}>{nota}{serie}</td>
                     <td style={td("left")}>{titulo}</td>
-                    <td style={td("center", { color: "#475569" })}>{row.forma_recebimento ?? "—"}</td>
-                    <td style={td("right", { color: valVencido > 0 ? "#cc0000" : "inherit", fontWeight: valVencido > 0 ? "bold" : "normal" })}>
-                      {fmtN(valVencido)}
-                    </td>
-                    <td style={td("right", { color: isHoje ? "#b45309" : "inherit" })}>{fmtN(valAVencer)}</td>
-                    <td style={td("center", { color: atrasoColor, fontWeight: row.dias_atraso > 0 ? "bold" : "normal" })}>
-                      {row.dias_atraso > 0 ? row.dias_atraso : ""}
-                    </td>
+                    <td style={td("center")}>{row.forma_recebimento ?? ""}</td>
+                    <td style={td("right")}>{fmtN(valVencido)}</td>
+                    <td style={td("right")}>{fmtN(valAVencer)}</td>
+                    <td style={td("center")}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
                     <td style={td("right")}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
-                    <td style={td("right", { color: "#475569" })}>{fmtN(Number(row.valor_pago) || 0)}</td>
-                    <td style={td("right", { fontWeight: "600" })}>{fmtN(Number(row.valor_aberto) || 0)}</td>
-                    <td style={td("center", { color: "#64748b" })}>{fmtDate(row.dtmovimento)}</td>
-                    <td style={td("center", { color: isVencido ? "#cc0000" : "#0f172a" })}>{fmtDate(row.dtvencimento)}</td>
-                    <td style={td("left", { color: "#94a3b8", fontSize: "6.5pt" })}>{row.numnota ?? ""}</td>
+                    <td style={td("right")}>{fmtN(Number(row.valor_pago) || 0)}</td>
+                    <td style={td("right")}>{fmtN(Number(row.valor_aberto) || 0)}</td>
+                    <td style={td("center")}>{fmtDate(row.dtmovimento)}</td>
+                    <td style={td("center")}>{fmtDate(row.dtvencimento)}</td>
+                    <td style={td("left", { fontSize: "6.5pt" })}>{row.numnota ?? ""}</td>
                   </tr>
                 );
               })}
 
-              {/* Per-client subtotal row */}
-              <tr style={{ backgroundColor: "#f1f5f9", borderTop: "1px solid #94a3b8", borderBottom: "2px solid #e2e8f0", fontWeight: "bold", fontSize: "7pt" }}>
-                <td colSpan={3} style={{ ...td("right"), padding: "2px 4px", color: "#475569", fontStyle: "italic" }}>
-                  Total do Cliente ({rows.length} título{rows.length !== 1 ? "s" : ""}):
+              {/* Per-client total row */}
+              <tr style={{ borderTop: "1px solid #aaa", borderBottom: "1px solid #ccc" }}>
+                <td colSpan={3} style={{ ...td("left"), fontWeight: "bold", paddingTop: "1px", paddingBottom: "2px" }}>
+                  {"    "}Total do Cliente:
                 </td>
-                <td style={{ ...td("right"), padding: "2px 3px", color: clVencido > 0 ? "#cc0000" : "inherit" }}>{fmtN(clVencido)}</td>
-                <td style={{ ...td("right"), padding: "2px 3px" }}>{fmtN(clAVencer)}</td>
+                <td style={{ ...td("right"), fontWeight: "bold" }}>{fmtN(clVencido)}</td>
+                <td style={{ ...td("right"), fontWeight: "bold" }}>{fmtN(clAVencer)}</td>
                 <td></td>
-                <td style={{ ...td("right"), padding: "2px 3px" }}>{fmtN(clJuros)}</td>
-                <td style={{ ...td("right"), padding: "2px 3px" }}>{fmtN(clPago)}</td>
-                <td style={{ ...td("right"), padding: "2px 3px" }}>{fmtN(clSaldo)}</td>
+                <td style={{ ...td("right"), fontWeight: "bold" }}>{fmtN(clJuros)}</td>
+                <td style={{ ...td("right"), fontWeight: "bold" }}>{fmtN(clPago)}</td>
+                <td style={{ ...td("right"), fontWeight: "bold" }}>{fmtN(clSaldo)}</td>
                 <td colSpan={3}></td>
               </tr>
 
@@ -1900,7 +1854,7 @@ function PrintReport({
       </table>
 
       {allDups.length === 0 && (
-        <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "8pt" }}>
+        <div style={{ ...base, textAlign: "center", padding: "20px" }}>
           Nenhum título encontrado com os filtros aplicados.
         </div>
       )}
