@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar, RotateCcw, AlertCircle } from "lucide-react";
+import { RefreshCw, CalendarDays, Download, DollarSign, Receipt, Package, GripVertical, ChevronDown, Check, Calendar, RotateCcw, AlertCircle, SlidersHorizontal, Users } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import type { DateRange } from "react-day-picker";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +35,8 @@ import { GoalsCard } from "@/components/dashboard/goals-card";
 import { AFaturarVendedores } from "@/components/dashboard/afaturar-vendedores";
 import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,6 +155,7 @@ export default function Dashboard() {
 
   const today = new Date();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>(() => normalizeSavedCompanyId(savedFilters.companyId));
   const [rankingCriteria, setRankingCriteria] = useState<RankingCriteria>(() => normalizeRankingCriteria(savedFilters.rankingCriteria));
   const [isScrolled, setIsScrolled] = useState(false);
@@ -572,11 +575,17 @@ export default function Dashboard() {
     }
   };
 
+  const activeFiltersCount = [
+    companyId !== "1" && companyId !== "all",
+    selectedGroupId !== null,
+    periodMode !== "semana",
+  ].filter(Boolean).length;
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Page header ── */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shrink-0">
-        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           {/* Left: title + date info */}
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Dashboard</h1>
@@ -587,7 +596,23 @@ export default function Dashboard() {
           </div>
 
           {/* Right: controls */}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2">
+            {/* Mobile: Filtros button */}
+            <Button
+              variant={activeFiltersCount > 0 ? "secondary" : "outline"}
+              size="sm"
+              className="sm:hidden h-8 gap-1.5 text-xs"
+              onClick={() => setFiltersOpen(true)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filtros
+              {activeFiltersCount > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </Button>
+
             <Button
               variant="ghost"
               size="sm"
@@ -772,6 +797,133 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Mobile Filters Sheet ──────────────────────────────── */}
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="rounded-t-xl pb-8 max-h-[90dvh] overflow-y-auto">
+          <SheetHeader className="pb-4 border-b mb-4">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+              Filtros
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-5">
+            {/* Empresa */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Empresa</p>
+              <CompanySelector
+                companies={companies}
+                selectedId={companyId}
+                onChange={v => { setCompanyId(v); }}
+                loading={companiesLoading}
+              />
+            </div>
+
+            {/* Grupo */}
+            {groups.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Grupo</p>
+                <Select
+                  value={selectedGroupId ?? "all"}
+                  onValueChange={v => setSelectedGroupId(v === "all" ? null : v)}
+                >
+                  <SelectTrigger className="h-10 text-sm">
+                    <Users className="h-4 w-4 text-muted-foreground mr-1 shrink-0" />
+                    <SelectValue placeholder="Grupo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os grupos</SelectItem>
+                    {groups.map(g => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Período */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Período</p>
+              <div className="space-y-1.5">
+                {([
+                  { key: "semana" as const, label: "Semana Atual", sub: `${formatDateBR(currentWeek.startDate)} – ${formatDateBR(currentWeek.endDate)}` },
+                  { key: "mes" as const, label: "Mês Atual", sub: `${formatDateBR(monthPeriod.startDate)} – ${formatDateBR(monthPeriod.endDate)}` },
+                  { key: "fechado" as const, label: "Semanas Fechadas", sub: `${formatDateBR(closedMonth.periodStart)} – ${formatDateBR(closedMonth.periodEnd)}` },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.key}
+                    className={cn(
+                      "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left border transition-colors",
+                      periodMode === opt.key
+                        ? "bg-primary/8 border-primary/30 text-primary"
+                        : "border-border hover:bg-muted"
+                    )}
+                    onClick={() => { setPeriodMode(opt.key); setFiltersOpen(false); }}
+                  >
+                    <Check className={cn("h-4 w-4 shrink-0", periodMode === opt.key ? "opacity-100 text-primary" : "opacity-0")} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{opt.label}</p>
+                      <p className="text-xs text-muted-foreground">{opt.sub}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom date range */}
+              <div className="pt-2 space-y-2 border-t mt-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Período personalizado
+                </p>
+                {customDraft?.from && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    {customDraft.from.toLocaleDateString("pt-BR")}
+                    {customDraft.to ? ` – ${customDraft.to.toLocaleDateString("pt-BR")}` : " → selecione o fim"}
+                  </p>
+                )}
+                <CalendarPicker
+                  mode="range"
+                  selected={customDraft}
+                  onSelect={setCustomDraft}
+                  locale={ptBR}
+                  className="rounded-md p-0 w-full"
+                  numberOfMonths={1}
+                  disabled={{ after: new Date() }}
+                  classNames={{
+                    months: "flex flex-col",
+                    caption_label: "text-xs font-medium",
+                    head_cell: "text-muted-foreground w-8 font-normal text-[0.7rem]",
+                    cell: "h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                    day: "h-8 w-8 p-0 font-normal aria-selected:opacity-100 text-xs",
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="w-full h-9 text-sm"
+                  disabled={!customDraft?.from || !customDraft?.to}
+                  onClick={() => {
+                    if (!customDraft?.from || !customDraft?.to) return;
+                    const from = customDraft.from <= customDraft.to ? customDraft.from : customDraft.to;
+                    const to = customDraft.from <= customDraft.to ? customDraft.to : customDraft.from;
+                    const start = from.toISOString().slice(0, 10);
+                    const end = to.toISOString().slice(0, 10);
+                    setCustomStart(start);
+                    setCustomEnd(end);
+                    setPeriodMode("custom");
+                    setFiltersOpen(false);
+                    toast({
+                      title: "Período personalizado aplicado",
+                      description: `${formatDateBR(start)} até ${formatDateBR(end)}`,
+                    });
+                  }}
+                >
+                  Aplicar período personalizado
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <div onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
         {hasDashboardError && (
