@@ -80,7 +80,7 @@ const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalM
             <div className="text-left sm:text-right">
               <div className="flex items-baseline gap-2">
                 <span className="text-xs text-muted-foreground">Total Mês:</span>
-                <span className="text-base sm:text-lg font-semibold">{formatCurrency(totalMonth)}</span>
+                <span className="text-base sm:text-lg font-semibold">{formatCurrency(totalMonth || 0)}</span>
               </div>
               <div className={`flex items-center gap-1 ${getValueColor(yoyVariacao)} mt-0.5`}>
                 {getTrendIcon(yoyVariacao)}
@@ -186,11 +186,6 @@ export default function Mensal() {
       </div>
 
       <div className="p-6 space-y-6">
-        {selectedGroup && !monthlyLoading && (
-          <p className="text-xs text-muted-foreground">
-            Grupo: <strong>{selectedGroup.name}</strong> · {filteredData.length} de {monthlyData.length} vendedores
-          </p>
-        )}
 
         {monthlyLoading ? (
           <div className="space-y-4">

@@ -77,7 +77,7 @@ const WeeklyCard = memo(function WeeklyCard({ salesperson, dailySales, totalWeek
             <div className="text-left sm:text-right">
               <div className="flex items-baseline gap-2">
                 <span className="text-xs text-muted-foreground">Total Semana:</span>
-                <span className="text-base sm:text-lg font-semibold">{formatCurrency(totalWeek)}</span>
+                <span className="text-base sm:text-lg font-semibold">{formatCurrency(totalWeek || 0)}</span>
               </div>
               <div className={`flex items-center gap-1 ${getValueColor(yoyVariacao)} mt-0.5`}>
                 {getTrendIcon(yoyVariacao)}
@@ -170,11 +170,6 @@ export default function Semanal() {
       </div>
 
       <div className="p-6 space-y-6">
-        {selectedGroup && !weeklyLoading && (
-          <p className="text-xs text-muted-foreground">
-            Grupo: <strong>{selectedGroup.name}</strong> · {filteredData.length} de {weeklyData.length} vendedores
-          </p>
-        )}
 
         {weeklyLoading ? (
           <div className="space-y-4">

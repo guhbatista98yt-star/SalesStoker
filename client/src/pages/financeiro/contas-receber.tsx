@@ -22,13 +22,13 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
-  ResponsiveContainer, Cell,
+  ResponsiveContainer,
 } from "recharts";
 import {
   DollarSign, AlertTriangle, Clock, TrendingUp, Users, FileText,
   Search, Filter, Download, RefreshCw, ChevronRight, ChevronLeft,
   ChevronDown, MoreVertical, Eye, Phone, MessageSquare, Calendar,
-  Printer, Building2, MapPin, User, BarChart3, List, ArrowUpDown,
+  Printer, Building2, MapPin, User, List, ArrowUpDown,
   CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -187,11 +187,6 @@ function buildQS(filters: Filters, extra: Record<string, string | number> = {}) 
   return qs.toString() ? `?${qs.toString()}` : "";
 }
 
-// ── Faixa aging colors ─────────────────────────────────────────────────────
-
-const AGING_COLORS = [
-  "#3b82f6", "#22c55e", "#f59e0b", "#f97316", "#ef4444", "#dc2626", "#991b1b", "#7f1d1d",
-];
 
 // ============================================================================
 // MAIN PAGE
@@ -200,7 +195,8 @@ const AGING_COLORS = [
 export default function ContasReceber() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"clientes" | "duplicatas" | "aging" | "vendedores" | "fila">("clientes");
+  const [tab, setTab] = useState<"clientes" | "duplicatas" | "vendedores" | "fila">("clientes");
+  const [delinquencyDays, setDelinquencyDays] = useState<number>(10);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [buscaInput, setBuscaInput] = useState("");
   const [clientePage, setClientePage] = useState(1);
@@ -248,13 +244,6 @@ export default function ContasReceber() {
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas${dupsQS}`),
     enabled: tab === "duplicatas",
     staleTime: 30_000,
-  });
-
-  const agingQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/aging"],
-    queryFn: () => apiFetch("/api/financeiro/contas-receber/aging"),
-    enabled: tab === "aging",
-    staleTime: 60_000,
   });
 
   const vendedoresQ = useQuery({
@@ -454,6 +443,23 @@ export default function ContasReceber() {
             />
           </div>
 
+          {/* ── Delinquency threshold (simulation) ──────────────────────── */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 print:hidden">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-xs font-medium text-amber-800 dark:text-amber-300">Simulação de inadimplência:</span>
+            <span className="text-xs text-amber-700 dark:text-amber-400">considerar inadimplente após</span>
+            <Input
+              type="number"
+              min={1}
+              max={365}
+              value={delinquencyDays}
+              onChange={e => setDelinquencyDays(Math.max(1, Number(e.target.value) || 1))}
+              className="h-7 w-16 text-xs text-center px-1"
+            />
+            <span className="text-xs text-amber-700 dark:text-amber-400">dias em atraso</span>
+            <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-500 italic">Apenas visualização</span>
+          </div>
+
           {/* ── Filters & Search ─────────────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row gap-2 print:hidden">
             <div className="relative flex-1">
@@ -547,7 +553,6 @@ export default function ContasReceber() {
             {([
               { key: "clientes",   label: "Clientes",     icon: Users },
               { key: "duplicatas", label: "Duplicatas",   icon: FileText },
-              { key: "aging",      label: "Aging",        icon: BarChart3 },
               { key: "vendedores", label: "Por Vendedor", icon: User },
               { key: "fila",       label: "Fila Cobrança",icon: List },
             ] as const).map(({ key, label, icon: Icon }) => (
@@ -598,13 +603,6 @@ export default function ContasReceber() {
               onCobranca={setShowCobrancaDialog}
               onSelectCliente={setClienteDetalhe}
             />
-          )}
-
-          {/* ================================================================
-              TAB: Aging
-              ================================================================ */}
-          {tab === "aging" && (
-            <AgingTab data={agingQ.data} loading={agingQ.isLoading} />
           )}
 
           {/* ================================================================
@@ -988,114 +986,6 @@ function DuplicatasTab({
       {pages > 1 && (
         <Pagination page={page} pages={pages} total={total} onPage={onPage} />
       )}
-    </div>
-  );
-}
-
-// ============================================================================
-// TAB: Aging
-// ============================================================================
-
-function AgingTab({ data, loading }: { data: any; loading: boolean }) {
-  const rows = data?.data ?? [];
-  const total = data?.total_vencido ?? 0;
-
-  if (loading) return (
-    <div className="space-y-3">
-      <Skeleton className="h-64 w-full rounded-xl" />
-      {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
-    </div>
-  );
-
-  if (!rows.length) return (
-    <div className="text-center py-16 text-muted-foreground">
-      <BarChart3 className="mx-auto h-10 w-10 mb-3 opacity-30" />
-      <p className="font-medium">Sem dados de aging disponíveis.</p>
-    </div>
-  );
-
-  const chartData = rows.map((r: any, i: number) => ({
-    name: r.faixa,
-    valor: r.valor_total,
-    fill: AGING_COLORS[i % AGING_COLORS.length],
-  }));
-
-  return (
-    <div className="space-y-5">
-      {/* Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Distribuição de Aging</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={chartData} margin={{ left: 8, right: 8, top: 4, bottom: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 10 }}
-                angle={-25}
-                textAnchor="end"
-                interval={0}
-              />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                tickFormatter={v => fmtBRL(v).replace("R$", "").trim()}
-                width={80}
-              />
-              <RTooltip
-                formatter={(v: number) => [fmtBRL(v), "Valor"]}
-                contentStyle={{ fontSize: 12 }}
-              />
-              <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry: any, idx: number) => (
-                  <Cell key={idx} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Table */}
-      <div className="rounded-xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">Faixa</th>
-              <th className="text-right px-4 py-2.5 text-xs text-muted-foreground">Títulos</th>
-              <th className="text-right px-4 py-2.5 text-xs text-muted-foreground">Clientes</th>
-              <th className="text-right px-4 py-2.5 text-xs text-muted-foreground">Valor Total</th>
-              <th className="text-right px-4 py-2.5 text-xs text-muted-foreground">% s/ Vencido</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((row: any, idx: number) => (
-              <tr key={row.faixa} className="hover:bg-muted/30">
-                <td className="px-4 py-3 font-medium flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: AGING_COLORS[idx % AGING_COLORS.length] }} />
-                  {row.faixa}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums">{row.qtd_titulos}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{row.qtd_clientes}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-semibold">{fmtBRL(row.valor_total)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
-                  {row.percentual > 0 ? `${row.percentual.toFixed(1)}%` : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot className="border-t border-border bg-muted/30">
-            <tr>
-              <td className="px-4 py-2.5 text-xs font-semibold text-muted-foreground" colSpan={3}>
-                Total vencido
-              </td>
-              <td className="px-4 py-2.5 text-right font-bold">{fmtBRL(total)}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
     </div>
   );
 }

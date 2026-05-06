@@ -11,7 +11,7 @@ import {
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard, type FinancialSummary } from "@/components/dashboard/salesperson-card";
-import { Search, Grid3X3, List, Users, SlidersHorizontal } from "lucide-react";
+import { Search, Users, SlidersHorizontal } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
@@ -45,7 +45,6 @@ export default function Vendedores() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
@@ -228,27 +227,6 @@ export default function Vendedores() {
                 <PeriodSelector value={period} onChange={setPeriod} />
               </div>
 
-              {/* View mode toggles — always visible */}
-              <div className="flex items-center gap-1">
-                <Button
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setViewMode("grid")}
-                  data-testid="button-view-grid"
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setViewMode("list")}
-                  data-testid="button-view-list"
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
           </div>
 
@@ -329,7 +307,7 @@ export default function Vendedores() {
       {/* ── Cards grid ─────────────────────────────────────────── */}
       <div className="p-4 sm:p-6 space-y-4">
         {salespersonsLoading ? (
-          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="h-44 bg-card rounded-md animate-pulse" />
             ))}
@@ -340,7 +318,7 @@ export default function Vendedores() {
             <p className="text-sm">Tente ajustar os filtros ou período</p>
           </div>
         ) : (
-          <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 max-w-2xl"}`}>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
             {filteredSalespersons.map(({ salesperson, stats }) => (
               <SalespersonCard
                 key={salesperson.id}

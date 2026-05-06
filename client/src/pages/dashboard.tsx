@@ -622,19 +622,21 @@ export default function Dashboard() {
               <Download className="h-3.5 w-3.5" />
             </Button>
 
-            <CompanySelector
-              companies={companies}
-              selectedId={companyId}
-              onChange={setCompanyId}
-              loading={companiesLoading}
-              compact={false}
-            />
+            <div className="hidden sm:flex items-center gap-2">
+              <CompanySelector
+                companies={companies}
+                selectedId={companyId}
+                onChange={setCompanyId}
+                loading={companiesLoading}
+                compact={false}
+              />
 
-            <GroupSelector
-              groups={groups}
-              selectedGroupId={selectedGroupId}
-              onChange={setSelectedGroupId}
-            />
+              <GroupSelector
+                groups={groups}
+                selectedGroupId={selectedGroupId}
+                onChange={setSelectedGroupId}
+              />
+            </div>
 
             <Popover open={periodOpen} onOpenChange={open => {
               setPeriodOpen(open);

@@ -266,52 +266,40 @@ export default function VisaoEmLoja() {
     );
 
     return (
-        <div className="flex flex-col w-full h-screen p-6" style={{ overflow: 'hidden', background: '#02040a' }}>
+        <div className="flex flex-col w-full h-[100dvh] px-3 py-3 sm:p-6" style={{ overflow: 'hidden', background: '#02040a' }}>
             {/* Header profissional */}
-            <div className="flex items-start justify-between mb-6 px-2 w-full">
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <h2 style={{ fontSize: 28, fontWeight: 500, color: 'rgba(255,255,255,0.95)', letterSpacing: '0.01em', margin: 0 }}>
-                            Performance Comercial <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 300 }}>&mdash; {getWeekRange()}</span>
-                        </h2>
-                    </div>
+            <div className="flex items-center justify-between mb-3 sm:mb-6 w-full gap-2">
+                <div className="min-w-0">
+                    <h2 className="text-sm sm:text-2xl font-medium truncate" style={{ color: 'rgba(255,255,255,0.95)', letterSpacing: '0.01em', margin: 0 }}>
+                        Performance Comercial{' '}
+                        <span className="hidden sm:inline" style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 300 }}>&mdash; {getWeekRange()}</span>
+                    </h2>
+                    <p className="text-[11px] sm:hidden" style={{ color: 'rgba(255,255,255,0.4)' }}>{getWeekRange()}</p>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {dataUpdatedAt ? (
-                            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 500, letterSpacing: '0.02em', background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: 16 }}>
-                                Atualização: {new Date(dataUpdatedAt).toLocaleDateString('pt-BR')} &bull; {new Date(dataUpdatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                        ) : null}
+                <div className="flex items-center gap-2 shrink-0">
+                    <div className="hidden sm:flex items-center gap-1.5">
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e', animation: 'pulseGlow 2s infinite' }} />
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>Tempo real</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, marginRight: 6 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e', animation: 'pulseGlow 2s infinite' }} />
-                            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.02em', fontWeight: 500 }}>
-                                Dados em tempo real
-                            </span>
-                        </div>
-
-                        <button
-                            onClick={() => {
-                                logout();
-                                window.location.href = '/';
-                            }}
-                            style={{
-                                fontSize: 12, color: 'rgba(255,255,255,0.5)', background: 'none', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', padding: '4px 10px', borderRadius: 16, transition: 'all 0.2s', marginLeft: 8
-                            }}
-                            onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.background = 'transparent'; }}
-                        >
-                            Sair
-                        </button>
-                    </div>
+                    {dataUpdatedAt ? (
+                        <span className="hidden sm:inline" style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 12 }}>
+                            {new Date(dataUpdatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    ) : null}
+                    <button
+                        onClick={() => { logout(); window.location.href = '/'; }}
+                        style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', background: 'none', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', padding: '3px 8px', borderRadius: 12, transition: 'all 0.2s' }}
+                        onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
+                    >
+                        Sair
+                    </button>
                 </div>
             </div>
 
             {/* Linha divisória transparente */}
-            <div style={{ width: '100%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(160,200,255,0.15), transparent)', marginBottom: 24 }} />
+            <div style={{ width: '100%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(160,200,255,0.15), transparent)', marginBottom: 12 }} className="sm:mb-6" />
 
             {/* Chart container — altura responsiva a toda a tela livre descontando header e footer */}
             <div

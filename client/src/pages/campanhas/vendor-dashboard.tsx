@@ -656,6 +656,9 @@ export default function VendorCampaignDashboard({ campaignId }: { campaignId: st
               {showCrescimento && <CrescimentoPessoalCard vendor={myResult} />}
               <CrescimentoLojaCard perc={results?.crescimentoLojaPerc} />
 
+              {/* Posição / Prêmio */}
+              <PosicaoCard vendor={myResult} />
+
               {/* Conexões / Tubos — full width gauge */}
               <ConexoesTubosCard vendor={myResult} />
 
