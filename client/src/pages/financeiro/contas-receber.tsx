@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAuthToken } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -23,11 +25,13 @@ import {
 import {
   DollarSign, AlertTriangle, Clock, TrendingUp, Users, FileText,
   Search, Filter, Download, RefreshCw, ChevronRight, ChevronLeft,
-  ChevronDown, MoreVertical, Eye, MessageSquare, Calendar,
+  ChevronDown, MoreVertical, Eye, MessageSquare, CalendarIcon,
   Printer, Building2, MapPin, User, List, ArrowUpDown,
   CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 // ── Auth helper ────────────────────────────────────────────────────────────
 
@@ -72,6 +76,50 @@ function fmtDatetime(d: string | null | undefined) {
 }
 
 // ── Status config ──────────────────────────────────────────────────────────
+
+// ── DatePicker component ────────────────────────────────────────────────────
+
+function DatePicker({ value, onChange, placeholder = "Qualquer data" }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const date = value ? new Date(value + "T00:00:00") : undefined;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("h-8 text-sm mt-1 w-full justify-start font-normal", !value && "text-muted-foreground")}
+        >
+          <CalendarIcon className="h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground" />
+          {date ? format(date, "dd/MM/yyyy") : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <CalendarComponent
+          mode="single"
+          selected={date}
+          onSelect={d => { onChange(d ? format(d, "yyyy-MM-dd") : ""); setOpen(false); }}
+          locale={ptBR}
+          initialFocus
+        />
+        {value && (
+          <div className="border-t p-2">
+            <Button
+              variant="ghost" size="sm"
+              className="w-full h-7 text-xs text-muted-foreground"
+              onClick={() => { onChange(""); setOpen(false); }}
+            >
+              Limpar data
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
   VENCIDO:    { label: "Vencido",     color: "text-red-600 dark:text-red-400",    bg: "bg-red-50 dark:bg-red-950/40",    border: "border-red-200 dark:border-red-900" },
@@ -418,39 +466,12 @@ export default function ContasReceber() {
         <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="outline" size="sm"
-            onClick={handlePrint}
-            className="hidden sm:flex"
-          >
-            <Printer className="h-3.5 w-3.5 mr-1.5" />
-            Imprimir
-          </Button>
-          <Button
-            variant="outline" size="sm"
-            onClick={handleExportar}
-            className="hidden sm:flex"
-          >
-            <Download className="h-3.5 w-3.5 mr-1.5" />
-            Exportar XLSX
-          </Button>
-          <Button
-            variant="outline" size="sm"
             onClick={() => syncMut.mutate()}
             disabled={syncMut.isPending}
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", syncMut.isPending && "animate-spin")} />
             Atualizar
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="sm:hidden h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handlePrint}><Printer className="h-3.5 w-3.5 mr-2" />Imprimir</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportar}><Download className="h-3.5 w-3.5 mr-2" />Exportar XLSX</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 
@@ -682,15 +703,19 @@ export default function ContasReceber() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   <div>
                     <Label className="text-xs">Vencimento de</Label>
-                    <Input type="date" className="h-8 text-sm mt-1"
+                    <DatePicker
                       value={filters.venc_de}
-                      onChange={e => setFilter("venc_de", e.target.value)} />
+                      onChange={v => setFilter("venc_de", v)}
+                      placeholder="Qualquer data"
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Vencimento até</Label>
-                    <Input type="date" className="h-8 text-sm mt-1"
+                    <DatePicker
                       value={filters.venc_ate}
-                      onChange={e => setFilter("venc_ate", e.target.value)} />
+                      onChange={v => setFilter("venc_ate", v)}
+                      placeholder="Qualquer data"
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Cód. Cliente</Label>
@@ -1369,7 +1394,7 @@ function FilaCobrancaTab({
                             {row.cidade_cobranca && <span><MapPin className="inline h-2.5 w-2.5 mr-0.5" />{row.cidade_cobranca}/{row.uf_cobranca}</span>}
                             <span>{row.qtd_vencidos} título{row.qtd_vencidos !== 1 ? "s" : ""} vencidos</span>
                             {row.maior_atraso > 0 && <span>Maior atraso: {row.maior_atraso}d</span>}
-                            {row.data_proxima_acao && <span><Calendar className="inline h-2.5 w-2.5 mr-0.5" />Próx. ação: {fmtDate(row.data_proxima_acao)}</span>}
+                            {row.data_proxima_acao && <span><CalendarIcon className="inline h-2.5 w-2.5 mr-0.5" />Próx. ação: {fmtDate(row.data_proxima_acao)}</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -1440,7 +1465,7 @@ function ClienteDetalheContent({
       <div className="space-y-1 text-sm text-muted-foreground">
         {info.nomevendedor && <p><User className="inline h-3.5 w-3.5 mr-1" />Vendedor: <span className="text-foreground font-medium">{info.nomevendedor}</span></p>}
         {info.cidade_cobranca && <p><MapPin className="inline h-3.5 w-3.5 mr-1" />{info.endereco_cobranca ? `${info.endereco_cobranca}, ` : ""}{info.bairro_cobranca ? `${info.bairro_cobranca} — ` : ""}{info.cidade_cobranca}/{info.uf_cobranca}</p>}
-        {info.ultimo_pagamento && <p><Calendar className="inline h-3.5 w-3.5 mr-1" />Último pagamento: <span className="text-foreground">{fmtDate(info.ultimo_pagamento)}</span></p>}
+        {info.ultimo_pagamento && <p><CalendarIcon className="inline h-3.5 w-3.5 mr-1" />Último pagamento: <span className="text-foreground">{fmtDate(info.ultimo_pagamento)}</span></p>}
         {info.proximo_vencimento && <p><Clock className="inline h-3.5 w-3.5 mr-1" />Próximo vencimento: <span className="text-foreground">{fmtDate(info.proximo_vencimento)}</span></p>}
       </div>
 

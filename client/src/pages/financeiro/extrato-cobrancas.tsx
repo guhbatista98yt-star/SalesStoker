@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthToken } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Printer, Eye, FileText, XCircle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Loader2, Printer, Eye, FileText, XCircle, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 // ── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -298,12 +302,55 @@ function PrintReport({ filters, resumo, dupsData }: {
   );
 }
 
+// ── DatePicker ────────────────────────────────────────────────────────────────
+
+function DatePicker({ value, onChange, placeholder = "Qualquer data" }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const date = value ? new Date(value + "T00:00:00") : undefined;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("h-8 text-sm mt-1 w-full justify-start font-normal", !value && "text-muted-foreground")}
+        >
+          <CalendarIcon className="h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground" />
+          {date ? format(date, "dd/MM/yyyy") : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={d => { onChange(d ? format(d, "yyyy-MM-dd") : ""); setOpen(false); }}
+          locale={ptBR}
+          initialFocus
+        />
+        {value && (
+          <div className="border-t p-2">
+            <Button
+              variant="ghost" size="sm"
+              className="w-full h-7 text-xs text-muted-foreground"
+              onClick={() => { onChange(""); setOpen(false); }}
+            >
+              Limpar data
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function ExtratoCobracas() {
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
   const [applied, setApplied] = useState<Filters | null>(null);
-  const [formaSearch, setFormaSearch] = useState("");
 
   // Only fetch when user clicks "Visualizar"
   const printQS  = applied ? buildQS(applied, { sort: "nomecliente", dir: "asc" }) : "";
@@ -344,7 +391,6 @@ export default function ExtratoCobracas() {
 
   function handleLimpar() {
     setDraft(DEFAULT_FILTERS);
-    setFormaSearch("");
     setApplied(null);
   }
 
@@ -422,61 +468,41 @@ export default function ExtratoCobracas() {
                 </div>
 
                 {/* Forma de pagamento */}
-                <div className="relative">
+                <div>
                   <Label className="text-xs">Informe a(s) forma(s) de pagto (ou branco p/ todas)</Label>
-                  <div className="relative mt-1">
-                    <Input
-                      className="h-8 text-sm pr-8"
-                      placeholder="Forma de recebimento..."
-                      value={formaSearch || draft.forma_recebimento}
-                      onChange={e => {
-                        setFormaSearch(e.target.value);
-                        setField("forma_recebimento", e.target.value);
-                      }}
-                    />
-                    {(draft.forma_recebimento || formaSearch) && (
-                      <button
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        onClick={() => { setFormaSearch(""); setField("forma_recebimento", ""); }}
-                      >
-                        <XCircle className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  {formaSearch && (
-                    <div className="absolute z-20 top-full mt-0.5 left-0 right-0 bg-background border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                      {formasList.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).map(f => (
-                        <button
-                          key={f}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
-                          onClick={() => { setField("forma_recebimento", f); setFormaSearch(""); }}
-                        >
-                          {f}
-                        </button>
+                  <Select
+                    value={draft.forma_recebimento || "__all__"}
+                    onValueChange={v => setField("forma_recebimento", v === "__all__" ? "" : v)}
+                  >
+                    <SelectTrigger className="h-8 text-sm mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Todas</SelectItem>
+                      {formasList.map(f => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
                       ))}
-                    </div>
-                  )}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Vencimento de */}
                 <div>
                   <Label className="text-xs">Data de vencimento inicial</Label>
-                  <Input
-                    type="date"
-                    className="h-8 text-sm mt-1"
+                  <DatePicker
                     value={draft.venc_de}
-                    onChange={e => setField("venc_de", e.target.value)}
+                    onChange={v => setField("venc_de", v)}
+                    placeholder="Qualquer data"
                   />
                 </div>
 
                 {/* Vencimento até */}
                 <div>
                   <Label className="text-xs">Data de vencimento final</Label>
-                  <Input
-                    type="date"
-                    className="h-8 text-sm mt-1"
+                  <DatePicker
                     value={draft.venc_ate}
-                    onChange={e => setField("venc_ate", e.target.value)}
+                    onChange={v => setField("venc_ate", v)}
+                    placeholder="Qualquer data"
                   />
                 </div>
 
@@ -528,17 +554,6 @@ export default function ExtratoCobracas() {
                     className="h-8 text-sm mt-1"
                     value={draft.numnota}
                     onChange={e => setField("numnota", e.target.value)}
-                  />
-                </div>
-
-                {/* Busca */}
-                <div className="sm:col-span-2 lg:col-span-2">
-                  <Label className="text-xs">Busca livre (cliente, cidade, etc.)</Label>
-                  <Input
-                    placeholder="Digite para buscar..."
-                    className="h-8 text-sm mt-1"
-                    value={draft.busca}
-                    onChange={e => setField("busca", e.target.value)}
                   />
                 </div>
 
