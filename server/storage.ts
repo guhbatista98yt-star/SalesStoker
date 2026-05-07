@@ -1435,18 +1435,21 @@ export class PostgresStorage implements IStorage {
     try {
       const rows = await pgAll(`
         SELECT
-          "DT_MOVIMENTO" as "dtMovimento",
-          "IDCLIENTE" as "idCliente",
-          "NOME_CLIENTE" as "nomeCliente",
-          "IDEMPRESA" as "idEmpresa",
-          "IDPLANILHA" as "numNota",
-          '' as "serieNota",
-          'V' as "tipoMovimento",
-          CASE WHEN "TOTALVENDA_LINHA" < 0 THEN true ELSE false END as "isDevolucao",
-          "TOTALVENDA_LINHA" as "valContabil",
-          0 as lucro
+          "DT_MOVIMENTO"              AS "dtMovimento",
+          "IDCLIENTE"                 AS "idCliente",
+          "NOME_CLIENTE"              AS "nomeCliente",
+          "IDEMPRESA"                 AS "idEmpresa",
+          "IDPLANILHA"                AS "numNota",
+          ''                          AS "serieNota",
+          CASE WHEN SUM("TOTALVENDA_LINHA") < 0 THEN 'D' ELSE 'V' END AS "tipoMovimento",
+          CASE WHEN SUM("TOTALVENDA_LINHA") < 0 THEN true ELSE false END AS "isDevolucao",
+          SUM("TOTALVENDA_LINHA")     AS "valContabil",
+          0                           AS lucro
         FROM cache_vendas
-        WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+        WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ?
+          AND "DT_MOVIMENTO" >= ?
+          AND "DT_MOVIMENTO" <= ?
+        GROUP BY "DT_MOVIMENTO", "IDCLIENTE", "NOME_CLIENTE", "IDEMPRESA", "IDPLANILHA"
         ORDER BY "DT_MOVIMENTO" DESC, "IDPLANILHA"
       `, [this.normalizeVendorId(vendedorId), startDate, endDate]);
       return rows.map(r => ({

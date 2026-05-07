@@ -4,8 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp, TrendingDown, Minus, List, Loader2, AlertCircle,
@@ -133,10 +131,13 @@ function MovimentacoesModal({
   const totalVendas = data?.filter(m => !m.isDevolucao).reduce((s, m) => s + m.valContabil, 0) ?? 0;
   const totalDevol  = data?.filter(m => m.isDevolucao).reduce((s, m) => s + m.valContabil, 0) ?? 0;
 
+  const totalNFs  = data?.filter(m => !m.isDevolucao).length ?? 0;
+  const totalDevs = data?.filter(m => m.isDevolucao).length ?? 0;
+
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent side="bottom" className="h-[85dvh] sm:h-auto sm:max-h-[90vh] sm:w-[560px] sm:right-0 sm:left-auto sm:rounded-l-xl rounded-t-xl overflow-y-auto">
-        <SheetHeader className="pb-2 border-b">
+      <SheetContent side="bottom" className="h-[85dvh] sm:h-auto sm:max-h-[90vh] sm:w-[680px] sm:right-0 sm:left-auto sm:rounded-l-xl rounded-t-xl flex flex-col">
+        <SheetHeader className="pb-2 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-base leading-tight">
             <List className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="truncate">Movimentações — {salesperson.name}</span>
@@ -160,9 +161,9 @@ function MovimentacoesModal({
         )}
 
         {data && !isLoading && (
-          <div className="mt-4 pb-6 space-y-3">
+          <div className="flex-1 overflow-y-auto mt-4 pb-6 space-y-3">
             {/* Totais */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div className="rounded-lg border p-3 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Total Vendas</p>
                 <p className="text-base font-bold text-emerald-700 dark:text-emerald-400 truncate">{formatCurrency(totalVendas)}</p>
@@ -170,6 +171,14 @@ function MovimentacoesModal({
               <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Devoluções</p>
                 <p className="text-base font-bold text-red-700 dark:text-red-400 truncate">{formatCurrency(totalDevol)}</p>
+              </div>
+              <div className="rounded-lg border p-3 bg-muted/40">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Qtd. NFs</p>
+                <p className="text-base font-bold">{totalNFs}</p>
+              </div>
+              <div className="rounded-lg border p-3 bg-muted/40">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Qtd. Devol.</p>
+                <p className="text-base font-bold">{totalDevs}</p>
               </div>
             </div>
 
@@ -183,33 +192,38 @@ function MovimentacoesModal({
             ) : (
               <div className="rounded-lg border overflow-hidden">
                 <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/40">
-                        <TableHead className="whitespace-nowrap text-xs h-8">Data</TableHead>
-                        <TableHead className="text-xs h-8">Cliente</TableHead>
-                        <TableHead className="hidden sm:table-cell text-xs h-8">NF</TableHead>
-                        <TableHead className="text-right whitespace-nowrap text-xs h-8">Valor</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-muted/40 border-b">
+                        <th className="text-left px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[90px]">Data</th>
+                        <th className="text-left px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[70px]">NF</th>
+                        <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Cliente</th>
+                        <th className="text-right px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[110px]">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {data.map((mov, i) => (
-                        <TableRow
+                        <tr
                           key={i}
-                          className={mov.isDevolucao ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400" : ""}
+                          className={cn(
+                            "border-b last:border-0 transition-colors",
+                            mov.isDevolucao
+                              ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400"
+                              : "hover:bg-muted/30"
+                          )}
                         >
-                          <TableCell className="whitespace-nowrap text-xs py-2">{formatDate(mov.dtMovimento)}</TableCell>
-                          <TableCell className="text-xs py-2">
-                            <span className="block max-w-[120px] sm:max-w-[200px] truncate">{mov.nomeCliente || "—"}</span>
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell font-mono text-xs py-2">{mov.numNota}</TableCell>
-                          <TableCell className="text-right whitespace-nowrap text-xs font-semibold py-2">
+                          <td className="px-3 py-2 whitespace-nowrap tabular-nums">{formatDate(mov.dtMovimento)}</td>
+                          <td className="px-3 py-2 font-mono whitespace-nowrap">{mov.numNota || "—"}</td>
+                          <td className="px-3 py-2">
+                            <span className="block truncate max-w-[180px] sm:max-w-none">{mov.nomeCliente || "—"}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold whitespace-nowrap tabular-nums">
                             {formatCurrency(mov.valContabil)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

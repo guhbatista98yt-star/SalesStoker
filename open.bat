@@ -25,33 +25,54 @@ if errorlevel 1 (
 echo Diretorio: %APP_DIR%
 echo.
 
-echo Instalando dependencias Node...
-call npm install
-if errorlevel 1 (
-  echo ERRO: npm install falhou. Verifique se o Node.js esta instalado.
-  pause
-  exit /b 1
+rem ── Dependencias Node (pula se node_modules ja existe) ──────────────────────
+if not exist "node_modules\." (
+  echo Instalando dependencias Node...
+  call npm install
+  if errorlevel 1 (
+    echo ERRO: npm install falhou. Verifique se o Node.js esta instalado.
+    pause
+    exit /b 1
+  )
+  echo.
+) else (
+  echo Dependencias Node OK ^(node_modules ja existe^).
 )
 
-echo.
-echo Instalando dependencias Python...
-py -m pip install pyodbc psycopg2-binary python-dotenv --quiet 2>nul
-if errorlevel 1 (
-  echo AVISO: Falha ao instalar dependencias Python. Continuando...
+rem ── Dependencias Python (pula se marker file existe) ────────────────────────
+if not exist "sync\.pip_ok" (
+  echo Instalando dependencias Python...
+  py -m pip install pyodbc psycopg2-binary python-dotenv --quiet 2>nul
+  if not errorlevel 1 (
+    echo ok > "sync\.pip_ok"
+    echo Dependencias Python instaladas.
+  ) else (
+    echo AVISO: Falha ao instalar dependencias Python. Continuando...
+  )
+  echo.
+) else (
+  echo Dependencias Python OK.
 )
 
 echo.
 echo Iniciando servidor web na porta %PORT%...
 start "CONECTUBOS - Servidor Web" cmd /k "cd /d ""%APP_DIR%"" && node_modules\.bin\tsx.cmd server/index.ts"
 
-echo Aguardando servidor iniciar (25s)...
-timeout /t 25 /nobreak >nul
+echo Aguardando servidor iniciar (15s)...
+timeout /t 15 /nobreak >nul
 
 echo.
-echo Iniciando Sync DB2...
-start "CONECTUBOS - Sync DB2" cmd /k "cd /d ""%APP_DIR%"" && python sync/bootstrap_historico.py && python sync/erp_sync.py all --loop 60"
+echo Iniciando Sync ERP (DB2 → PostgreSQL, ciclo 60s)...
+start "CONECTUBOS - Sync ERP" cmd /k "cd /d ""%APP_DIR%"" && python sync/bootstrap_historico.py && python sync/erp_sync.py all --loop 60"
 
 echo.
-echo Sistema iniciado! Acesse: http://localhost:%PORT%
+echo ════════════════════════════════════════════════════
+echo   Sistema CONECTUBOS iniciado!
+echo   Acesse: http://localhost:%PORT%
+echo ════════════════════════════════════════════════════
+echo.
+echo Este CMD pode ser fechado. Os outros dois ficam abertos:
+echo   [Servidor Web]  - processa as requisicoes da interface
+echo   [Sync ERP]      - atualiza dados do ERP em tempo real (a cada 60s)
 echo.
 endlocal
