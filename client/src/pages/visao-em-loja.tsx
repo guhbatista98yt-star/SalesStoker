@@ -411,7 +411,7 @@ export default function VisaoEmLoja() {
                         {cfg.showL01 && (
                             <Bar
                                 dataKey="salesL01"
-                                name="Loja 01"
+                                name="Atacarejo"
                                 fill={`url(#grad01)`}
                                 radius={[0, 0, 0, 0]}
                                 shape={(props: any) => <GlossyBar {...props} gradId="grad01" filterId="glow01" />}
@@ -433,7 +433,7 @@ export default function VisaoEmLoja() {
                         {cfg.showL03 && (
                             <Bar
                                 dataKey="salesL03"
-                                name="Loja 03"
+                                name="Conectubos"
                                 fill={`url(#grad03)`}
                                 radius={[0, 0, 0, 0]}
                                 shape={(props: any) => <GlossyBar {...props} gradId="grad03" filterId="glow03" />}
@@ -455,7 +455,7 @@ export default function VisaoEmLoja() {
                         {cfg.showMatriz && (
                             <Bar
                                 dataKey="salesLMatriz"
-                                name="Matriz (hoje)"
+                                name="Hoje — Atacarejo"
                                 fill={`url(#gradMz)`}
                                 radius={[0, 0, 0, 0]}
                                 shape={(props: any) => <GlossyBar {...props} gradId="gradMz" filterId="glowMz" />}

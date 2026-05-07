@@ -239,7 +239,7 @@ export default function VendedorView() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Layers className="h-4 w-4 text-primary" />
-                    Memória de Cálculo
+                    Detalhes do Cálculo
                   </CardTitle>
                   <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${auditOpen ? "rotate-180" : ""}`} />
                 </div>

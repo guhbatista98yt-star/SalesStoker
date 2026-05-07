@@ -292,6 +292,10 @@ export async function registerRoutes(
 
   app.put("/api/goals/:id", isAuthenticated, isAdmin, async (req, res) => {
     try {
+      const { targetValue } = req.body;
+      if (targetValue !== undefined && (typeof targetValue !== "number" || targetValue < 0)) {
+        return res.status(400).json({ error: "targetValue deve ser um número positivo" });
+      }
       const goal = await storage.updateGoal(req.params.id as string, req.body);
       res.json(goal);
     } catch (error) {

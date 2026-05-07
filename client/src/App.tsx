@@ -55,6 +55,7 @@ const ProdutoDetalhe = lazy(() => import("@/pages/compras/produto"));
 const ComprasConfiguracoes = lazy(() => import("@/pages/compras/configuracoes"));
 const ContasReceber   = lazy(() => import("@/pages/financeiro/contas-receber"));
 const ExtratoCobracas = lazy(() => import("@/pages/financeiro/extrato-cobrancas"));
+const Copiloto        = lazy(() => import("@/pages/copiloto"));
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -173,6 +174,7 @@ function Router() {
         </Route>
         <Route path="/financeiro/contas-receber"    component={() => <FinanceiroGuard><ContasReceber /></FinanceiroGuard>} />
         <Route path="/financeiro/extrato-cobrancas" component={() => <FinanceiroGuard><ExtratoCobracas /></FinanceiroGuard>} />
+        <Route path="/copiloto" component={Copiloto} />
         {(role === "admin" || role === "supervisor") && (
           <>
             <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />

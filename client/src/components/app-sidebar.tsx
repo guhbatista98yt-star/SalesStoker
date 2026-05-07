@@ -11,6 +11,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
+  Sparkles,
   Store,
   Target,
   TrendingUp,
@@ -263,6 +264,19 @@ export function AppSidebar({ collapsible = "icon" }: { collapsible?: "offcanvas"
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={location === "/copiloto"}
+                tooltip="Copiloto de IA"
+                className="h-9 rounded-lg text-sm font-medium"
+              >
+                <Link href="/copiloto" data-testid="nav-link-copiloto">
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  <span>Copiloto de IA</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             {isModuleEnabled("Configuracoes") && (
               <SidebarMenuItem>
                 <SidebarMenuButton
