@@ -40,6 +40,18 @@ export interface FinancialSummary {
   status_risco: "CRITICO" | "ATRASADO" | "ATENCAO" | "EM_DIA";
 }
 
+interface TituloVencido {
+  idtitulo: number;
+  digitotitulo: string;
+  serienota: string;
+  nomecliente: string;
+  idclifor: number;
+  dtvencimento: string;
+  dias_atraso: number;
+  valor_aberto: number;
+  status: string;
+}
+
 interface SalespersonCardProps {
   salesperson: Salesperson;
   stats: SalespersonStats;
@@ -234,6 +246,15 @@ function MovimentacoesModal({
   );
 }
 
+// ── Helpers para dias em atraso ───────────────────────────────────────────────
+
+function diasAtrasoColor(dias: number): string {
+  if (dias > 30) return "text-red-600 dark:text-red-400 font-bold";
+  if (dias >= 8)  return "text-orange-600 dark:text-orange-400 font-semibold";
+  if (dias >= 1)  return "text-amber-600 dark:text-amber-400 font-semibold";
+  return "text-muted-foreground";
+}
+
 // ── Financial Pendencies Sheet ────────────────────────────────────────────────
 
 function FinancialSheet({
@@ -248,6 +269,7 @@ function FinancialSheet({
   const { data, isLoading, error } = useQuery<{
     resumo: FinancialSummary | null;
     clientes: ClienteVencido[];
+    top_titulos: TituloVencido[];
   }>({
     queryKey: ["/api/financeiro/contas-receber/vendedor", salesperson.id],
     queryFn: async () => {
@@ -261,12 +283,12 @@ function FinancialSheet({
   });
 
   const resumo = data?.resumo;
-  const clientes = data?.clientes ?? [];
+  const titulos = data?.top_titulos ?? [];
 
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
-      <SheetContent side="bottom" className="h-[85dvh] sm:h-auto sm:max-h-[90vh] sm:w-[480px] sm:right-0 sm:left-auto sm:rounded-l-xl rounded-t-xl overflow-y-auto">
-        <SheetHeader className="pb-2 border-b">
+      <SheetContent side="bottom" className="h-[85dvh] sm:h-auto sm:max-h-[90vh] sm:w-[600px] sm:right-0 sm:left-auto sm:rounded-l-xl rounded-t-xl flex flex-col">
+        <SheetHeader className="pb-2 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-base leading-tight">
             <CircleDollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="truncate">Pendências — {salesperson.name}</span>
@@ -287,9 +309,10 @@ function FinancialSheet({
         )}
 
         {!isLoading && !error && (
-          <div className="mt-4 space-y-4 pb-6">
+          <div className="flex-1 overflow-y-auto mt-4 space-y-4 pb-6">
             {resumo ? (
               <>
+                {/* ── KPI Cards ─────────────────────────────────────────── */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Total Vencido</p>
@@ -304,53 +327,55 @@ function FinancialSheet({
                     <p className="text-base font-bold">{resumo.clientes_vencidos ?? 0}</p>
                   </div>
                   <div className="rounded-lg border p-3 bg-muted/40">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Maior Atraso</p>
-                    <p className="text-base font-bold">{resumo.maior_atraso ?? 0} dias</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Títulos Vencidos</p>
+                    <p className="text-base font-bold">{Number(resumo.qtd_titulos_vencidos) || titulos.length}</p>
                   </div>
                 </div>
 
-                {clientes.length > 0 && (
+                {/* ── Título-by-título table ─────────────────────────── */}
+                {titulos.length > 0 ? (
                   <div>
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">
-                      Clientes com Pendências
+                      Títulos em Atraso
                     </p>
-                    <div className="space-y-2">
-                      {clientes.map(cli => (
-                        <div
-                          key={cli.idclifor}
-                          className="rounded-lg border p-3 text-sm flex flex-col gap-1"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="font-medium text-sm leading-snug flex-1 min-w-0 break-words">{cli.nomecliente}</span>
-                            <Badge
-                              variant="outline"
-                              className={cn("text-[10px] shrink-0 whitespace-nowrap", riskColor(cli.status_cliente))}
-                            >
-                              {riskLabel(cli.status_cliente)}
-                            </Badge>
-                          </div>
-                          {cli.cidade_cobranca && (
-                            <span className="text-[11px] text-muted-foreground">
-                              {cli.cidade_cobranca}{cli.uf_cobranca ? ` — ${cli.uf_cobranca}` : ""}
-                            </span>
-                          )}
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] mt-0.5">
-                            <span className="text-muted-foreground">
-                              Vencido: <span className="font-semibold text-red-600 dark:text-red-400">
-                                {formatCurrency(Number(cli.total_vencido))}
-                              </span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              Atraso: <span className="font-semibold">{cli.maior_atraso}d</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              Títulos: <span className="font-semibold">{cli.qtd_titulos}</span>
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="rounded-lg border overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-muted/40 border-b">
+                              <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Cliente</th>
+                              <th className="text-center px-2 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[90px]">Vencimento</th>
+                              <th className="text-center px-2 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[60px]">Atraso</th>
+                              <th className="text-right px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[100px]">Valor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {titulos.map((t, i) => (
+                              <tr key={`${t.idtitulo}-${i}`} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                                <td className="px-3 py-2">
+                                  <span className="block font-medium leading-snug">{t.nomecliente}</span>
+                                  <span className="text-[10px] text-muted-foreground font-mono">
+                                    Tít. {t.idtitulo}{t.digitotitulo ? `-${t.digitotitulo}` : ""}
+                                  </span>
+                                </td>
+                                <td className="px-2 py-2 text-center tabular-nums whitespace-nowrap">
+                                  {formatDate(t.dtvencimento)}
+                                </td>
+                                <td className={cn("px-2 py-2 text-center tabular-nums whitespace-nowrap", diasAtrasoColor(Number(t.dias_atraso)))}>
+                                  {Number(t.dias_atraso)}d
+                                </td>
+                                <td className="px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap text-red-600 dark:text-red-400">
+                                  {formatCurrency(Number(t.valor_aberto))}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum título vencido.</p>
                 )}
               </>
             ) : (

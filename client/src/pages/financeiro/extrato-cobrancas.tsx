@@ -661,7 +661,7 @@ export default function ExtratoCobracas() {
                 <XCircle className="h-8 w-8 text-destructive/60" />
                 <p className="text-sm font-medium">Erro ao carregar dados</p>
                 <p className="text-xs text-muted-foreground">{String(printQ.error)}</p>
-                <Button variant="outline" size="sm" onClick={handleVisualizar} className="mt-2">
+                <Button variant="outline" size="sm" onClick={handleGerar} className="mt-2">
                   Tentar novamente
                 </Button>
               </CardContent>

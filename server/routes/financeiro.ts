@@ -478,6 +478,8 @@ router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, re
           idvendedor, nomevendedor,
           COUNT(DISTINCT idclifor) AS clientes_pendencia,
           COUNT(DISTINCT CASE WHEN status='VENCIDO' THEN idclifor END) AS clientes_vencidos,
+          COUNT(*) AS qtd_titulos,
+          COUNT(CASE WHEN status='VENCIDO' THEN 1 END) AS qtd_titulos_vencidos,
           SUM(valor_aberto) AS total_aberto,
           SUM(CASE WHEN status='VENCIDO' THEN valor_aberto ELSE 0 END) AS total_vencido,
           SUM(CASE WHEN status='VENCE_HOJE' THEN valor_aberto ELSE 0 END) AS vence_hoje,
@@ -512,8 +514,7 @@ router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, re
                dtvencimento, dias_atraso, valor_aberto, status
         FROM cache_contas_receber
         WHERE idvendedor = $1 AND status = 'VENCIDO'
-        ORDER BY dias_atraso DESC
-        LIMIT 10
+        ORDER BY nomecliente ASC, dias_atraso DESC
       `, [idvendedor]),
     ]);
 
