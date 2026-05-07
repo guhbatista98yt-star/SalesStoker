@@ -444,7 +444,7 @@ function AuthenticatedApp() {
 
   const sidebarStyle = {
     "--sidebar-width": "15rem",
-    "--sidebar-width-icon": "3rem",
+    "--sidebar-width-icon": "3.5rem",
   };
 
   if (isLoja) {
