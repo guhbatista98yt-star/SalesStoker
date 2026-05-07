@@ -74,7 +74,8 @@ drizzle-kit push:pg
 - **Campaign Management System**: Full commercial campaign management, including rule builder, simulation, versioning, and audit trails.
 - **Purchase Copilot with Notifications**: Real-time purchase alerts, notification center with sound, and administrative/user preferences for alerts.
 - **User & Permissions Management**: Admin-only page for managing users, roles, granular permissions, and access audit logs.
-- **Financeiro > Contas a Receber**: Accounts receivable module with clickable KPI cards (filter on click), active filter chips (removable badges), smart pagination (first/last buttons, "Showing X–Y of Z"), dynamic forma de recebimento from API, renamed tabs ("Clientes com Pendência", "Resumo por Vendedor", etc.), professional A4 print layout (PrintReport component), and XLSX export. Data synced from ERP via `cache_contas_receber`.
+- **Financeiro > Contas a Receber**: Accounts receivable module with KPI cards, active filter chips (removable badges), smart pagination, dynamic forma de recebimento from API, tabs (Clientes, Duplicatas, Vendedores, Fila), ERP-style print layout (PrintReport), and XLSX export. Data synced from ERP via `cache_contas_receber`. Cards no longer trigger filters on click — only "Aplicar"/"Buscar" applies filters.
+- **Financeiro > Extrato de Cobranças**: Standalone print report page (`/financeiro/extrato-cobrancas`). User fills in parameters (same filters as Contas a Receber), clicks "Visualizar Relatório" to fetch all data (no pagination), sees a live preview + summary, then clicks "Imprimir". Renders ERP-style "150020-Extrato de Cobranças" in A4 landscape with repeating column headers per page.
 - **Responsive UI**: BI-tool-inspired design with dark/light theme, mobile bottom navigation, and adaptable layouts.
 
 ## User preferences

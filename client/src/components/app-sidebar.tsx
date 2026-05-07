@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Users,
   Receipt,
+  FileText,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,7 +45,8 @@ const comprasItems = [
 ];
 
 const financeiroItems = [
-  { title: "Contas a Receber", url: "/financeiro/contas-receber", icon: Receipt },
+  { title: "Contas a Receber",    url: "/financeiro/contas-receber",    icon: Receipt },
+  { title: "Extrato de Cobranças", url: "/financeiro/extrato-cobrancas", icon: FileText },
 ];
 
 const analysisItems = [

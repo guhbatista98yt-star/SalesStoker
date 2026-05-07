@@ -248,15 +248,6 @@ export default function ContasReceber() {
   const [sortClientes, setSortClientes] = useState<{ sort: string; dir: string }>({ sort: "total_vencido", dir: "desc" });
   const [sortDuplicatas, setSortDuplicatas] = useState<{ sort: string; dir: string }>({ sort: "dtvencimento", dir: "asc" });
 
-  // ── Date anchors for card click filters ──────────────────────────────
-  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
-  const yesterday = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0];
-  }, []);
-  const tomorrow = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0];
-  }, []);
-
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -495,11 +486,6 @@ export default function ContasReceber() {
               icon={DollarSign}
               iconBg="bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400"
               loading={resumo.isLoading}
-              onClick={() => {
-                setFilters(f => ({ ...f, status: "todos", venc_de: "", venc_ate: "", somente_vencidos: "" }));
-                setClientePage(1); setDuplicataPage(1); setTab("clientes");
-              }}
-              active={!filters.venc_de && !filters.venc_ate && filters.status === "todos" && !filters.somente_vencidos}
             />
             <KPICard
               title="Total Vencido"
@@ -509,11 +495,6 @@ export default function ContasReceber() {
               iconBg="bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
               loading={resumo.isLoading}
               alert={(r?.total_vencido ?? 0) > 0}
-              onClick={() => {
-                setFilters(f => ({ ...f, status: "todos", venc_de: "", venc_ate: yesterday, somente_vencidos: "" }));
-                setClientePage(1); setDuplicataPage(1); setTab("clientes");
-              }}
-              active={!!filters.venc_ate && filters.venc_ate <= yesterday && !filters.venc_de}
             />
             <KPICard
               title="Vence Hoje"
@@ -522,11 +503,6 @@ export default function ContasReceber() {
               icon={Clock}
               iconBg="bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
               loading={resumo.isLoading}
-              onClick={() => {
-                setFilters(f => ({ ...f, status: "todos", venc_de: today, venc_ate: today, somente_vencidos: "" }));
-                setClientePage(1); setDuplicataPage(1); setTab("clientes");
-              }}
-              active={filters.venc_de === today && filters.venc_ate === today}
             />
             <KPICard
               title="A Vencer"
@@ -535,11 +511,6 @@ export default function ContasReceber() {
               icon={TrendingUp}
               iconBg="bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
               loading={resumo.isLoading}
-              onClick={() => {
-                setFilters(f => ({ ...f, status: "todos", venc_de: tomorrow, venc_ate: "", somente_vencidos: "" }));
-                setClientePage(1); setDuplicataPage(1); setTab("clientes");
-              }}
-              active={filters.venc_de === tomorrow && !filters.venc_ate}
             />
             <KPICard
               title="Juros Pendente"
@@ -548,17 +519,8 @@ export default function ContasReceber() {
               icon={Users}
               iconBg="bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
               loading={resumo.isLoading}
-              onClick={() => {
-                setFilters(f => ({ ...f, status: "todos", venc_de: "", venc_ate: yesterday, somente_vencidos: "" }));
-                setClientePage(1); setDuplicataPage(1); setTab("fila");
-              }}
-              active={tab === "fila"}
             />
           </div>
-          {/* KPI click hint */}
-          <p className="text-[10px] text-muted-foreground text-right print:hidden -mt-1">
-            Clique em um card para filtrar rapidamente
-          </p>
 
           {/* ── Delinquency threshold (simulation) ──────────────────────── */}
           <div className="print:hidden">

@@ -52,7 +52,8 @@ const ComprasDashboard = lazy(() => import("@/pages/compras/index"));
 const FornecedorDetalhe = lazy(() => import("@/pages/compras/fornecedor"));
 const ProdutoDetalhe = lazy(() => import("@/pages/compras/produto"));
 const ComprasConfiguracoes = lazy(() => import("@/pages/compras/configuracoes"));
-const ContasReceber = lazy(() => import("@/pages/financeiro/contas-receber"));
+const ContasReceber   = lazy(() => import("@/pages/financeiro/contas-receber"));
+const ExtratoCobracas = lazy(() => import("@/pages/financeiro/extrato-cobrancas"));
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -169,7 +170,8 @@ function Router() {
             </ComprasGuard>
           )}
         </Route>
-        <Route path="/financeiro/contas-receber" component={() => <FinanceiroGuard><ContasReceber /></FinanceiroGuard>} />
+        <Route path="/financeiro/contas-receber"    component={() => <FinanceiroGuard><ContasReceber /></FinanceiroGuard>} />
+        <Route path="/financeiro/extrato-cobrancas" component={() => <FinanceiroGuard><ExtratoCobracas /></FinanceiroGuard>} />
         {(role === "admin" || role === "supervisor") && (
           <>
             <Route path="/admin/gatilhos" component={() => <Redirect to="/configuracoes" />} />
@@ -269,6 +271,7 @@ function CommandPalette() {
     { label: "Copiloto de Compras",       href: "/compras",                          icon: ShoppingCart },
     { label: "Configuração de Compras",   href: "/compras/configuracoes",            icon: Settings },
     { label: "Contas a Receber",          href: "/financeiro/contas-receber",        icon: DollarSign },
+    { label: "Extrato de Cobranças",      href: "/financeiro/extrato-cobrancas",     icon: DollarSign },
   ];
 
   const lojaItems = [
