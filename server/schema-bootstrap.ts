@@ -985,7 +985,8 @@ async function bootstrapFinanceiro(): Promise<void> {
       cidade_cobranca         TEXT,
       uf_cobranca             TEXT,
       status                  TEXT    NOT NULL DEFAULT 'A_VENCER',
-      atualizado_em           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+      atualizado_em           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      synced_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
   await exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cr_chave_titulo    ON cache_contas_receber (chave_titulo)`).catch(() => {});
@@ -997,6 +998,8 @@ async function bootstrapFinanceiro(): Promise<void> {
   await exec(`CREATE INDEX IF NOT EXISTS idx_cr_valor_aberto          ON cache_contas_receber (valor_aberto)`).catch(() => {});
   await exec(`CREATE INDEX IF NOT EXISTS idx_cr_nomecliente           ON cache_contas_receber (nomecliente)`).catch(() => {});
   await exec(`CREATE INDEX IF NOT EXISTS idx_cr_nomevendedor          ON cache_contas_receber (nomevendedor)`).catch(() => {});
+  // Runtime: add synced_at to existing tables that were created before this column was added
+  await exec(`ALTER TABLE cache_contas_receber ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
 
   // Controle de cobrança interna (não altera ERP)
   await exec(`

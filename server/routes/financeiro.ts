@@ -168,8 +168,9 @@ router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) =
     `, params);
 
     // Última atualização (sempre global, independente de filtro)
+    // synced_at é preenchido pelo Python a cada sync; atualizado_em é o DEFAULT da criação da linha
     const ultima = await pgGet<{ atualizado_em: string }>(`
-      SELECT MAX(atualizado_em) AS atualizado_em FROM cache_contas_receber
+      SELECT MAX(synced_at) AS atualizado_em FROM cache_contas_receber
     `);
 
     res.json({
