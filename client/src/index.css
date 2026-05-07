@@ -640,6 +640,56 @@ html.dark[data-logo-theme="black-gold"] {
     transition: grid-template-rows 220ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   .nav-group-content > .nav-group-inner { overflow: hidden; }
+
+  /* ── Sidebar icon mode — explicit overrides (bypass Tailwind group-data selectors) ── */
+  [data-slot="sidebar"][data-collapsible="icon"] [data-slot="sidebar-gap"] {
+    width: var(--sidebar-width-icon, 3rem) !important;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-slot="sidebar-container"] {
+    width: var(--sidebar-width-icon, 3rem) !important;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="content"] {
+    overflow: hidden;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="group-label"] {
+    margin-top: -2rem;
+    opacity: 0;
+    pointer-events: none;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="group-action"],
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-action"],
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-badge"] {
+    display: none;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-button"] {
+    width: 2rem !important;
+    height: 2rem !important;
+    padding: 0.5rem !important;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-button"] > span:last-child {
+    display: none;
+  }
+  /* Header and footer centering in icon mode */
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="header"] {
+    padding: 0.5rem !important;
+    align-items: center;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="header"] a {
+    justify-content: center;
+    gap: 0;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="footer"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    align-items: center;
+  }
+  /* Offcanvas: slide sidebar fully off-screen */
+  [data-slot="sidebar"][data-collapsible="offcanvas"] [data-slot="sidebar-gap"] {
+    width: 0 !important;
+  }
+  [data-slot="sidebar"][data-collapsible="offcanvas"] [data-slot="sidebar-container"] {
+    left: calc(var(--sidebar-width, 15rem) * -1) !important;
+  }
 }
 
 /* ── Print / A4 ──────────────────────────────────────────────────────────── */

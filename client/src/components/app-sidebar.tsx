@@ -124,7 +124,7 @@ export function AppSidebar({ collapsible = "icon" }: { collapsible?: "offcanvas"
 
   return (
     <Sidebar collapsible={collapsible} className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className="px-4 py-4 border-b border-sidebar-border">
+      <SidebarHeader className="px-3 py-3 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-primary/25 shrink-0">
             <LineChart className="h-4 w-4 text-white" strokeWidth={1.5} />
