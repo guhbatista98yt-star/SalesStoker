@@ -731,7 +731,7 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
 #   [17] VALOR_JUROS_PENDENTE   [18] VALOR_DESCONTO      [19] VALOR_PAGO
 #   [20] FORMA_RECEBIMENTO      [21] ORIGEM_MOVIMENTO    [22] OBS_TITULO
 #   [23] ENDERECO_COBRANCA      [24] BAIRRO_COBRANCA
-#   [25] CIDADE_COBRANCA        [26] UF_COBRANCA
+#   [25] CIDADE_COBRANCA        [26] UF_COBRANCA     [27] CEP_COBRANCA
 
 def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     """
@@ -824,6 +824,7 @@ def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             bairro_cobr = str(r[24] or "").strip()[:100]
             cidade_cobr = str(r[25] or "").strip()[:100]
             uf_cobr     = str(r[26] or "").strip()[:2]
+            cep_cobr    = str(r[27] or "").strip()[:10]
             nome_vend   = str(r[2]  or "").strip()[:120]
             nome_cli    = str(r[4]  or "").strip()[:200]
 
@@ -838,7 +839,7 @@ def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                 valor_original, valor_aberto, valor_liquido,
                 valor_juros, valor_desconto, valor_pago,
                 forma_rec, origem_mov, obs_titulo,
-                end_cobr, bairro_cobr, cidade_cobr, uf_cobr,
+                end_cobr, bairro_cobr, cidade_cobr, uf_cobr, cep_cobr,
                 status, datetime.now(timezone.utc),
             ))
 
@@ -854,6 +855,7 @@ def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                     valor_juros_pendente, valor_desconto_concedido, valor_pago,
                     forma_recebimento, origem_movimento, observacao_titulo,
                     endereco_cobranca, bairro_cobranca, cidade_cobranca, uf_cobranca,
+                    cep_cobranca,
                     status, synced_at
                 ) VALUES %s
                 ON CONFLICT (chave_titulo) DO UPDATE SET
@@ -879,6 +881,7 @@ def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                     bairro_cobranca          = EXCLUDED.bairro_cobranca,
                     cidade_cobranca          = EXCLUDED.cidade_cobranca,
                     uf_cobranca              = EXCLUDED.uf_cobranca,
+                    cep_cobranca             = EXCLUDED.cep_cobranca,
                     status                   = EXCLUDED.status,
                     synced_at                = EXCLUDED.synced_at
                 """,
