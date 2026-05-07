@@ -27,7 +27,7 @@ import {
   Search, Filter, Download, RefreshCw, ChevronRight, ChevronLeft,
   ChevronDown, MoreVertical, Eye, MessageSquare, CalendarIcon,
   Printer, Building2, MapPin, User, List, ArrowUpDown,
-  CheckCircle2, XCircle, AlertCircle,
+  CheckCircle2, XCircle, AlertCircle, Trash2, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -281,6 +281,8 @@ export default function ContasReceber() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"clientes" | "duplicatas" | "vendedores">("clientes");
+
+  // ── Delinquency simulation (draft → applied pattern) ──────────────────────
   const [delinquencyDays, setDelinquencyDays] = useState<number>(() => {
     const saved = localStorage.getItem("cr_delinquency_days");
     return saved != null ? Number(saved) : 10;
@@ -289,28 +291,24 @@ export default function ContasReceber() {
     const saved = localStorage.getItem("cr_delinquency_enabled");
     return saved != null ? saved === "true" : true;
   });
+  const [draftDelDays, setDraftDelDays] = useState<number>(delinquencyDays);
+  const [draftDelEnabled, setDraftDelEnabled] = useState<boolean>(delinquencyEnabled);
   const [showDelinquency, setShowDelinquency] = useState<boolean>(false);
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [buscaInput, setBuscaInput] = useState("");
+
+  // ── Filters: draft (form) → applied (queries) ─────────────────────────────
+  const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
+  const [applied, setApplied] = useState<Filters>(DEFAULT_FILTERS);
+
   const [clientePage, setClientePage] = useState(1);
   const [duplicataPage, setDuplicataPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [clienteDetalhe, setClienteDetalhe] = useState<number | null>(null);
   const [vendedorDetalhe, setVendedorDetalhe] = useState<number | null>(null);
   const [showFiltros, setShowFiltros] = useState(false);
+  const [showIgnorados, setShowIgnorados] = useState(false);
+  const [ignoradoInput, setIgnoradoInput] = useState("");
   const [sortClientes, setSortClientes] = useState<{ sort: string; dir: string }>({ sort: "total_vencido", dir: "desc" });
   const [sortDuplicatas, setSortDuplicatas] = useState<{ sort: string; dir: string }>({ sort: "dtvencimento", dir: "asc" });
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => {
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setFilters(f => ({ ...f, busca: buscaInput }));
-      setClientePage(1);
-      setDuplicataPage(1);
-    }, 400);
-    return () => clearTimeout(debounceRef.current);
-  }, [buscaInput]);
 
   useEffect(() => {
     localStorage.setItem("cr_delinquency_days", String(delinquencyDays));
@@ -320,32 +318,56 @@ export default function ContasReceber() {
     localStorage.setItem("cr_delinquency_enabled", String(delinquencyEnabled));
   }, [delinquencyEnabled]);
 
-  const setFilter = useCallback((key: keyof Filters, value: string) => {
-    setFilters(f => ({ ...f, [key]: value }));
+  const setDraftField = useCallback((key: keyof Filters, value: string) => {
+    setDraft(f => ({ ...f, [key]: value }));
+  }, []);
+
+  function handleAplicar() {
+    setApplied({ ...draft });
+    setClientePage(1);
+    setDuplicataPage(1);
+  }
+
+  function handleLimparFiltros() {
+    setDraft(DEFAULT_FILTERS);
+    setApplied(DEFAULT_FILTERS);
+    setClientePage(1);
+    setDuplicataPage(1);
+  }
+
+  function handleAplicarDelinquency() {
+    setDelinquencyDays(draftDelDays);
+    setDelinquencyEnabled(draftDelEnabled);
+  }
+
+  // Keep alias for filter chips removing applied filters
+  const setAppliedField = useCallback((key: keyof Filters, value: string) => {
+    setApplied(f => ({ ...f, [key]: value }));
+    setDraft(f => ({ ...f, [key]: value }));
     setClientePage(1);
     setDuplicataPage(1);
   }, []);
 
-  // ── Active filter count ─────────────────────────────────────────────────
+  // ── Active filter count (based on applied, not draft) ───────────────────
   const activeFilterCount = useMemo(() => {
     let n = 0;
-    if (filters.status !== "todos") n++;
-    if (filters.busca) n++;
-    if (filters.venc_de) n++;
-    if (filters.venc_ate) n++;
-    if (filters.forma_recebimento) n++;
-    if (filters.somente_vencidos === "1") n++;
-    if (filters.cod_cliente) n++;
-    if (filters.cod_vendedor) n++;
-    if (filters.idtitulo) n++;
-    if (filters.numnota) n++;
+    if (applied.status !== "todos") n++;
+    if (applied.busca) n++;
+    if (applied.venc_de) n++;
+    if (applied.venc_ate) n++;
+    if (applied.forma_recebimento) n++;
+    if (applied.somente_vencidos === "1") n++;
+    if (applied.cod_cliente) n++;
+    if (applied.cod_vendedor) n++;
+    if (applied.idtitulo) n++;
+    if (applied.numnota) n++;
     return n;
-  }, [filters]);
+  }, [applied]);
 
   // ── Queries ────────────────────────────────────────────────────────────
 
-  // Resumo (KPI cards) — passes same filters so cards stay consistent with all tabs
-  const resumoQS = buildQS(filters);
+  // Resumo (KPI cards) — passes applied filters so cards stay consistent with all tabs
+  const resumoQS = buildQS(applied);
   const resumoQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/resumo", resumoQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/resumo${resumoQS}`),
@@ -354,14 +376,14 @@ export default function ContasReceber() {
   });
   const resumo = resumoQ;
 
-  const clientesQS = buildQS(filters, { page: clientePage, limit: perPage, ...sortClientes });
+  const clientesQS = buildQS(applied, { page: clientePage, limit: perPage, ...sortClientes });
   const clientesQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/clientes", clientesQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/clientes${clientesQS}`),
     staleTime: 30_000,
   });
 
-  const dupsQS = buildQS(filters, { page: duplicataPage, limit: perPage, ...sortDuplicatas });
+  const dupsQS = buildQS(applied, { page: duplicataPage, limit: perPage, ...sortDuplicatas });
   const dupsQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/duplicatas", dupsQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas${dupsQS}`),
@@ -369,8 +391,8 @@ export default function ContasReceber() {
     staleTime: 30_000,
   });
 
-  // Vendedores — passes same filters so tab totals match cards
-  const vendedoresQS = buildQS(filters);
+  // Vendedores — passes applied filters so tab totals match cards
+  const vendedoresQS = buildQS(applied);
   const vendedoresQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/vendedores", vendedoresQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/vendedores${vendedoresQS}`),
@@ -378,13 +400,45 @@ export default function ContasReceber() {
     staleTime: 30_000,
   });
 
-
   // Print query — sempre busca TODOS os registros sem paginação
-  const printDupsQS = buildQS(filters, { sort: "nomecliente", dir: "asc" });
+  const printDupsQS = buildQS(applied, { sort: "nomecliente", dir: "asc" });
   const printDupsQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/duplicatas/all", printDupsQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas/all${printDupsQS}`),
     staleTime: 30_000,
+  });
+
+  // Clientes ignorados
+  const ignoradosQ = useQuery({
+    queryKey: ["/api/financeiro/contas-receber/clientes-ignorados"],
+    queryFn: () => apiFetch("/api/financeiro/contas-receber/clientes-ignorados"),
+    staleTime: 30_000,
+  });
+  const addIgnoradoMut = useMutation({
+    mutationFn: (payload: { idclifor_raw: string }) =>
+      apiFetch("/api/financeiro/contas-receber/clientes-ignorados", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (data) => {
+      toast({ title: "Cliente(s) ignorado(s)", description: `${data.inseridos} adicionado(s)` });
+      setIgnoradoInput("");
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/clientes-ignorados"] });
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/resumo"] });
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/clientes"] });
+    },
+    onError: (err: Error) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+  const removeIgnoradoMut = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch(`/api/financeiro/contas-receber/clientes-ignorados/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/clientes-ignorados"] });
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/resumo"] });
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/clientes"] });
+    },
+    onError: (err: Error) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
   const clienteDetalheQ = useQuery({
@@ -420,7 +474,7 @@ export default function ContasReceber() {
   // ── Exportar ───────────────────────────────────────────────────────────
 
   function handleExportar() {
-    const qs = buildQS(filters);
+    const qs = buildQS(applied);
     const url = `/api/financeiro/contas-receber/exportar${qs}`;
     const a = document.createElement("a");
     a.href = url;
@@ -444,9 +498,6 @@ export default function ContasReceber() {
 
   const r = resumo.data;
   const isEmptyCache = r && r.qtd_total === 0;
-  const pctInadimplente = r && r.total_aberto > 0
-    ? ((r.total_vencido / r.total_aberto) * 100).toFixed(1)
-    : "0";
 
   // ============================================================================
   // RENDER
@@ -456,7 +507,7 @@ export default function ContasReceber() {
     <div className="flex flex-col h-full overflow-hidden bg-background print:bg-white print:h-auto print:overflow-visible">
 
       {/* ── Professional Print Layout ─────────────────────────────────── */}
-      <PrintReport filters={filters} resumo={r} clientesData={clientesQ.data} dupsData={printDupsQ.data} tab={tab} />
+      <PrintReport filters={applied} resumo={r} clientesData={clientesQ.data} dupsData={printDupsQ.data} tab={tab} />
 
       {/* ── Page header ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 shrink-0 border-b border-border print:hidden">
@@ -516,7 +567,7 @@ export default function ContasReceber() {
             <KPICard
               title="Total Vencido"
               value={fmtBRL(r?.total_vencido)}
-              subtitle={`${pctInadimplente}% do total`}
+              subtitle={`${r?.qtd_vencido ?? 0} títulos vencidos`}
               icon={AlertTriangle}
               iconBg="bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
               loading={resumo.isLoading}
@@ -549,41 +600,115 @@ export default function ContasReceber() {
           </div>
 
           {/* ── Delinquency threshold (simulation) ──────────────────────── */}
-          <div className="print:hidden">
-            <button
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setShowDelinquency(v => !v)}
-            >
-              <AlertTriangle className="h-3 w-3 text-amber-500" />
-              Simulação de inadimplência
-              <ChevronDown className={cn("h-3 w-3 transition-transform", showDelinquency && "rotate-180")} />
-            </button>
+          <div className="print:hidden space-y-1.5">
+            <div className="flex items-center gap-3">
+              <button
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowDelinquency(v => !v)}
+              >
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                Simulação de inadimplência
+                <ChevronDown className={cn("h-3 w-3 transition-transform", showDelinquency && "rotate-180")} />
+              </button>
+              <button
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowIgnorados(v => !v)}
+              >
+                <Settings className="h-3 w-3 text-muted-foreground" />
+                Clientes ignorados
+                {(ignoradosQ.data?.data?.length ?? 0) > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white px-1">
+                    {ignoradosQ.data.data.length}
+                  </span>
+                )}
+                <ChevronDown className={cn("h-3 w-3 transition-transform", showIgnorados && "rotate-180")} />
+              </button>
+            </div>
+
             {showDelinquency && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+              <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                 <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-800 dark:text-amber-300">
                   <input
                     type="checkbox"
-                    checked={delinquencyEnabled}
-                    onChange={e => setDelinquencyEnabled(e.target.checked)}
+                    checked={draftDelEnabled}
+                    onChange={e => setDraftDelEnabled(e.target.checked)}
                     className="rounded"
                   />
                   Ativar
                 </label>
-                {delinquencyEnabled && (
+                {draftDelEnabled && (
                   <>
                     <span className="text-xs text-amber-700 dark:text-amber-400">Considerar inadimplente após</span>
                     <Input
                       type="number"
                       min={0}
                       max={365}
-                      value={delinquencyDays}
-                      onChange={e => setDelinquencyDays(Math.max(0, Number(e.target.value) || 0))}
+                      value={draftDelDays}
+                      onChange={e => setDraftDelDays(Math.max(0, Number(e.target.value) || 0))}
                       className="h-7 w-16 text-xs text-center px-1"
                     />
                     <span className="text-xs text-amber-700 dark:text-amber-400">dias em atraso</span>
                   </>
                 )}
-                <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-500 italic">Apenas visualização</span>
+                <Button
+                  size="sm"
+                  className="ml-auto h-6 text-xs px-3"
+                  onClick={handleAplicarDelinquency}
+                >
+                  Aplicar
+                </Button>
+                <span className="text-[10px] text-amber-600 dark:text-amber-500 italic">Apenas visualização</span>
+              </div>
+            )}
+
+            {showIgnorados && (
+              <div className="px-3 py-3 rounded-lg border border-border bg-muted/20 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Clientes ignorados não aparecem nos relatórios (Contas a Receber e Extrato de Cobranças).
+                  Informe os códigos separados por vírgula.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ex: 12345, 67890"
+                    className="h-8 text-sm flex-1"
+                    value={ignoradoInput}
+                    onChange={e => setIgnoradoInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && ignoradoInput.trim()) {
+                        addIgnoradoMut.mutate({ idclifor_raw: ignoradoInput });
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    disabled={!ignoradoInput.trim() || addIgnoradoMut.isPending}
+                    onClick={() => addIgnoradoMut.mutate({ idclifor_raw: ignoradoInput })}
+                  >
+                    {addIgnoradoMut.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Adicionar"}
+                  </Button>
+                </div>
+                {ignoradosQ.isLoading ? (
+                  <div className="text-xs text-muted-foreground">Carregando...</div>
+                ) : (ignoradosQ.data?.data ?? []).length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic">Nenhum cliente ignorado.</div>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {(ignoradosQ.data?.data ?? []).map((ig: any) => (
+                      <div key={ig.id} className="flex items-center justify-between gap-2 text-xs px-2 py-1 rounded bg-background border border-border">
+                        <span className="font-mono text-muted-foreground">{ig.idclifor}</span>
+                        <span className="flex-1 truncate">{ig.nomecliente ?? "—"}</span>
+                        <button
+                          className="text-destructive/60 hover:text-destructive transition-colors shrink-0"
+                          onClick={() => removeIgnoradoMut.mutate(ig.id)}
+                          disabled={removeIgnoradoMut.isPending}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -594,12 +719,13 @@ export default function ContasReceber() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Buscar cliente, vendedor, cidade, nº título..."
-                value={buscaInput}
-                onChange={e => setBuscaInput(e.target.value)}
+                value={draft.busca}
+                onChange={e => setDraftField("busca", e.target.value)}
                 className="pl-9 h-9 text-sm"
+                onKeyDown={e => { if (e.key === "Enter") handleAplicar(); }}
               />
             </div>
-            <Select value={filters.status} onValueChange={v => setFilter("status", v)}>
+            <Select value={draft.status} onValueChange={v => setDraftField("status", v)}>
               <SelectTrigger className="h-9 w-[140px] text-sm">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -623,79 +749,82 @@ export default function ContasReceber() {
                 </span>
               )}
             </Button>
+            <Button size="sm" className="h-9" onClick={handleAplicar}>
+              Aplicar
+            </Button>
             {activeFilterCount > 0 && (
               <Button
                 variant="ghost" size="sm"
-                onClick={() => { setFilters(DEFAULT_FILTERS); setBuscaInput(""); }}
+                onClick={handleLimparFiltros}
                 className="h-9 text-muted-foreground"
               >
                 <XCircle className="h-3.5 w-3.5 mr-1.5" />
-                Limpar tudo
+                Limpar
               </Button>
             )}
           </div>
 
-          {/* ── Active Filter Chips ───────────────────────────────────────── */}
+          {/* ── Active Filter Chips (based on applied, not draft) ────────── */}
           {activeFilterCount > 0 && (
             <div className="flex flex-wrap gap-1.5 print:hidden">
-              {filters.status !== "todos" && (
+              {applied.status !== "todos" && (
                 <FilterChip
-                  label={`Status: ${STATUS_CONFIG[filters.status]?.label ?? filters.status}`}
-                  onRemove={() => setFilter("status", "todos")}
+                  label={`Status: ${STATUS_CONFIG[applied.status]?.label ?? applied.status}`}
+                  onRemove={() => setAppliedField("status", "todos")}
                 />
               )}
-              {filters.busca && (
+              {applied.busca && (
                 <FilterChip
-                  label={`Busca: "${filters.busca}"`}
-                  onRemove={() => { setBuscaInput(""); setFilters(f => ({ ...f, busca: "" })); }}
+                  label={`Busca: "${applied.busca}"`}
+                  onRemove={() => setAppliedField("busca", "")}
                 />
               )}
-              {filters.venc_de && (
+              {applied.venc_de && (
                 <FilterChip
-                  label={`Venc. de: ${fmtDate(filters.venc_de)}`}
-                  onRemove={() => setFilter("venc_de", "")}
+                  label={`Venc. de: ${fmtDate(applied.venc_de)}`}
+                  onRemove={() => setAppliedField("venc_de", "")}
                 />
               )}
-              {filters.venc_ate && (
+              {applied.venc_ate && (
                 <FilterChip
-                  label={`Venc. até: ${fmtDate(filters.venc_ate)}`}
-                  onRemove={() => setFilter("venc_ate", "")}
+                  label={`Venc. até: ${fmtDate(applied.venc_ate)}`}
+                  onRemove={() => setAppliedField("venc_ate", "")}
                 />
               )}
-              {filters.forma_recebimento && (
+              {applied.forma_recebimento && (
                 <FilterChip
-                  label={`Forma: ${filters.forma_recebimento}`}
-                  onRemove={() => setFilter("forma_recebimento", "")}
+                  label={`Forma: ${applied.forma_recebimento}`}
+                  onRemove={() => setAppliedField("forma_recebimento", "")}
                 />
               )}
-              {filters.somente_vencidos === "1" && (
+              {applied.somente_vencidos === "1" && (
                 <FilterChip
                   label="Somente vencidos"
-                  onRemove={() => setFilter("somente_vencidos", "0")}
+                  onRemove={() => setAppliedField("somente_vencidos", "0")}
                 />
               )}
-              {filters.cod_cliente && (
+              {applied.cod_cliente && (
                 <FilterChip
-                  label={`Cliente: ${filters.cod_cliente}`}
-                  onRemove={() => setFilter("cod_cliente", "")}
+                  label={`Cliente: ${applied.cod_cliente}`}
+                  onRemove={() => setAppliedField("cod_cliente", "")}
                 />
               )}
-              {filters.cod_vendedor && (
+              {applied.cod_vendedor && (
                 <FilterChip
-                  label={`Vendedor: ${filters.cod_vendedor}`}
-                  onRemove={() => setFilter("cod_vendedor", "")}
+                  label={`Vendedor: ${applied.cod_vendedor}`}
+                  onRemove={() => setAppliedField("cod_vendedor", "")}
                 />
               )}
-              {filters.idtitulo && (
+              {applied.idtitulo && (
                 <FilterChip
-                  label={`Título: ${filters.idtitulo}`}
-                  onRemove={() => setFilter("idtitulo", "")}
+                  label={`Título: ${applied.idtitulo}`}
+                  onRemove={() => setAppliedField("idtitulo", "")}
                 />
               )}
-              {filters.numnota && (
+              {applied.numnota && (
                 <FilterChip
-                  label={`NF: ${filters.numnota}`}
-                  onRemove={() => setFilter("numnota", "")}
+                  label={`NF: ${applied.numnota}`}
+                  onRemove={() => setAppliedField("numnota", "")}
                 />
               )}
             </div>
@@ -709,16 +838,16 @@ export default function ContasReceber() {
                   <div>
                     <Label className="text-xs">Vencimento de</Label>
                     <DatePicker
-                      value={filters.venc_de}
-                      onChange={v => setFilter("venc_de", v)}
+                      value={draft.venc_de}
+                      onChange={v => setDraftField("venc_de", v)}
                       placeholder="Qualquer data"
                     />
                   </div>
                   <div>
                     <Label className="text-xs">Vencimento até</Label>
                     <DatePicker
-                      value={filters.venc_ate}
-                      onChange={v => setFilter("venc_ate", v)}
+                      value={draft.venc_ate}
+                      onChange={v => setDraftField("venc_ate", v)}
                       placeholder="Qualquer data"
                     />
                   </div>
@@ -728,8 +857,8 @@ export default function ContasReceber() {
                       type="number"
                       className="h-8 text-sm mt-1"
                       placeholder="Ex: 12345"
-                      value={filters.cod_cliente}
-                      onChange={e => setFilter("cod_cliente", e.target.value)}
+                      value={draft.cod_cliente}
+                      onChange={e => setDraftField("cod_cliente", e.target.value)}
                     />
                   </div>
                   <div>
@@ -738,8 +867,8 @@ export default function ContasReceber() {
                       type="number"
                       className="h-8 text-sm mt-1"
                       placeholder="Ex: 10"
-                      value={filters.cod_vendedor}
-                      onChange={e => setFilter("cod_vendedor", e.target.value)}
+                      value={draft.cod_vendedor}
+                      onChange={e => setDraftField("cod_vendedor", e.target.value)}
                     />
                   </div>
                   <div>
@@ -748,8 +877,8 @@ export default function ContasReceber() {
                       type="number"
                       className="h-8 text-sm mt-1"
                       placeholder="Ex: 2335879"
-                      value={filters.idtitulo}
-                      onChange={e => setFilter("idtitulo", e.target.value)}
+                      value={draft.idtitulo}
+                      onChange={e => setDraftField("idtitulo", e.target.value)}
                     />
                   </div>
                   <div>
@@ -757,15 +886,15 @@ export default function ContasReceber() {
                     <Input
                       className="h-8 text-sm mt-1"
                       placeholder="Nº da nota"
-                      value={filters.numnota}
-                      onChange={e => setFilter("numnota", e.target.value)}
+                      value={draft.numnota}
+                      onChange={e => setDraftField("numnota", e.target.value)}
                     />
                   </div>
                   <div>
                     <Label className="text-xs">Forma de Pagamento</Label>
                     <Select
-                      value={filters.forma_recebimento || "__all__"}
-                      onValueChange={v => setFilter("forma_recebimento", v === "__all__" ? "" : v)}
+                      value={draft.forma_recebimento || "__all__"}
+                      onValueChange={v => setDraftField("forma_recebimento", v === "__all__" ? "" : v)}
                     >
                       <SelectTrigger className="h-8 text-sm mt-1">
                         <SelectValue />
@@ -782,13 +911,16 @@ export default function ContasReceber() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={filters.somente_vencidos === "1"}
-                        onChange={e => setFilter("somente_vencidos", e.target.checked ? "1" : "")}
+                        checked={draft.somente_vencidos === "1"}
+                        onChange={e => setDraftField("somente_vencidos", e.target.checked ? "1" : "")}
                         className="rounded"
                       />
                       <span className="text-sm">Somente vencidos</span>
                     </label>
                   </div>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button size="sm" onClick={handleAplicar}>Aplicar filtros</Button>
                 </div>
               </CardContent>
             </Card>

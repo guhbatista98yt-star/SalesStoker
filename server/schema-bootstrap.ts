@@ -1048,6 +1048,19 @@ async function bootstrapFinanceiro(): Promise<void> {
   `);
   await exec(`CREATE INDEX IF NOT EXISTS idx_fch_chave    ON financeiro_cobrancas_historico (chave_titulo)`).catch(() => {});
   await exec(`CREATE INDEX IF NOT EXISTS idx_fch_cliente  ON financeiro_cobrancas_historico (idclifor)`).catch(() => {});
+
+  // Clientes ignorados nos módulos financeiros (CR + Extrato)
+  await exec(`
+    CREATE TABLE IF NOT EXISTS financeiro_clientes_ignorados (
+      id          SERIAL PRIMARY KEY,
+      idclifor    INTEGER NOT NULL UNIQUE,
+      nomecliente TEXT,
+      motivo      TEXT,
+      criado_em   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      criado_por  TEXT
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fci_idclifor ON financeiro_clientes_ignorados (idclifor)`).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -1069,6 +1082,7 @@ const REQUIRED_TABLES = [
   "user_alert_preferences", "alert_delivery_state",
   "compras_fornecedores_config", "compras_produtos_config",
   "cache_contas_receber", "financeiro_cobrancas", "financeiro_cobrancas_historico",
+  "financeiro_clientes_ignorados",
 ];
 
 async function validateSchema(): Promise<void> {

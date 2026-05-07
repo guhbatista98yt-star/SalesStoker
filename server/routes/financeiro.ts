@@ -25,9 +25,20 @@ const router = Router();
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+async function getIgnoredClientIds(): Promise<number[]> {
+  try {
+    const rows = await pgAll<{ idclifor: number }>(
+      `SELECT idclifor FROM financeiro_clientes_ignorados`
+    );
+    return rows.map(r => Number(r.idclifor));
+  } catch {
+    return [];
+  }
+}
+
 function buildWhereClause(
   q: Record<string, string | undefined>,
-  opts: { tableAlias?: string; paramOffset?: number } = {}
+  opts: { tableAlias?: string; paramOffset?: number; ignoredIds?: number[] } = {}
 ): { where: string; params: unknown[] } {
   const t = opts.tableAlias ? `${opts.tableAlias}.` : "";
   const conditions: string[] = [`${t}valor_aberto > 0`];
@@ -100,6 +111,11 @@ function buildWhereClause(
     conditions.push(`${t}valor_aberto <= ${p()}`);
     params.push(Number(q.valor_max));
   }
+  if (opts.ignoredIds && opts.ignoredIds.length > 0) {
+    const placeholders = opts.ignoredIds.map(() => `$${n++}`).join(", ");
+    conditions.push(`${t}idclifor NOT IN (${placeholders})`);
+    params.push(...opts.ignoredIds);
+  }
 
   return { where: conditions.join(" AND "), params };
 }
@@ -112,8 +128,8 @@ router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) =
     const q = req.query as Record<string, string | undefined>;
     const hasFilters = Object.values(q).some(v => v && v !== "" && v !== "todos" && v !== "all" && v !== "0");
 
-    // Build where clause from filters (same helper as /clientes / /duplicatas)
-    const { where, params } = buildWhereClause(q);
+    const ignoredIds = await getIgnoredClientIds();
+    const { where, params } = buildWhereClause(q, { ignoredIds });
 
     const totais = await pgGet<{
       total_aberto: number; total_vencido: number; total_vence_hoje: number;
@@ -208,7 +224,8 @@ router.get("/clientes", isAuthenticated, async (req: AuthRequest, res: Response)
     const sort = (q.sort ?? "total_vencido") as string;
     const dir = q.dir === "asc" ? "ASC" : "DESC";
 
-    const { where, params } = buildWhereClause(q);
+    const ignoredIds = await getIgnoredClientIds();
+    const { where, params } = buildWhereClause(q, { ignoredIds });
 
     const SAFE_SORTS: Record<string, string> = {
       nomecliente: "nomecliente",
@@ -339,7 +356,8 @@ router.get("/duplicatas", isAuthenticated, async (req: AuthRequest, res: Respons
     };
     const orderBy = SAFE_SORTS[sort] ?? "dtvencimento";
 
-    const { where, params } = buildWhereClause(q);
+    const ignoredIds = await getIgnoredClientIds();
+    const { where, params } = buildWhereClause(q, { ignoredIds });
 
     const totalRows = await pgGet<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM cache_contas_receber WHERE ${where}`, params
@@ -384,7 +402,8 @@ router.get("/duplicatas/all", isAuthenticated, async (req: AuthRequest, res: Res
     };
     const orderBy = SAFE_SORTS[sort] ?? "nomecliente";
 
-    const { where, params } = buildWhereClause(q);
+    const ignoredIds = await getIgnoredClientIds();
+    const { where, params } = buildWhereClause(q, { ignoredIds });
 
     const totalRows = await pgGet<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM cache_contas_receber WHERE ${where}`, params
@@ -412,7 +431,8 @@ router.get("/duplicatas/all", isAuthenticated, async (req: AuthRequest, res: Res
 router.get("/vendedores", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
     const q = req.query as Record<string, string | undefined>;
-    const { where, params } = buildWhereClause(q);
+    const ignoredIds = await getIgnoredClientIds();
+    const { where, params } = buildWhereClause(q, { ignoredIds });
 
     const rows = await pgAll(`
       SELECT
@@ -571,12 +591,14 @@ router.get("/fila-cobranca", isAuthenticated, async (req: AuthRequest, res: Resp
     const q = req.query as Record<string, string | undefined>;
     const hoje = new Date().toISOString().split("T")[0];
 
+    const ignoredIds = await getIgnoredClientIds();
     // $1 = hoje (used in the ORDER BY promise check)
     // User filters start at $2, so paramOffset=1 shifts placeholders accordingly
     const filaQ = { ...q, status: undefined, somente_vencidos: undefined };
     const { where: filaWhere, params: filaParams } = buildWhereClause(filaQ, {
       tableAlias: "cr",
       paramOffset: 1,
+      ignoredIds,
     });
 
     // Append VENCIDO/VENCE_HOJE restriction (fila always shows only critical items)
@@ -746,7 +768,8 @@ router.get("/cobranca/:chave_titulo", isAuthenticated, async (req: AuthRequest, 
 router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
     const q = req.query as Record<string, string | undefined>;
-    const { where, params } = buildWhereClause(q);
+    const ignoredIds = await getIgnoredClientIds();
+    const { where, params } = buildWhereClause(q, { ignoredIds });
 
     const rows = await pgAll(
       `SELECT
@@ -813,6 +836,78 @@ router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response)
   } catch (err) {
     console.error("[financeiro] /exportar:", err);
     res.status(500).json({ error: "Erro ao exportar" });
+  }
+});
+
+// ── GET /clientes-ignorados ──────────────────────────────────────────────────
+
+router.get("/clientes-ignorados", isAuthenticated, async (_req: AuthRequest, res: Response) => {
+  try {
+    const rows = await pgAll(`
+      SELECT id, idclifor, nomecliente, motivo, criado_em, criado_por
+      FROM financeiro_clientes_ignorados
+      ORDER BY nomecliente ASC, idclifor ASC
+    `);
+    res.json({ data: rows });
+  } catch (err) {
+    console.error("[financeiro] /clientes-ignorados GET:", err);
+    res.status(500).json({ error: "Erro ao buscar clientes ignorados" });
+  }
+});
+
+// ── POST /clientes-ignorados — suporta batch (vírgula-separado) ──────────────
+
+router.post("/clientes-ignorados", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  try {
+    const { idclifor_raw, motivo } = req.body as { idclifor_raw: string; motivo?: string };
+    const usuario = req.userEmail ?? req.userId?.toString() ?? "sistema";
+
+    if (!idclifor_raw) return res.status(400).json({ error: "idclifor_raw obrigatório" });
+
+    const ids = String(idclifor_raw)
+      .split(",")
+      .map(s => Number(s.trim()))
+      .filter(n => n > 0 && !isNaN(n));
+
+    if (ids.length === 0) return res.status(400).json({ error: "Nenhum código válido informado" });
+
+    const agora = new Date().toISOString();
+    let inseridos = 0;
+
+    for (const id of ids) {
+      const existing = await pgGet<{ idclifor: number }>(
+        `SELECT idclifor FROM cache_contas_receber WHERE idclifor = $1 LIMIT 1`, [id]
+      );
+      const nomecliente = existing ? (await pgGet<{ nomecliente: string }>(
+        `SELECT nomecliente FROM cache_contas_receber WHERE idclifor = $1 LIMIT 1`, [id]
+      ))?.nomecliente ?? null : null;
+
+      await pgRun(`
+        INSERT INTO financeiro_clientes_ignorados (idclifor, nomecliente, motivo, criado_em, criado_por)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (idclifor) DO UPDATE SET motivo = EXCLUDED.motivo, criado_por = EXCLUDED.criado_por, criado_em = EXCLUDED.criado_em
+      `, [id, nomecliente, motivo ?? null, agora, usuario]);
+      inseridos++;
+    }
+
+    res.json({ success: true, inseridos });
+  } catch (err) {
+    console.error("[financeiro] /clientes-ignorados POST:", err);
+    res.status(500).json({ error: "Erro ao adicionar clientes ignorados" });
+  }
+});
+
+// ── DELETE /clientes-ignorados/:id ──────────────────────────────────────────
+
+router.delete("/clientes-ignorados/:id", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "id inválido" });
+    await pgRun(`DELETE FROM financeiro_clientes_ignorados WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[financeiro] /clientes-ignorados DELETE:", err);
+    res.status(500).json({ error: "Erro ao remover cliente ignorado" });
   }
 });
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthToken } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Loader2, Printer, Eye, FileText, XCircle, CalendarIcon } from "lucide-react";
+import { Loader2, Printer, FileText, XCircle, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -351,8 +351,9 @@ function DatePicker({ value, onChange, placeholder = "Qualquer data" }: {
 export default function ExtratoCobracas() {
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
   const [applied, setApplied] = useState<Filters | null>(null);
+  const pendingPrint = useRef(false);
 
-  // Only fetch when user clicks "Visualizar"
+  // Only fetch when user clicks "Gerar Extrato"
   const printQS  = applied ? buildQS(applied, { sort: "nomecliente", dir: "asc" }) : "";
   const resumoQS = applied ? buildQS(applied) : "";
 
@@ -365,7 +366,7 @@ export default function ExtratoCobracas() {
   });
 
   const resumoQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/resumo", resumoQS],
+    queryKey: ["/api/financeiro/extrato-cobrancas/resumo", resumoQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/resumo${resumoQS}`),
     enabled: !!applied,
     staleTime: 60_000,
@@ -378,11 +379,20 @@ export default function ExtratoCobracas() {
   });
   const formasList: string[] = formasQ.data?.formas ?? FORMAS_RECEBIMENTO;
 
+  // Auto-print when data arrives after user clicks "Gerar Extrato"
+  useEffect(() => {
+    if (printQ.isSuccess && printQ.data && pendingPrint.current) {
+      pendingPrint.current = false;
+      setTimeout(() => window.print(), 200);
+    }
+  }, [printQ.isSuccess, printQ.data]);
+
   function setField(key: keyof Filters, value: string) {
     setDraft(f => ({ ...f, [key]: value }));
   }
 
-  function handleVisualizar() {
+  function handleGerar() {
+    pendingPrint.current = true;
     setApplied({ ...draft });
   }
 
@@ -393,6 +403,7 @@ export default function ExtratoCobracas() {
   function handleLimpar() {
     setDraft(DEFAULT_FILTERS);
     setApplied(null);
+    pendingPrint.current = false;
   }
 
   const hasResults = !!applied && printQ.isSuccess;
@@ -416,13 +427,13 @@ export default function ExtratoCobracas() {
           <div>
             <h1 className="text-lg font-bold tracking-tight">Extrato de Cobranças</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Relatório 150020 — Informe os parâmetros e clique em Visualizar
+              Relatório 150020 — Informe os parâmetros e clique em Gerar Extrato
             </p>
           </div>
           {hasResults && (
             <Button onClick={handleImprimir} size="sm">
               <Printer className="h-3.5 w-3.5 mr-1.5" />
-              Imprimir
+              Imprimir novamente
             </Button>
           )}
         </div>
@@ -576,16 +587,16 @@ export default function ExtratoCobracas() {
               <Separator />
 
               <div className="flex flex-wrap gap-3">
-                <Button onClick={handleVisualizar} disabled={isLoading}>
+                <Button onClick={handleGerar} disabled={isLoading}>
                   {isLoading
                     ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    : <Eye className="h-3.5 w-3.5 mr-1.5" />}
-                  Visualizar Relatório
+                    : <Printer className="h-3.5 w-3.5 mr-1.5" />}
+                  {isLoading ? "Gerando..." : "Gerar Extrato"}
                 </Button>
                 {hasResults && (
                   <Button variant="outline" onClick={handleImprimir}>
                     <Printer className="h-3.5 w-3.5 mr-1.5" />
-                    Imprimir
+                    Imprimir novamente
                   </Button>
                 )}
                 <Button variant="ghost" onClick={handleLimpar} className="text-muted-foreground">
@@ -607,14 +618,11 @@ export default function ExtratoCobracas() {
           {hasResults && !isLoading && (
             <Card>
               <CardContent className="pt-5 pb-5">
-                <div className="flex flex-wrap gap-6 text-sm">
+                <div className="flex flex-wrap gap-6 text-sm mb-4">
                   <div>
                     <span className="text-muted-foreground text-xs block mb-0.5">Clientes</span>
                     <span className="font-bold text-lg">
-                      {(() => {
-                        const ids = new Set((printQ.data?.data ?? []).map((r: any) => r.idclifor));
-                        return ids.size;
-                      })()}
+                      {new Set((printQ.data?.data ?? []).map((r: any) => r.idclifor)).size}
                     </span>
                   </div>
                   <div>
@@ -639,28 +647,10 @@ export default function ExtratoCobracas() {
                     </span>
                   </div>
                 </div>
-
-                <Separator className="my-4" />
-
                 <p className="text-xs text-muted-foreground">
-                  Relatório pronto. Clique em <strong>Imprimir</strong> para abrir a caixa de impressão,
-                  ou use <strong>Ctrl+P</strong>. O documento será impresso em A4 paisagem.
+                  Extrato gerado. Se a impressão não abriu automaticamente, clique em <strong>Imprimir novamente</strong> ou use <strong>Ctrl+P</strong>.
+                  O documento será impresso em A4 paisagem.
                 </p>
-
-                {/* Inline preview of the report (screen only, scaled down) */}
-                <div className="mt-4 border border-border rounded-lg overflow-hidden">
-                  <div className="bg-muted/30 px-3 py-1.5 border-b border-border flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">Pré-visualização</span>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={handleImprimir}>
-                      <Printer className="h-3 w-3 mr-1" />Imprimir
-                    </Button>
-                  </div>
-                  <div className="overflow-auto bg-white p-4" style={{ maxHeight: "70vh" }}>
-                    <div style={{ transform: "scale(1)", transformOrigin: "top left", width: "100%" }}>
-                      <PrintReport filters={applied!} resumo={resumoQ.data} dupsData={printQ.data} />
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           )}
