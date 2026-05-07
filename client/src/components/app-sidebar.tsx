@@ -81,7 +81,7 @@ function NavItem({ item, active }: { item: { title: string; url: string; icon: a
   );
 }
 
-export function AppSidebar({ collapsible = "icon" }: { collapsible?: "offcanvas" | "icon" | "none" }) {
+export function AppSidebar({ collapsible = "icon", side = "left" }: { collapsible?: "offcanvas" | "icon" | "none"; side?: "left" | "right" }) {
   const [location] = useLocation();
   const { user } = useAuth();
   const role = user?.role || "admin";
@@ -123,7 +123,7 @@ export function AppSidebar({ collapsible = "icon" }: { collapsible?: "offcanvas"
   const showFinanceiro = FINANCEIRO_ROLES.includes(role) && isModuleEnabled("Financeiro");
 
   return (
-    <Sidebar collapsible={collapsible} className="border-r border-sidebar-border bg-sidebar">
+    <Sidebar collapsible={collapsible} side={side} className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className="px-3 py-3 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-primary/25 shrink-0">

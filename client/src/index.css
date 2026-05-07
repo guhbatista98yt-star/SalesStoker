@@ -648,19 +648,46 @@ html.dark[data-logo-theme="black-gold"] {
   [data-slot="sidebar"][data-collapsible="icon"] [data-slot="sidebar-container"] {
     width: var(--sidebar-width-icon, 3.5rem) !important;
   }
+  /* Content area: remove horizontal padding, center column */
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="content"] {
     overflow: hidden;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    align-items: center;
   }
+  /* Group: remove padding, center items */
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="group"] {
+    padding: 0.25rem 0 !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  /* Group label hidden */
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="group-label"] {
     margin-top: -2rem;
     opacity: 0;
     pointer-events: none;
   }
+  /* Group content and menu: center items */
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="group-content"] {
+    width: auto;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu"] {
+    width: auto;
+    align-items: center;
+    min-width: unset;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-item"] {
+    width: 2.5rem;
+  }
+  /* Hide actions/badges */
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="group-action"],
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-action"],
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-badge"] {
     display: none;
   }
+  /* Menu button sizing */
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="menu-button"] {
     width: 2.5rem !important;
     height: 2.5rem !important;
@@ -674,7 +701,7 @@ html.dark[data-logo-theme="black-gold"] {
     height: 1.25rem !important;
     flex-shrink: 0;
   }
-  /* Header and footer centering in icon mode */
+  /* Header centering */
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="header"] {
     padding: 0.5rem !important;
     align-items: center;
@@ -685,10 +712,21 @@ html.dark[data-logo-theme="black-gold"] {
     justify-content: center;
     gap: 0;
   }
+  /* Footer centering */
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="footer"] {
     padding-left: 0 !important;
     padding-right: 0 !important;
+    display: flex;
+    flex-direction: column;
     align-items: center;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="footer"] [data-sidebar="menu"] {
+    align-items: center;
+    width: auto;
+    min-width: unset;
+  }
+  [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="footer"] [data-sidebar="menu-item"] {
+    width: 2.5rem;
   }
   /* Offcanvas: slide sidebar fully off-screen */
   [data-slot="sidebar"][data-collapsible="offcanvas"] [data-slot="sidebar-gap"] {

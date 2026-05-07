@@ -186,7 +186,11 @@ export function ThemeCustomizer() {
               <div className="flex gap-2">
                 {(["left", "right"] as const).map(side => (
                   <button key={side}
-                    onClick={() => { setSidebarSide(side); localStorage.setItem("wms:sidebar-side", side); }}
+                    onClick={() => {
+                      setSidebarSide(side);
+                      localStorage.setItem("wms:sidebar-side", side);
+                      window.dispatchEvent(new CustomEvent("wms:sidebar-side-changed", { detail: { side } }));
+                    }}
                     className={cn("flex-1 flex flex-col items-center gap-2 py-3 rounded-xl border text-xs font-medium transition-all",
                       sidebarSide === side ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40 hover:bg-secondary/50"
                     )}>

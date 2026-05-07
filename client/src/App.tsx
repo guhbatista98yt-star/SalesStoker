@@ -442,6 +442,19 @@ function AuthenticatedApp() {
   const [location] = useLocation();
   const isLojaView = location === "/analises/visao-em-loja";
 
+  const [sidebarSide, setSidebarSide] = useState<"left" | "right">(
+    () => (localStorage.getItem("wms:sidebar-side") as "left" | "right") || "left"
+  );
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const side = (e as CustomEvent).detail?.side;
+      if (side === "left" || side === "right") setSidebarSide(side);
+    };
+    window.addEventListener("wms:sidebar-side-changed", handler);
+    return () => window.removeEventListener("wms:sidebar-side-changed", handler);
+  }, []);
+
   const sidebarStyle = {
     "--sidebar-width": "15rem",
     "--sidebar-width-icon": "3.5rem",
@@ -465,7 +478,7 @@ function AuthenticatedApp() {
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden">
-        <AppSidebar collapsible={isLojaView ? "offcanvas" : "icon"} />
+        <AppSidebar collapsible={isLojaView ? "offcanvas" : "icon"} side={sidebarSide} />
         <div className="flex flex-col flex-1 overflow-hidden h-full min-w-0" style={{ contain: 'layout style', willChange: 'contents' }}>
           <TopHeader />
           <main className="flex-1 overflow-hidden h-full relative pb-16 md:pb-0" style={{ contain: 'layout' }}>

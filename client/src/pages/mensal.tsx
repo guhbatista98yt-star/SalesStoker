@@ -71,7 +71,10 @@ function useChartColors() {
   const [colors, setColors] = useState(getColors);
   useEffect(() => {
     const obs = new MutationObserver(() => setColors(getColors()));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-logo-theme"],
+    });
     return () => obs.disconnect();
   }, []);
   return colors;

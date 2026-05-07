@@ -1,8 +1,9 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend, Line, ComposedChart, Area, AreaChart,
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ComposedChart,
 } from "recharts";
 import { BarChart3, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/calendar-utils";
@@ -19,6 +20,25 @@ interface SalesChartProps {
   monthlyData: SalesChartData[];
   loading?: boolean;
   dragHandle?: React.ReactNode;
+}
+
+function useChartColors() {
+  const getColors = () => {
+    const s = getComputedStyle(document.documentElement);
+    const p = s.getPropertyValue("--primary").trim();
+    const mf = s.getPropertyValue("--muted-foreground").trim();
+    return { primary: `hsl(${p})`, muted: `hsl(${mf} / 0.4)` };
+  };
+  const [colors, setColors] = useState(getColors);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setColors(getColors()));
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-logo-theme"],
+    });
+    return () => obs.disconnect();
+  }, []);
+  return colors;
 }
 
 /* ── Premium tooltip ─────────────────────────────────────────────────────────── */
@@ -56,7 +76,7 @@ function ChartSkeleton() {
 }
 
 /* ── Chart content ───────────────────────────────────────────────────────────── */
-function SalesBarChart({ data }: { data: SalesChartData[] }) {
+function SalesBarChart({ data, primaryColor, mutedColor }: { data: SalesChartData[]; primaryColor: string; mutedColor: string }) {
   const total = data.reduce((s, d) => s + (Number(d.atual) || 0), 0);
 
   return (
@@ -66,7 +86,7 @@ function SalesBarChart({ data }: { data: SalesChartData[] }) {
         <TrendingUp className="h-4 w-4 text-emerald-500" />
       </div>
       <div className="h-[260px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" debounce={300}>
           <ComposedChart data={data} barGap={2}>
             <CartesianGrid
               strokeDasharray="3 3"
@@ -96,15 +116,10 @@ function SalesBarChart({ data }: { data: SalesChartData[] }) {
               width={42}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted) / 0.4)", radius: 6 }} />
-            <Legend
-              wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-              iconType="circle"
-              iconSize={8}
-            />
             <Bar
               dataKey="atual"
               name="Período Atual"
-              fill="hsl(217 93% 52%)"
+              fill={primaryColor}
               radius={[5, 5, 0, 0]}
               maxBarSize={32}
               isAnimationActive={false}
@@ -112,7 +127,7 @@ function SalesBarChart({ data }: { data: SalesChartData[] }) {
             <Bar
               dataKey="anterior"
               name="Ano Anterior"
-              fill="hsl(214 20% 85%)"
+              fill={mutedColor}
               radius={[5, 5, 0, 0]}
               maxBarSize={32}
               isAnimationActive={false}
@@ -126,6 +141,8 @@ function SalesBarChart({ data }: { data: SalesChartData[] }) {
 
 /* ── Main component ──────────────────────────────────────────────────────────── */
 export function SalesChart({ weeklyData, monthlyData, loading, dragHandle }: SalesChartProps) {
+  const { primary: primaryColor, muted: mutedColor } = useChartColors();
+
   return (
     <Card data-testid="sales-chart">
       <CardHeader className="pb-2">
@@ -149,10 +166,10 @@ export function SalesChart({ weeklyData, monthlyData, loading, dragHandle }: Sal
               </TabsTrigger>
             </TabsList>
             <TabsContent value="weekly">
-              <SalesBarChart data={weeklyData} />
+              <SalesBarChart data={weeklyData} primaryColor={primaryColor} mutedColor={mutedColor} />
             </TabsContent>
             <TabsContent value="monthly">
-              <SalesBarChart data={monthlyData} />
+              <SalesBarChart data={monthlyData} primaryColor={primaryColor} mutedColor={mutedColor} />
             </TabsContent>
           </Tabs>
         )}
