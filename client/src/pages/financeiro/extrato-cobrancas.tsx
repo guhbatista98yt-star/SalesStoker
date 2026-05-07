@@ -357,10 +357,11 @@ export default function ExtratoCobracas() {
   const resumoQS = applied ? buildQS(applied) : "";
 
   const printQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/duplicatas/all", printQS],
+    queryKey: ["/api/financeiro/extrato-cobrancas/print", printQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas/all${printQS}`),
     enabled: !!applied,
-    staleTime: 60_000,
+    staleTime: 0,
+    retry: 1,
   });
 
   const resumoQ = useQuery({

@@ -818,7 +818,7 @@ router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response)
 
 // ── POST /admin/sync/contas-receber ─────────────────────────────────────────
 
-router.post("/admin/sync", isAdmin, async (req: AuthRequest, res: Response) => {
+router.post("/admin/sync", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
     // This endpoint triggers the ERP sync via Python script or marks last sync
     // In production this would connect to DB2 via erp_sync.py

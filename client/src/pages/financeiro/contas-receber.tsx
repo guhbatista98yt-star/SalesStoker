@@ -281,8 +281,14 @@ export default function ContasReceber() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"clientes" | "duplicatas" | "vendedores">("clientes");
-  const [delinquencyDays, setDelinquencyDays] = useState<number>(10);
-  const [delinquencyEnabled, setDelinquencyEnabled] = useState<boolean>(true);
+  const [delinquencyDays, setDelinquencyDays] = useState<number>(() => {
+    const saved = localStorage.getItem("cr_delinquency_days");
+    return saved != null ? Number(saved) : 10;
+  });
+  const [delinquencyEnabled, setDelinquencyEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem("cr_delinquency_enabled");
+    return saved != null ? saved === "true" : true;
+  });
   const [showDelinquency, setShowDelinquency] = useState<boolean>(false);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [buscaInput, setBuscaInput] = useState("");
@@ -292,7 +298,6 @@ export default function ContasReceber() {
   const [clienteDetalhe, setClienteDetalhe] = useState<number | null>(null);
   const [vendedorDetalhe, setVendedorDetalhe] = useState<number | null>(null);
   const [showFiltros, setShowFiltros] = useState(false);
-  const [formaSearch, setFormaSearch] = useState("");
   const [sortClientes, setSortClientes] = useState<{ sort: string; dir: string }>({ sort: "total_vencido", dir: "desc" });
   const [sortDuplicatas, setSortDuplicatas] = useState<{ sort: string; dir: string }>({ sort: "dtvencimento", dir: "asc" });
 
@@ -306,6 +311,14 @@ export default function ContasReceber() {
     }, 400);
     return () => clearTimeout(debounceRef.current);
   }, [buscaInput]);
+
+  useEffect(() => {
+    localStorage.setItem("cr_delinquency_days", String(delinquencyDays));
+  }, [delinquencyDays]);
+
+  useEffect(() => {
+    localStorage.setItem("cr_delinquency_enabled", String(delinquencyEnabled));
+  }, [delinquencyEnabled]);
 
   const setFilter = useCallback((key: keyof Filters, value: string) => {
     setFilters(f => ({ ...f, [key]: value }));
@@ -652,7 +665,7 @@ export default function ContasReceber() {
               {filters.forma_recebimento && (
                 <FilterChip
                   label={`Forma: ${filters.forma_recebimento}`}
-                  onRemove={() => { setFilter("forma_recebimento", ""); setFormaSearch(""); }}
+                  onRemove={() => setFilter("forma_recebimento", "")}
                 />
               )}
               {filters.somente_vencidos === "1" && (
@@ -748,48 +761,22 @@ export default function ContasReceber() {
                       onChange={e => setFilter("numnota", e.target.value)}
                     />
                   </div>
-                  <div className="relative">
+                  <div>
                     <Label className="text-xs">Forma de Pagamento</Label>
-                    <div className="relative mt-1">
-                      <Input
-                        className="h-8 text-sm pr-8"
-                        placeholder="Digite ou selecione..."
-                        value={formaSearch || filters.forma_recebimento}
-                        onChange={e => {
-                          setFormaSearch(e.target.value);
-                          setFilter("forma_recebimento", e.target.value);
-                        }}
-                      />
-                      {(filters.forma_recebimento || formaSearch) && (
-                        <button
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          onClick={() => { setFormaSearch(""); setFilter("forma_recebimento", ""); }}
-                        >
-                          <XCircle className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                    {formaSearch && (
-                      <div className="absolute z-20 top-full mt-0.5 left-0 right-0 bg-background border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                        {formasList.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).map(f => (
-                          <button
-                            key={f}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
-                            onClick={() => {
-                              setFilter("forma_recebimento", f);
-                              setFormaSearch("");
-                            }}
-                          >
-                            {f}
-                          </button>
+                    <Select
+                      value={filters.forma_recebimento || "__all__"}
+                      onValueChange={v => setFilter("forma_recebimento", v === "__all__" ? "" : v)}
+                    >
+                      <SelectTrigger className="h-8 text-sm mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Todas</SelectItem>
+                        {formasList.map(f => (
+                          <SelectItem key={f} value={f}>{f}</SelectItem>
                         ))}
-                        {formasList.filter(f => f.toLowerCase().includes(formaSearch.toLowerCase())).length === 0 && (
-                          <p className="px-3 py-2 text-xs text-muted-foreground">
-                            Pressione Enter para usar "{formaSearch}"
-                          </p>
-                        )}
-                      </div>
-                    )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex items-end pb-0.5">
                     <label className="flex items-center gap-2 cursor-pointer">
