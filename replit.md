@@ -37,6 +37,7 @@ drizzle-kit push:pg
 - **ORM**: Drizzle ORM (PostgreSQL dialect)
 - **Validation**: Zod
 - **Build Tool**: Vite
+- **Design System**: Berry Purple — font Poppins, primary `hsl(260 54% 45%)` light / `hsl(258 90% 68%)` dark, background `hsl(220 17% 95%)` light / `hsl(229 37% 14%)` dark, Berry wide-spread shadows
 
 ## Where things live
 
@@ -76,7 +77,7 @@ drizzle-kit push:pg
 - **User & Permissions Management**: Admin-only page for managing users, roles, granular permissions, and access audit logs.
 - **Financeiro > Contas a Receber**: Accounts receivable module with KPI cards, active filter chips (removable badges), smart pagination, dynamic forma de recebimento from API, tabs (Clientes, Duplicatas, Vendedores, Fila), ERP-style print layout (PrintReport), and XLSX export. Data synced from ERP via `cache_contas_receber`. Cards no longer trigger filters on click — only "Aplicar"/"Buscar" applies filters.
 - **Financeiro > Extrato de Cobranças**: Standalone print report page (`/financeiro/extrato-cobrancas`). User fills in parameters (same filters as Contas a Receber), clicks "Visualizar Relatório" to fetch all data (no pagination), sees a live preview + summary, then clicks "Imprimir". Renders ERP-style "150020-Extrato de Cobranças" in A4 landscape with repeating column headers per page.
-- **Responsive UI**: BI-tool-inspired design with dark/light theme, mobile bottom navigation, and adaptable layouts.
+- **Responsive UI**: Berry Purple design system — Poppins font, violet primary palette, wide-spread shadows, card-hover lift animations, page-enter transitions, dark/light theme, mobile bottom navigation.
 
 ## User preferences
 

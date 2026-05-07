@@ -100,7 +100,7 @@ export function KPICard({
       data-testid={`kpi-card-${title.toLowerCase().replace(/\s+/g, "-")}`}
       className={cn(
         "bg-card rounded-xl border border-card-border flex flex-col",
-        "shadow-card hover:shadow-card-hover transition-shadow duration-200",
+        "shadow-card card-hover",
         "animate-fade-in overflow-hidden",
       )}
     >

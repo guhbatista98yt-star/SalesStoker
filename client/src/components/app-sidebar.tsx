@@ -68,10 +68,10 @@ function NavItem({ item, active }: { item: { title: string; url: string; icon: a
       <SidebarMenuButton
         asChild
         isActive={active}
-        className="h-9 rounded-lg text-sm font-medium"
+        className="h-9 rounded-lg text-sm font-medium nav-item"
       >
         <Link href={item.url} data-testid={`nav-link-${item.url.replace(/\//g, "-").slice(1) || "dashboard"}`}>
-          <item.icon className="h-4 w-4 shrink-0" />
+          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
           <span>{item.title}</span>
         </Link>
       </SidebarMenuButton>
@@ -124,10 +124,10 @@ export function AppSidebar() {
     <Sidebar className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className="px-4 py-4 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shrink-0">
-            <LineChart className="h-4 w-4 text-white" />
+          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-primary/25 shrink-0">
+            <LineChart className="h-4 w-4 text-white" strokeWidth={1.5} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 sidebar-logo-text">
             <p className="font-bold text-sm tracking-tight leading-none text-sidebar-foreground">
               CONECTUBOS
             </p>

@@ -26,7 +26,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="bg-popover border border-border rounded-xl shadow-panel p-3 min-w-[160px]">
+    <div className="bg-popover border border-border rounded-xl shadow-md p-3 min-w-[160px]">
       <p className="text-xs font-semibold text-foreground mb-2 border-b border-border pb-1.5">{label}</p>
       {payload.map((entry: any, i: number) => (
         <div key={i} className="flex items-center justify-between gap-4 mt-1">

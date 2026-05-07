@@ -347,7 +347,7 @@ function TopHeader() {
 
   return (
     <header className={cn(
-      "flex h-14 items-center gap-3 px-3 sm:px-5 shrink-0",
+      "flex h-[70px] items-center gap-3 px-3 sm:px-5 shrink-0",
       "border-b border-border",
       "bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
     )}>
@@ -389,7 +389,7 @@ function TopHeader() {
               <ChevronDown className="hidden sm:block h-3 w-3 text-muted-foreground shrink-0" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-panel">
+          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-md">
             <DropdownMenuLabel className="font-normal py-2.5">
               <div className="flex items-center gap-2.5">
                 <Avatar className="h-9 w-9">
@@ -460,7 +460,9 @@ function AuthenticatedApp() {
         <div className="flex flex-col flex-1 overflow-hidden h-full min-w-0" style={{ contain: 'layout style', willChange: 'contents' }}>
           <TopHeader />
           <main className="flex-1 overflow-hidden h-full relative pb-16 md:pb-0" style={{ contain: 'layout' }}>
-            <Router />
+            <div className="h-full animate-page-enter">
+              <Router />
+            </div>
           </main>
         </div>
       </div>

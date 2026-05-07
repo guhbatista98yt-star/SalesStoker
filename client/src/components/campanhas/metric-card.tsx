@@ -59,7 +59,7 @@ export function MetricCard({
   if (gauge) {
     return (
       <div className={cn(
-        "bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden flex flex-col",
+        "bg-card rounded-2xl border border-border shadow-card card-hover overflow-hidden flex flex-col",
         className
       )}>
         <div className={cn(
@@ -99,7 +99,7 @@ export function MetricCard({
 
   return (
     <div className={cn(
-      "bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden flex flex-col",
+      "bg-card rounded-2xl border border-border shadow-card card-hover overflow-hidden flex flex-col",
       className
     )}>
       {/* Top accent line */}

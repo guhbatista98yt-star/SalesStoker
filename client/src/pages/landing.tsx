@@ -64,9 +64,9 @@ function PrimaryButton({
       className={cn(
         "relative flex h-11 w-full items-center justify-center gap-2 rounded-xl",
         "bg-primary text-primary-foreground text-sm font-semibold",
-        "shadow-[0_1px_2px_rgba(0,0,0,.12),0_4px_12px_rgba(37,99,235,.25)]",
+        "shadow-md shadow-primary/20",
         "transition-all duration-150",
-        "hover:brightness-105 hover:shadow-[0_1px_3px_rgba(0,0,0,.14),0_6px_16px_rgba(37,99,235,.30)]",
+        "hover:brightness-105 hover:shadow-lg hover:shadow-primary/25",
         "active:scale-[0.98] active:brightness-95",
         "disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100",
         props.className
@@ -115,7 +115,7 @@ export default function LandingPage() {
         "min-h-screen flex flex-col items-center justify-center",
         "bg-background px-4 py-12",
         /* Decoração de fundo extremamente sutil */
-        "bg-[radial-gradient(ellipse_at_60%_0%,hsl(217_93%_52%_/_0.07)_0%,transparent_55%)]"
+        "bg-[radial-gradient(ellipse_at_60%_0%,hsl(260_54%_45%_/_0.08)_0%,transparent_55%)]"
       )}
     >
       {/* Linha de acento superior */}
@@ -129,9 +129,9 @@ export default function LandingPage() {
           {/* Ícone */}
           <div className={cn(
             "h-14 w-14 rounded-2xl flex items-center justify-center",
-            "bg-primary shadow-[0_4px_16px_rgba(37,99,235,.30)]"
+            "bg-primary shadow-lg shadow-primary/30"
           )}>
-            <BarChart3 className="h-7 w-7 text-white" strokeWidth={2.2} />
+            <BarChart3 className="h-7 w-7 text-white" strokeWidth={1.8} />
           </div>
 
           {/* Nome do produto */}

@@ -57,7 +57,7 @@ function GoalCard({
   const status = getStatusFromPct(percentual);
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden flex flex-col">
+    <div className="bg-card rounded-2xl border border-border shadow-card card-hover overflow-hidden flex flex-col">
       {/* Top accent */}
       <div className={cn("h-0.5 w-full", statusBar[status])} />
 
@@ -142,7 +142,7 @@ function MixCard({ mix_geral }: { mix_geral: any }) {
   const gap  = circumference - dash;
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden flex flex-col">
+    <div className="bg-card rounded-2xl border border-border shadow-card card-hover overflow-hidden flex flex-col">
       <div className="h-0.5 w-full bg-purple-400" />
       <div className="p-5 flex flex-col gap-5 flex-1">
         {/* Header */}
