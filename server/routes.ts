@@ -639,6 +639,7 @@ export async function registerRoutes(
         "dtrAmancoLogoUrl",
         "tvAmancoLogoUrl",
         "tintasElitLogoUrl",
+        "visao_loja_config",
       ];
       if (req.userRole !== "admin" && req.userRole !== "supervisor" && !PUBLIC_KEYS.includes(key)) {
         return res.status(403).json({ error: "Sem permissão para acessar esta configuração" });

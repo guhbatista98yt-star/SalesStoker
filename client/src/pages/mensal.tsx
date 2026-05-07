@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,7 +61,23 @@ interface MonthlyCardProps {
   hasGoal?: boolean;
 }
 
-const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress, hasGoal }: MonthlyCardProps) {
+function useChartColors() {
+  const getColors = () => {
+    const s = getComputedStyle(document.documentElement);
+    const p = s.getPropertyValue("--primary").trim();
+    const mf = s.getPropertyValue("--muted-foreground").trim();
+    return { primary: `hsl(${p})`, muted: `hsl(${mf} / 0.45)` };
+  };
+  const [colors, setColors] = useState(getColors);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setColors(getColors()));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  return colors;
+}
+
+const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalMonth, yoyVariacao, metaProgress, hasGoal, primaryColor, mutedColor }: MonthlyCardProps & { primaryColor: string; mutedColor: string }) {
   const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
   return (
     <Card data-testid={`monthly-card-${salesperson.id}`}>
@@ -101,8 +117,8 @@ const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalM
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[200px]" style={{ contain: "layout size" }}>
+          <ResponsiveContainer width="100%" height="100%" debounce={300}>
             <AreaChart data={weeklySales}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="week" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -110,10 +126,10 @@ const MonthlyCard = memo(function MonthlyCard({ salesperson, weeklySales, totalM
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Area type="monotone" dataKey="cumulative" name="Acumulado Atual"
-                stroke="hsl(217, 91%, 50%)" fill="hsl(217, 91%, 50%)" fillOpacity={0.1}
+                stroke={primaryColor} fill={primaryColor} fillOpacity={0.1}
                 strokeWidth={2} isAnimationActive={false} />
               <Area type="monotone" dataKey="yoyCumulative" name="Acumulado Anterior"
-                stroke="hsl(217, 20%, 65%)" fill="hsl(217, 20%, 65%)" fillOpacity={0.05}
+                stroke={mutedColor} fill={mutedColor} fillOpacity={0.08}
                 strokeWidth={2} strokeDasharray="5 5" isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
@@ -127,6 +143,7 @@ export default function Mensal() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const isSupervisor = user?.role === "supervisor";
+  const chartColors = useChartColors();
 
   const today = new Date();
   const startDate = format(startOfMonth(today), "yyyy-MM-dd");
@@ -214,6 +231,8 @@ export default function Mensal() {
                 yoyVariacao={yoyVariacao}
                 metaProgress={metaProgress}
                 hasGoal={metaProgress > 0 || totalMonth === 0}
+                primaryColor={chartColors.primary}
+                mutedColor={chartColors.muted}
               />
             ))}
           </div>

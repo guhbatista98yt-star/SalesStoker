@@ -78,6 +78,10 @@ drizzle-kit push:pg
 - **Financeiro > Contas a Receber**: Accounts receivable module with KPI cards, active filter chips (removable badges), smart pagination, dynamic forma de recebimento from API, tabs (Clientes, Duplicatas, Vendedores, Fila), ERP-style print layout (PrintReport), and XLSX export. Data synced from ERP via `cache_contas_receber`. Cards no longer trigger filters on click — only "Aplicar"/"Buscar" applies filters.
 - **Financeiro > Extrato de Cobranças**: Standalone print report page (`/financeiro/extrato-cobrancas`). User fills in parameters (same filters as Contas a Receber), clicks "Visualizar Relatório" to fetch all data (no pagination), sees a live preview + summary, then clicks "Imprimir". Renders ERP-style "150020-Extrato de Cobranças" in A4 landscape with repeating column headers per page.
 - **Responsive UI**: Berry Purple design system — Poppins font, violet primary palette, wide-spread shadows, card-hover lift animations, page-enter transitions, dark/light theme, mobile bottom navigation.
+- **Sidebar icon-only mode**: Desktop sidebar collapses to icon-only rail (collapsible="icon") with tooltips on hover. Fully hidden on `/analises/visao-em-loja` (collapsible="offcanvas"). Loja role always uses full-hide.
+- **Visão em Loja Customization**: Full config stored as JSON in `app_settings` key `visao_loja_config`. Settings: bg color, bar colors (L01/L03/Matriz), bar/label/grid/refline visibility, title/footer text, tick color, real names vs codes. Configurable via Configurações > Visão em Loja (admin only). Consumed live by `visao-em-loja.tsx`.
+- **Chart Colors**: Semanal/Mensal chart bars now use `hsl(--primary)` and `hsl(--muted-foreground)` via a reactive CSS-var hook. Auto-updates on dark/light toggle.
+- **Chart Resize Fix**: Recharts `ResponsiveContainer` uses `debounce={300}` + `contain: layout size` on chart wrappers to prevent stutter when sidebar collapses/expands.
 
 ## User preferences
 

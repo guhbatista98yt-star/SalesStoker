@@ -20,6 +20,47 @@ import {
     LabelList,
 } from "recharts";
 
+interface LojaViewConfig {
+    bgColor: string;
+    colorL01: string;
+    colorL03: string;
+    colorMatriz: string;
+    showL01: boolean;
+    showL03: boolean;
+    showMatriz: boolean;
+    showGrid: boolean;
+    showRefLine: boolean;
+    showLabels: boolean;
+    title: string;
+    footerText: string;
+    tickColor: string;
+    showRealNames: boolean;
+}
+
+const LOJA_DEFAULTS: LojaViewConfig = {
+    bgColor: "#02040a",
+    colorL01: "#1e5ac8",
+    colorL03: "#ff0042",
+    colorMatriz: "#eaaa00",
+    showL01: true,
+    showL03: true,
+    showMatriz: true,
+    showGrid: true,
+    showRefLine: true,
+    showLabels: true,
+    title: "Performance Comercial",
+    footerText: "Indicadores consolidados automaticamente via integração sistêmica.",
+    tickColor: "#7ba8d4",
+    showRealNames: false,
+};
+
+function hexToRgb(hex: string): [number, number, number] {
+    const r = parseInt(hex.slice(1, 3), 16) || 0;
+    const g = parseInt(hex.slice(3, 5), 16) || 0;
+    const b = parseInt(hex.slice(5, 7), 16) || 0;
+    return [r, g, b];
+}
+
 // IDs exatos dos vendedores autorizados (evita duplicatas por nomes parciais)
 const ALLOWED_VENDOR_IDS = new Set([
     "1014115", // ALAN
@@ -183,6 +224,22 @@ export default function VisaoEmLoja() {
 
     const { weekStart, weekEnd } = getCurrentWeek();
 
+    const { data: configData } = useQuery<{ key: string; value: string | null }>({
+        queryKey: ["/api/app-settings/visao_loja_config"],
+        staleTime: 30_000,
+    });
+
+    const cfg: LojaViewConfig = (() => {
+        if (configData?.value) {
+            try { return { ...LOJA_DEFAULTS, ...JSON.parse(configData.value) }; } catch {}
+        }
+        return LOJA_DEFAULTS;
+    })();
+
+    const [r1, g1, b1] = hexToRgb(cfg.colorL01);
+    const [r2, g2, b2] = hexToRgb(cfg.colorL03);
+    const [r3, g3, b3] = hexToRgb(cfg.colorMatriz);
+
     const { data, isLoading, error, dataUpdatedAt } = useQuery<TVDashboardData>({
         queryKey: ["tv-dashboard", weekStart, weekEnd],
         queryFn: async () => {
@@ -204,16 +261,16 @@ export default function VisaoEmLoja() {
 
     if (isLoading) {
         return (
-            <div className="flex-1 flex items-center justify-center p-8">
+            <div className="flex-1 flex items-center justify-center p-8" style={{ background: cfg.bgColor }}>
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-4">Carregando dados...</span>
+                <span className="ml-4" style={{ color: 'rgba(255,255,255,0.7)' }}>Carregando dados...</span>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="flex-1 flex items-center justify-center p-8 text-destructive flex-col gap-2">
+            <div className="flex-1 flex items-center justify-center p-8 text-destructive flex-col gap-2" style={{ background: cfg.bgColor }}>
                 <div className="flex items-center">
                     <AlertCircle className="h-8 w-8 mr-4" />
                     <span className="text-lg font-medium">Erro: {error.message}</span>
@@ -242,9 +299,12 @@ export default function VisaoEmLoja() {
         .map(v => {
             const goalL01 = v.goal.loja01 || v.goal.value / 2 || 1;
             const goalL03 = v.goal.loja03 || v.goal.value / 2 || 1;
+            const displayName = cfg.showRealNames
+                ? v.displayName
+                : (VENDOR_DISPLAY_CODES[v.id] || v.displayCode);
             return {
-                name: VENDOR_DISPLAY_CODES[v.id] || v.displayCode,
-                fullName: VENDOR_DISPLAY_CODES[v.id] || v.displayName,
+                name: displayName,
+                fullName: v.displayName,
                 goalL01: v.goal.loja01,
                 goalL03: v.goal.loja03,
                 l01: (v.sales.loja01 / goalL01) * 100,
@@ -266,12 +326,12 @@ export default function VisaoEmLoja() {
     );
 
     return (
-        <div className="flex flex-col w-full h-[100dvh] px-3 py-3 sm:p-6" style={{ overflow: 'hidden', background: '#02040a' }}>
+        <div className="flex flex-col w-full h-[100dvh] px-3 py-3 sm:p-6" style={{ overflow: 'hidden', background: cfg.bgColor }}>
             {/* Header profissional */}
             <div className="flex items-center justify-between mb-3 sm:mb-6 w-full gap-2">
                 <div className="min-w-0">
                     <h2 className="text-sm sm:text-2xl font-medium truncate" style={{ color: 'rgba(255,255,255,0.95)', letterSpacing: '0.01em', margin: 0 }}>
-                        Performance Comercial{' '}
+                        {cfg.title}{' '}
                         <span className="hidden sm:inline" style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 300 }}>&mdash; {getWeekRange()}</span>
                     </h2>
                     <p className="text-[11px] sm:hidden" style={{ color: 'rgba(255,255,255,0.4)' }}>{getWeekRange()}</p>
@@ -301,13 +361,8 @@ export default function VisaoEmLoja() {
             {/* Linha divisória transparente */}
             <div style={{ width: '100%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(160,200,255,0.15), transparent)', marginBottom: 12 }} className="sm:mb-6" />
 
-            {/* Chart container — altura responsiva a toda a tela livre descontando header e footer */}
-            <div
-                className="w-full rounded-xl flex-1 flex flex-col"
-                style={{
-                    minHeight: 340,
-                }}
-            >
+            {/* Chart container */}
+            <div className="w-full rounded-xl flex-1 flex flex-col" style={{ minHeight: 340 }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={chartData}
@@ -316,122 +371,116 @@ export default function VisaoEmLoja() {
                         barCategoryGap="8%"
                     >
                         <defs>
-                            <linearGradient id="blueGrad" x1="0" y1="1" x2="0" y2="0">
-                                <stop offset="0%" stopColor="rgb(15,60,150)" stopOpacity={1} />
-                                <stop offset="100%" stopColor="rgb(30,90,200)" stopOpacity={1} />
+                            <linearGradient id="grad01" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor={`rgb(${Math.round(r1*0.5)},${Math.round(g1*0.5)},${Math.round(b1*0.5)})`} stopOpacity={1} />
+                                <stop offset="100%" stopColor={`rgb(${r1},${g1},${b1})`} stopOpacity={1} />
                             </linearGradient>
-                            <linearGradient id="redGrad" x1="0" y1="1" x2="0" y2="0">
-                                <stop offset="0%" stopColor="rgb(254,0,104)" stopOpacity={1} />
-                                <stop offset="100%" stopColor="rgb(255,0,66)" stopOpacity={1} />
+                            <linearGradient id="grad03" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor={`rgb(${Math.round(r2*0.5)},${Math.round(g2*0.5)},${Math.round(b2*0.5)})`} stopOpacity={1} />
+                                <stop offset="100%" stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={1} />
                             </linearGradient>
-                            <linearGradient id="goldGrad" x1="0" y1="1" x2="0" y2="0">
-                                <stop offset="0%" stopColor="rgb(160,100,0)" stopOpacity={1} />
-                                <stop offset="100%" stopColor="rgb(234,170,0)" stopOpacity={1} />
+                            <linearGradient id="gradMz" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor={`rgb(${Math.round(r3*0.5)},${Math.round(g3*0.5)},${Math.round(b3*0.5)})`} stopOpacity={1} />
+                                <stop offset="100%" stopColor={`rgb(${r3},${g3},${b3})`} stopOpacity={1} />
                             </linearGradient>
-                            {/* SVG glow filter for blue bars — contained region */}
-                            <filter id="blueGlowFilter" x="-12%" y="-4%" width="124%" height="108%">
+                            <filter id="glow01" x="-12%" y="-4%" width="124%" height="108%">
                                 <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                                <feMerge>
-                                    <feMergeNode in="blur" />
-                                    <feMergeNode in="SourceGraphic" />
-                                </feMerge>
+                                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                             </filter>
-                            {/* SVG glow filter for red bars — contained region */}
-                            <filter id="redGlowFilter" x="-12%" y="-4%" width="124%" height="108%">
+                            <filter id="glow03" x="-12%" y="-4%" width="124%" height="108%">
                                 <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                                <feMerge>
-                                    <feMergeNode in="blur" />
-                                    <feMergeNode in="SourceGraphic" />
-                                </feMerge>
+                                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                             </filter>
-                            {/* SVG glow filter for gold bars — contained region */}
-                            <filter id="goldGlowFilter" x="-12%" y="-4%" width="124%" height="108%">
+                            <filter id="glowMz" x="-12%" y="-4%" width="124%" height="108%">
                                 <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                                <feMerge>
-                                    <feMergeNode in="blur" />
-                                    <feMergeNode in="SourceGraphic" />
-                                </feMerge>
+                                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                             </filter>
                         </defs>
 
                         <XAxis
                             dataKey="name"
                             stroke="#4a6080"
-                            tick={{ fill: '#7ba8d4', fontSize: 14, fontWeight: 700 }}
+                            tick={{ fill: cfg.tickColor, fontSize: 14, fontWeight: 700 }}
                             tickLine={false}
                             axisLine={false}
                         />
                         <YAxis hide={true} domain={[0, Math.ceil(maxChartValue * 1.18)]} />
-                        <CartesianGrid vertical={false} strokeDasharray="6 6" stroke="rgba(255,255,255,0.05)" />
-                        <ReferenceLine y={100} stroke="rgba(100,200,100,0.4)" strokeDasharray="6 6" />
+                        {cfg.showGrid && <CartesianGrid vertical={false} strokeDasharray="6 6" stroke="rgba(255,255,255,0.05)" />}
+                        {cfg.showRefLine && <ReferenceLine y={100} stroke="rgba(100,200,100,0.4)" strokeDasharray="6 6" />}
 
-                        <Bar
-                            dataKey="salesL01"
-                            name="Loja 01"
-                            fill="url(#blueGrad)"
-                            radius={[0, 0, 0, 0]}
-                            shape={(props: any) => <GlossyBar {...props} gradId="blueGrad" filterId="blueGlowFilter" />}
-                            background={(props: any) => {
-                                const { x, y, width, height } = props;
-                                return <rect x={x} y={y} width={width} height={height} fill="rgba(255,255,255,0.04)" rx={0} />;
-                            }}
-                        >
-                            <LabelList
+                        {cfg.showL01 && (
+                            <Bar
                                 dataKey="salesL01"
-                                position="top"
-                                content={(props: any) => (
-                                    <CustomBarLabel {...props} fill="rgba(255,255,255,0.9)" />
+                                name="Loja 01"
+                                fill={`url(#grad01)`}
+                                radius={[0, 0, 0, 0]}
+                                shape={(props: any) => <GlossyBar {...props} gradId="grad01" filterId="glow01" />}
+                                background={(props: any) => {
+                                    const { x, y, width, height } = props;
+                                    return <rect x={x} y={y} width={width} height={height} fill="rgba(255,255,255,0.04)" rx={0} />;
+                                }}
+                            >
+                                {cfg.showLabels && (
+                                    <LabelList
+                                        dataKey="salesL01"
+                                        position="top"
+                                        content={(props: any) => <CustomBarLabel {...props} fill="rgba(255,255,255,0.9)" />}
+                                    />
                                 )}
-                            />
-                        </Bar>
+                            </Bar>
+                        )}
 
-                        <Bar
-                            dataKey="salesL03"
-                            name="Loja 03"
-                            fill="url(#redGrad)"
-                            radius={[0, 0, 0, 0]}
-                            shape={(props: any) => <GlossyBar {...props} gradId="redGrad" filterId="redGlowFilter" />}
-                            background={(props: any) => {
-                                const { x, y, width, height } = props;
-                                return <rect x={x} y={y} width={width} height={height} fill="rgba(255,255,255,0.04)" rx={0} />;
-                            }}
-                        >
-                            <LabelList
+                        {cfg.showL03 && (
+                            <Bar
                                 dataKey="salesL03"
-                                position="top"
-                                content={(props: any) => (
-                                    <CustomBarLabel {...props} fill="rgba(255,255,255,0.9)" />
+                                name="Loja 03"
+                                fill={`url(#grad03)`}
+                                radius={[0, 0, 0, 0]}
+                                shape={(props: any) => <GlossyBar {...props} gradId="grad03" filterId="glow03" />}
+                                background={(props: any) => {
+                                    const { x, y, width, height } = props;
+                                    return <rect x={x} y={y} width={width} height={height} fill="rgba(255,255,255,0.04)" rx={0} />;
+                                }}
+                            >
+                                {cfg.showLabels && (
+                                    <LabelList
+                                        dataKey="salesL03"
+                                        position="top"
+                                        content={(props: any) => <CustomBarLabel {...props} fill="rgba(255,255,255,0.9)" />}
+                                    />
                                 )}
-                            />
-                        </Bar>
+                            </Bar>
+                        )}
 
-                        <Bar
-                            dataKey="salesLMatriz"
-                            name="Matriz (hoje)"
-                            fill="url(#goldGrad)"
-                            radius={[0, 0, 0, 0]}
-                            shape={(props: any) => <GlossyBar {...props} gradId="goldGrad" filterId="goldGlowFilter" />}
-                            background={(props: any) => {
-                                const { x, y, width, height } = props;
-                                return <rect x={x} y={y} width={width} height={height} fill="rgba(255,255,255,0.04)" rx={0} />;
-                            }}
-                        >
-                            <LabelList
+                        {cfg.showMatriz && (
+                            <Bar
                                 dataKey="salesLMatriz"
-                                position="top"
-                                content={(props: any) => (
-                                    <CustomBarLabel {...props} fill="rgba(255,230,100,0.95)" />
+                                name="Matriz (hoje)"
+                                fill={`url(#gradMz)`}
+                                radius={[0, 0, 0, 0]}
+                                shape={(props: any) => <GlossyBar {...props} gradId="gradMz" filterId="glowMz" />}
+                                background={(props: any) => {
+                                    const { x, y, width, height } = props;
+                                    return <rect x={x} y={y} width={width} height={height} fill="rgba(255,255,255,0.04)" rx={0} />;
+                                }}
+                            >
+                                {cfg.showLabels && (
+                                    <LabelList
+                                        dataKey="salesLMatriz"
+                                        position="top"
+                                        content={(props: any) => <CustomBarLabel {...props} fill={`rgba(${r3},${g3},${b3},0.95)`} />}
+                                    />
                                 )}
-                            />
-                        </Bar>
+                            </Bar>
+                        )}
                     </BarChart>
                 </ResponsiveContainer>
             </div>
 
-            {/* Footer fixo na base e responsivo */}
+            {/* Footer */}
             <div style={{ textAlign: 'center', padding: '16px 0', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: 'auto', width: '100%' }}>
                 <span style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.03em', fontWeight: 500 }}>
-                    Indicadores consolidados automaticamente via integração sistêmica.
+                    {cfg.footerText}
                 </span>
             </div>
         </div>

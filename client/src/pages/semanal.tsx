@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,15 +50,33 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+function useChartColors() {
+  const getColors = () => {
+    const s = getComputedStyle(document.documentElement);
+    const p = s.getPropertyValue("--primary").trim();
+    const mf = s.getPropertyValue("--muted-foreground").trim();
+    return { primary: `hsl(${p})`, muted: `hsl(${mf} / 0.45)` };
+  };
+  const [colors, setColors] = useState(getColors);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setColors(getColors()));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  return colors;
+}
+
 interface WeeklyCardProps {
   salesperson: { id: string; name: string; email: string };
   dailySales: { day: string; value: number; yoyValue: number }[];
   totalWeek: number;
   yoyVariacao: number | null;
   metaProgress: number;
+  primaryColor: string;
+  mutedColor: string;
 }
 
-const WeeklyCard = memo(function WeeklyCard({ salesperson, dailySales, totalWeek, yoyVariacao, metaProgress }: WeeklyCardProps) {
+const WeeklyCard = memo(function WeeklyCard({ salesperson, dailySales, totalWeek, yoyVariacao, metaProgress, primaryColor, mutedColor }: WeeklyCardProps) {
   const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
   return (
     <Card data-testid={`weekly-card-${salesperson.id}`}>
@@ -92,16 +110,16 @@ const WeeklyCard = memo(function WeeklyCard({ salesperson, dailySales, totalWeek
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[180px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[180px]" style={{ contain: "layout size" }}>
+          <ResponsiveContainer width="100%" height="100%" debounce={300}>
             <BarChart data={dailySales}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="day" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
               <YAxis className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
-              <Bar dataKey="value" name="Atual" fill="hsl(217, 91%, 50%)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-              <Bar dataKey="yoyValue" name="Ano Anterior" fill="hsl(217, 20%, 75%)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="value" name="Atual" fill={primaryColor} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="yoyValue" name="Ano Anterior" fill={mutedColor} radius={[3, 3, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -114,6 +132,7 @@ export default function Semanal() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const isSupervisor = user?.role === "supervisor";
+  const chartColors = useChartColors();
 
   const weekPeriod = getCurrentWeekPeriod();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -197,6 +216,8 @@ export default function Semanal() {
                 totalWeek={totalWeek}
                 yoyVariacao={yoyVariacao}
                 metaProgress={metaProgress}
+                primaryColor={chartColors.primary}
+                mutedColor={chartColors.muted}
               />
             ))}
           </div>

@@ -67,6 +67,7 @@ import {
   Key,
   Bot,
   AlertCircle,
+  Store,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GoalSwitch } from "@/components/goal-switch";
@@ -104,6 +105,7 @@ const NAV_ITEMS = [
   { id: "permissoes", label: "Permissões", icon: ShieldCheck },
   { id: "alertas-compras", label: "Alertas de Compras", icon: Bell },
   { id: "tv", label: "Configuração de TV", icon: Tv },
+  { id: "loja", label: "Visão em Loja", icon: Store },
   { id: "ia", label: "Inteligência Artificial", icon: Sparkles },
 ];
 
@@ -634,6 +636,197 @@ function TVSection() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: Visão em Loja
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface LojaViewConfig {
+  bgColor: string;
+  colorL01: string;
+  colorL03: string;
+  colorMatriz: string;
+  showL01: boolean;
+  showL03: boolean;
+  showMatriz: boolean;
+  showGrid: boolean;
+  showRefLine: boolean;
+  showLabels: boolean;
+  title: string;
+  footerText: string;
+  tickColor: string;
+  showRealNames: boolean;
+}
+
+const LOJA_VIEW_DEFAULTS: LojaViewConfig = {
+  bgColor: "#02040a",
+  colorL01: "#1e5ac8",
+  colorL03: "#ff0042",
+  colorMatriz: "#eaaa00",
+  showL01: true,
+  showL03: true,
+  showMatriz: true,
+  showGrid: true,
+  showRefLine: true,
+  showLabels: true,
+  title: "Performance Comercial",
+  footerText: "Indicadores consolidados automaticamente via integração sistêmica.",
+  tickColor: "#7ba8d4",
+  showRealNames: false,
+};
+
+function LojaSection() {
+  const { toast } = useToast();
+  const [config, setConfig] = useState<LojaViewConfig>(LOJA_VIEW_DEFAULTS);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  const { data: settingData, isLoading } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/visao_loja_config"],
+  });
+
+  useEffect(() => {
+    if (settingData?.value) {
+      try {
+        const parsed = JSON.parse(settingData.value);
+        setConfig({ ...LOJA_VIEW_DEFAULTS, ...parsed });
+      } catch {}
+    }
+  }, [settingData]);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/admin/app-settings", {
+        key: "visao_loja_config",
+        value: JSON.stringify(config),
+      }),
+    onSuccess: () => {
+      toast({ title: "Configurações salvas com sucesso!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/app-settings/visao_loja_config"] });
+      setHasChanges(false);
+    },
+    onError: () => toast({ title: "Erro ao salvar configurações", variant: "destructive" }),
+  });
+
+  const update = <K extends keyof LojaViewConfig>(key: K, value: LojaViewConfig[K]) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+    setHasChanges(true);
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold mb-1">Visão em Loja</h2>
+        <p className="text-sm text-muted-foreground">
+          Personalize o painel de TV exibido na tela da loja.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Cores e Fundo</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-5">
+          {[
+            { key: "bgColor" as const, label: "Fundo da tela" },
+            { key: "colorL01" as const, label: "Barra Loja 01" },
+            { key: "colorL03" as const, label: "Barra Loja 03" },
+            { key: "colorMatriz" as const, label: "Barra Matriz" },
+            { key: "tickColor" as const, label: "Cor dos códigos (eixo)" },
+          ].map(({ key, label }) => (
+            <div key={key} className="space-y-2">
+              <Label className="text-sm">{label}</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={config[key] as string}
+                  onChange={e => update(key, e.target.value)}
+                  className="h-9 w-14 rounded-md border border-input cursor-pointer p-0.5 bg-background"
+                />
+                <span className="text-xs text-muted-foreground font-mono uppercase">{config[key] as string}</span>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Textos</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Título do painel</Label>
+            <Input
+              value={config.title}
+              onChange={e => update("title", e.target.value)}
+              placeholder="Performance Comercial"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Texto do rodapé</Label>
+            <Input
+              value={config.footerText}
+              onChange={e => update("footerText", e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Barras Visíveis</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { key: "showL01" as const, label: "Loja 01" },
+            { key: "showL03" as const, label: "Loja 03" },
+            { key: "showMatriz" as const, label: "Matriz" },
+          ].map(({ key, label }) => (
+            <div key={key} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+              <Label className="text-sm font-normal cursor-pointer">{label}</Label>
+              <Switch checked={config[key] as boolean} onCheckedChange={v => update(key, v)} />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Elementos do Gráfico</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { key: "showGrid" as const, label: "Grade horizontal" },
+            { key: "showRefLine" as const, label: "Linha de meta (100%)" },
+            { key: "showLabels" as const, label: "Rótulos nas barras" },
+            { key: "showRealNames" as const, label: "Nomes reais (em vez de códigos)" },
+          ].map(({ key, label }) => (
+            <div key={key} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+              <Label className="text-sm font-normal cursor-pointer">{label}</Label>
+              <Switch checked={config[key] as boolean} onCheckedChange={v => update(key, v)} />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-between pt-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { setConfig(LOJA_VIEW_DEFAULTS); setHasChanges(true); }}
+        >
+          Restaurar Padrão
+        </Button>
+        <Button
+          onClick={() => saveMutation.mutate()}
+          disabled={!hasChanges || saveMutation.isPending}
+          className="gap-2"
+        >
+          {saveMutation.isPending
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Save className="h-4 w-4" />}
+          Salvar Configurações
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1598,6 +1791,9 @@ export default function Configuracoes() {
             )}
             {activeSection === "tv" && (
               <TVSection />
+            )}
+            {activeSection === "loja" && (
+              <LojaSection />
             )}
             {activeSection === "ia" && (
               <CopilotSection />

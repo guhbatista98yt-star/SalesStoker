@@ -437,6 +437,8 @@ function TopHeader() {
 function AuthenticatedApp() {
   const { user } = useAuth();
   const isLoja = user?.role === "loja";
+  const [location] = useLocation();
+  const isLojaView = location === "/analises/visao-em-loja";
 
   const sidebarStyle = {
     "--sidebar-width": "15rem",
@@ -447,7 +449,7 @@ function AuthenticatedApp() {
     return (
       <SidebarProvider style={sidebarStyle as React.CSSProperties} defaultOpen={false}>
         <div className="flex h-screen w-full overflow-hidden">
-          <AppSidebar />
+          <AppSidebar collapsible="offcanvas" />
           <div className="flex flex-col flex-1 overflow-hidden h-full">
             <main className="flex-1 overflow-hidden h-full relative">
               <Router />
@@ -461,7 +463,7 @@ function AuthenticatedApp() {
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden">
-        <AppSidebar />
+        <AppSidebar collapsible={isLojaView ? "offcanvas" : "icon"} />
         <div className="flex flex-col flex-1 overflow-hidden h-full min-w-0" style={{ contain: 'layout style', willChange: 'contents' }}>
           <TopHeader />
           <main className="flex-1 overflow-hidden h-full relative pb-16 md:pb-0" style={{ contain: 'layout' }}>
