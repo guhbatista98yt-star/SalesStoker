@@ -919,9 +919,6 @@ export default function ContasReceber() {
                     </label>
                   </div>
                 </div>
-                <div className="mt-3 flex justify-end">
-                  <Button size="sm" onClick={handleAplicar}>Aplicar filtros</Button>
-                </div>
               </CardContent>
             </Card>
           )}

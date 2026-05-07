@@ -137,7 +137,7 @@ export default function LandingPage() {
           {/* Nome do produto */}
           <div>
             <p className="text-2xl font-black tracking-tight text-foreground leading-none">
-              CONECTUBOS
+              Stoker Sales
             </p>
             <p className="text-sm text-muted-foreground font-medium mt-1">
               Gestão Comercial e Performance
@@ -230,7 +230,7 @@ export default function LandingPage() {
         <p className="text-xs text-muted-foreground/60 text-center">
           Acesso restrito a usuários autorizados
           <span className="mx-2">·</span>
-          CONECTUBOS © {new Date().getFullYear()}
+          Stoker Sales © {new Date().getFullYear()}
         </p>
         <p className="text-[10px] text-muted-foreground/35 text-center mt-1 tracking-wide">
           Developed by Gustavo Batista

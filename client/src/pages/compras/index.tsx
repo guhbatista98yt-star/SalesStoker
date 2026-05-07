@@ -347,8 +347,6 @@ export default function ComprasDashboard() {
     });
 
   /* Charts */
-  const coberturaData = fornecedores.slice(0, 6).map(f => ({ name: f.nome, cobertura: f.coberturaMedia }));
-
   const criticidadeData = [
     { name: "Crítico",  value: produtos.filter(p => p.criticidade === "critico").length,  fill: "#ef4444" },
     { name: "Alto",     value: produtos.filter(p => p.criticidade === "alto").length,      fill: "#f97316" },
@@ -365,10 +363,6 @@ export default function ComprasDashboard() {
     { name: ">14d",  value: produtos.filter(p => p.coberturaDias > 14).length },
   ];
 
-  const excessoRupturaData = fornecedores.slice(0, 6).map(f => ({
-    name: f.nome,
-    criticos: f.itensCriticos,
-  }));
   const hasComprasError = erroDashboard || erroAlertas || erroFornecedores || erroProdutos || erroSugestoes;
 
   return (
@@ -411,13 +405,8 @@ export default function ComprasDashboard() {
           <KPICard title="Fornecedores Críticos" value={dashboard?.fornecedoresCriticos ?? "—"} icon={Building2} color="bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400" loading={loadingDash} />
           <KPICard title="Produtos Críticos" value={dashboard?.produtosCriticos ?? "—"} icon={Package} color="bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400" loading={loadingDash} />
           <KPICard title="Zerados em 3 dias" value={dashboard?.itensZeradosEm3Dias ?? "—"} icon={AlertTriangle} color="bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400" loading={loadingDash} />
-          <KPICard title="Zerados em 7 dias" value={dashboard?.itensZeradosEm7Dias ?? "—"} icon={Clock} color="bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400" loading={loadingDash} />
-          <KPICard title="Abaixo do Mínimo" value={dashboard?.abaixoEstoqueSeguranca ?? "—"} icon={TrendingDown} color="bg-yellow-100 dark:bg-yellow-950/40 text-yellow-600 dark:text-yellow-400" loading={loadingDash} />
-          <KPICard title="Excesso de Estoque" value={dashboard?.excessoEstoque ?? "—"} icon={TrendingUp} color="bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400" loading={loadingDash} />
           <KPICard title="Valor Est. de Compra" value={dashboard ? `R$ ${(dashboard.valorEstimadoCompra / 1000).toFixed(0)}k` : "—"} icon={DollarSign} color="bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400" loading={loadingDash} />
-          <KPICard title="Pedidos Sugeridos" value={dashboard?.pedidosSugeridos ?? "—"} icon={ShoppingCart} color="bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400" loading={loadingDash} />
-          <KPICard title="Pedidos em Aberto" value={dashboard?.pedidosEmAberto ?? "—"} icon={FileText} color="bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400" loading={loadingDash} />
-          <KPICard title="Fornec. Maior Risco" value={dashboard?.fornecedoresMaiorRisco ?? "—"} icon={AlertTriangle} color="bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400" loading={loadingDash} />
+          <KPICard title="Abaixo do Mínimo" value={dashboard?.abaixoEstoqueSeguranca ?? "—"} icon={TrendingDown} color="bg-yellow-100 dark:bg-yellow-950/40 text-yellow-600 dark:text-yellow-400" loading={loadingDash} />
         </div>
 
         {/* Alertas + Sugestões */}
@@ -481,41 +470,6 @@ export default function ComprasDashboard() {
 
         {/* Charts */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Cobertura por Fornecedor (dias)</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4">
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={coberturaData} margin={{ left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number | string) => [`${v} dias`, "Cobertura"]} />
-                  <Bar dataKey="cobertura" fill="hsl(var(--primary))" radius={[4,4,0,0]} isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Ruptura por Fornecedor</CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4">
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={excessoRupturaData} margin={{ left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip formatter={(v: number | string) => [v, "Críticos/Ruptura"]} />
-                  <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="criticos" name="Críticos/Ruptura" fill="#ef4444" radius={[4,4,0,0]} isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Distribuição por Criticidade</CardTitle>

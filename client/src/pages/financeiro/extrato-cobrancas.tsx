@@ -430,12 +430,6 @@ export default function ExtratoCobracas() {
               Relatório 150020 — Informe os parâmetros e clique em Gerar Extrato
             </p>
           </div>
-          {hasResults && (
-            <Button onClick={handleImprimir} size="sm">
-              <Printer className="h-3.5 w-3.5 mr-1.5" />
-              Imprimir novamente
-            </Button>
-          )}
         </div>
 
         {/* Scrollable body */}

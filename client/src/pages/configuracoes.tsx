@@ -1200,9 +1200,11 @@ function PermissoesSection() {
   const [localPerms, setLocalPerms] = useState<Record<number, Record<string, boolean>>>({});
 
   const { data: settingMovimt } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showMovimentacoesButton"], staleTime: 0 });
+  const { data: settingSupervisorBell } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/supervisorPurchaseNotifications"], staleTime: 0 });
 
   const TAB_FLAGS = [
     { key: "showMovimentacoesButton", label: "Movimentações visíveis ao Supervisor", description: "Permite que o supervisor visualize as movimentações de vendas de cada vendedor.", defaultVisible: true, setting: settingMovimt },
+    { key: "supervisorPurchaseNotifications", label: "Notificações de Compras para Supervisor", description: "Exibe o sino de alertas de compras no topo da tela para usuários com perfil Supervisor.", defaultVisible: false, setting: settingSupervisorBell },
   ] as const;
 
   function isTabVisible(flag: typeof TAB_FLAGS[number]): boolean {

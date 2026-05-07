@@ -1,4 +1,4 @@
-# Sales Analytics Dashboard
+# Stoker Sales Dashboard
 
 A multi-tenant executive sales dashboard providing real-time sales analytics, KPI tracking, salesperson rankings, product mix analysis, and goals tracking for Sales Supervisors and Management/Directors.
 

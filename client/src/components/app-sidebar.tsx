@@ -129,7 +129,7 @@ export function AppSidebar() {
           </div>
           <div className="min-w-0 sidebar-logo-text">
             <p className="font-bold text-sm tracking-tight leading-none text-sidebar-foreground">
-              CONECTUBOS
+              Stoker Sales
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">
               {isVendedor ? "Minhas Campanhas" : "Dashboard Executivo"}

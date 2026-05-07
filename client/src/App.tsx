@@ -1,7 +1,7 @@
 import { Switch, Route, Redirect, useLocation, Link } from "wouter";
 import { useState, useEffect, useCallback, Suspense, lazy } from "react";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
@@ -336,6 +336,11 @@ function CommandPalette() {
 function TopHeader() {
   const { user, logout } = useAuth();
   const role = user?.role ?? "";
+  const { data: supervisorBellSetting } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/supervisorPurchaseNotifications"],
+    staleTime: 60_000,
+  });
+  const supervisorBellEnabled = supervisorBellSetting?.value === "true";
 
   const initials = user?.firstName && user?.lastName
     ? `${user.firstName[0]}${user.lastName[0]}`
@@ -357,17 +362,15 @@ function TopHeader() {
         className="h-8 w-8 rounded-lg hover:bg-muted transition-colors shrink-0"
       />
 
-      {/* Center: command palette */}
-      <div className="flex-1 flex">
-        <CommandPalette />
-      </div>
+      {/* Spacer */}
+      <div className="flex-1" />
 
       {/* Right: actions */}
       <div className="flex items-center gap-1">
         <ThemeToggle />
 
-        {/* Purchase Notifications — somente admin e comprador */}
-        {(role === "admin" || role === "supervisor" || role === "comprador") && (
+        {/* Purchase Notifications */}
+        {(role === "admin" || role === "comprador" || (role === "supervisor" && supervisorBellEnabled)) && (
           <PurchaseNotificationCenter />
         )}
 
