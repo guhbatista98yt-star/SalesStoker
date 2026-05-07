@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemeCustomizer } from "@/components/theme-customizer";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -470,6 +471,7 @@ function AuthenticatedApp() {
         </div>
       </div>
       <MobileBottomNav />
+      <ThemeCustomizer />
     </SidebarProvider>
   );
 }

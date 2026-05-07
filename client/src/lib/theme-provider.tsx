@@ -1,19 +1,25 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
+type LogoTheme = "original" | "blue-tech" | "green-stock" | "orange-ops" | "black-gold";
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+  logoTheme: LogoTheme;
+  setLogoTheme: (t: LogoTheme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem("theme") as Theme;
-    return stored || "light";
+  const [theme, setThemeState] = useState<Theme>(() => {
+    return (localStorage.getItem("theme") as Theme) || "light";
+  });
+
+  const [logoTheme, setLogoThemeState] = useState<LogoTheme>(() => {
+    return (localStorage.getItem("wms:logo-theme") as LogoTheme) || "original";
   });
 
   useEffect(() => {
@@ -23,12 +29,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-  };
+  useEffect(() => {
+    document.documentElement.setAttribute("data-logo-theme", logoTheme);
+    localStorage.setItem("wms:logo-theme", logoTheme);
+  }, [logoTheme]);
+
+  const setTheme = (t: Theme) => setThemeState(t);
+  const toggleTheme = () => setThemeState(prev => prev === "light" ? "dark" : "light");
+  const setLogoTheme = (t: LogoTheme) => setLogoThemeState(t);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, logoTheme, setLogoTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -36,8 +47,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error("useTheme must be used within ThemeProvider");
-  }
+  if (!context) throw new Error("useTheme must be used within ThemeProvider");
   return context;
 }
