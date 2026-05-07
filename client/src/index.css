@@ -728,12 +728,17 @@ html.dark[data-logo-theme="black-gold"] {
   [data-slot="sidebar"][data-collapsible="icon"] [data-sidebar="footer"] [data-sidebar="menu-item"] {
     width: 2.5rem;
   }
-  /* Offcanvas: slide sidebar fully off-screen */
+  /* Offcanvas: slide sidebar fully off-screen (side-aware) */
   [data-slot="sidebar"][data-collapsible="offcanvas"] [data-slot="sidebar-gap"] {
     width: 0 !important;
   }
-  [data-slot="sidebar"][data-collapsible="offcanvas"] [data-slot="sidebar-container"] {
+  [data-slot="sidebar"][data-collapsible="offcanvas"][data-side="left"] [data-slot="sidebar-container"] {
     left: calc(var(--sidebar-width, 15rem) * -1) !important;
+    right: auto !important;
+  }
+  [data-slot="sidebar"][data-collapsible="offcanvas"][data-side="right"] [data-slot="sidebar-container"] {
+    right: calc(var(--sidebar-width, 15rem) * -1) !important;
+    left: auto !important;
   }
 }
 

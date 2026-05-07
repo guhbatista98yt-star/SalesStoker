@@ -123,7 +123,7 @@ export function AppSidebar({ collapsible = "icon", side = "left" }: { collapsibl
   const showFinanceiro = FINANCEIRO_ROLES.includes(role) && isModuleEnabled("Financeiro");
 
   return (
-    <Sidebar collapsible={collapsible} side={side} className="border-r border-sidebar-border bg-sidebar">
+    <Sidebar collapsible={collapsible} side={side} className="bg-sidebar">
       <SidebarHeader className="px-3 py-3 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm shadow-primary/25 shrink-0">

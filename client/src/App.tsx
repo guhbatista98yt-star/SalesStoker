@@ -336,7 +336,7 @@ function CommandPalette() {
 }
 
 /* ── Top Header ───────────────────────────────────────────────────────────────── */
-function TopHeader() {
+function TopHeader({ sidebarSide = "left" }: { sidebarSide?: "left" | "right" }) {
   const { user, logout } = useAuth();
   const role = user?.role ?? "";
   const { data: supervisorBellSetting } = useQuery<{ key: string; value: string | null }>({
@@ -353,17 +353,21 @@ function TopHeader() {
     ? `${user.firstName}${user.lastName ? " " + user.lastName[0] + "." : ""}`
     : user?.email || "Usuário";
 
+  const trigger = (
+    <SidebarTrigger
+      data-testid="button-sidebar-toggle"
+      className="h-8 w-8 rounded-lg hover:bg-muted transition-colors shrink-0"
+    />
+  );
+
   return (
     <header className={cn(
       "flex h-[70px] items-center gap-3 px-3 sm:px-5 shrink-0",
       "border-b border-border",
       "bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
     )}>
-      {/* Left: sidebar trigger */}
-      <SidebarTrigger
-        data-testid="button-sidebar-toggle"
-        className="h-8 w-8 rounded-lg hover:bg-muted transition-colors shrink-0"
-      />
+      {/* Sidebar trigger — left side when sidebar is on the left */}
+      {sidebarSide === "left" && trigger}
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -431,6 +435,9 @@ function TopHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Sidebar trigger — right side when sidebar is on the right */}
+      {sidebarSide === "right" && trigger}
     </header>
   );
 }
@@ -475,18 +482,27 @@ function AuthenticatedApp() {
     );
   }
 
+  const sidebar = (
+    <AppSidebar collapsible={isLojaView ? "offcanvas" : "icon"} side={sidebarSide} />
+  );
+
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden">
-        <AppSidebar collapsible={isLojaView ? "offcanvas" : "icon"} side={sidebarSide} />
+        {/* Sidebar on the left: comes first in DOM so the gap pushes content right */}
+        {sidebarSide === "left" && sidebar}
+
         <div className="flex flex-col flex-1 overflow-hidden h-full min-w-0" style={{ contain: 'layout style', willChange: 'contents' }}>
-          <TopHeader />
+          <TopHeader sidebarSide={sidebarSide} />
           <main className="flex-1 overflow-hidden h-full relative pb-16 md:pb-0" style={{ contain: 'layout' }}>
             <div className="h-full animate-page-enter">
               <Router />
             </div>
           </main>
         </div>
+
+        {/* Sidebar on the right: comes after content in DOM so the gap pushes content left */}
+        {sidebarSide === "right" && sidebar}
       </div>
       <MobileBottomNav />
       <ThemeCustomizer />
