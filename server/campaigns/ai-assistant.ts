@@ -885,4 +885,146 @@ router.post("/chat", isAuthenticated, async (req: AuthRequest, res) => {
   }
 });
 
+// ─── Copilot chat — Assistente de sistema Stoker Sales ────────────────────────
+
+router.post("/copilot", isAuthenticated, async (req: AuthRequest, res) => {
+  try {
+    const cfg = await loadAIConfig();
+    if (!cfg.apiKey) return res.status(400).json({ error: "Nenhuma chave API configurada. Configure em Configurações → Inteligência Artificial." });
+
+    const { messages = [], context = {} } = req.body;
+    if (!Array.isArray(messages)) return res.status(400).json({ error: "messages deve ser um array" });
+
+    // Build system context from DB
+    const [salespersons, groups, goalConfigs] = await Promise.all([
+      pgAll<{ id: string; name: string }>(`SELECT DISTINCT vendedor_id AS id, vendedor_nome AS name FROM cache_vendas ORDER BY vendedor_nome`).catch(() => []),
+      pgAll<{ id: string; name: string; members: any }>(`SELECT id, name, members FROM vendor_groups ORDER BY name`).catch(() => []),
+      pgAll<{ salesperson_id: string; weekly_mode: string; monthly_mode: string; goals: any }>(`SELECT salesperson_id, weekly_mode, monthly_mode, goals FROM salesperson_goals`).catch(() => []),
+    ]);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const userRole = req.userRole || "admin";
+    const userName = req.userEmail || "usuário";
+
+    const systemPrompt = `Você é o **Copiloto Stoker Sales** — um assistente especialista neste sistema de gestão comercial para distribuidoras de tubos e conexões.
+
+## SOBRE O SISTEMA STOKER SALES
+
+O Stoker Sales é um dashboard executivo multi-empresa para gestão comercial. Ele tem os seguintes módulos:
+
+### Dashboard Principal
+- KPIs: Vendas Semanais, Vendas Mensais, Total em Aberto (contas a receber)
+- Ranking de vendedores por volume
+- Mix de produtos (categorias)
+- Filtros por empresa e período
+
+### Vendedores
+- Lista com performance individual
+- Filtros por período e empresa
+- Dados sincronizados do ERP (DB2) via script Python (erp_sync.py)
+
+### Metas de Venda
+- Configuráveis por vendedor, por período (semanal/mensal) e por empresa
+- Modo "unificado" (meta única) ou "split" (L01=Varejo / L03=Atacado separados)
+- Endpoint: POST /api/goals-config com { salespersonId, type, mode, values, month, year }
+
+### Campanhas de Incentivo
+- CRUD completo de campanhas comerciais com regras complexas
+- Tipos: atingimento, comissão, ranking_volume, ranking_crescimento, faixa
+- Apuração automática de resultados
+- Gerador de campanhas com IA (painel lateral no formulário)
+
+### Equipes (Grupos de Vendedores)
+- Grupos criados para segmentar campanhas
+- Endpoint: POST /api/admin/vendor-groups { id, name, members: string[] }
+
+### Alertas de Compras (Copiloto de Compras)
+- Análise de estoque e sugestão de compras por fornecedor/produto
+- Notificações em tempo real via SSE
+
+### Financeiro — Contas a Receber
+- Dados sincronizados do ERP (cache_contas_receber)
+- KPIs: total em aberto, vencido, a vencer
+- Filtros por cliente, vendedor, data, forma de recebimento
+
+### Financeiro — Extrato de Cobranças
+- Relatório ERP imprimível (A4 landscape)
+- Mesmos filtros do Contas a Receber
+
+### Configurações (apenas Admin)
+- Equipes, Metas, Permissões de módulo, Alertas, Display de TV, IA
+
+### Usuários & Permissões
+- RBAC por módulo: admin, supervisor, gerente, diretor, financeiro, comprador, loja, vendedor
+
+---
+
+## CONTEXTO ATUAL DO SISTEMA
+
+Data de hoje: ${today}
+Usuário logado: ${userName} (${userRole})
+
+### Vendedores cadastrados (${salespersons.length} total):
+${salespersons.slice(0, 50).map(s => `- ID: "${s.id}" → ${s.name}`).join("\n")}${salespersons.length > 50 ? `\n... e mais ${salespersons.length - 50} vendedores` : ""}
+
+### Equipes configuradas (${groups.length} grupos):
+${groups.length > 0 ? groups.map(g => {
+  let memberIds: string[] = [];
+  try { memberIds = typeof g.members === "string" ? JSON.parse(g.members) : (g.members || []); } catch {}
+  return `- "${g.name}" (ID: ${g.id}) — ${memberIds.length} membros`;
+}).join("\n") : "Nenhuma equipe configurada."}
+
+---
+
+## CAPACIDADES DO COPILOTO
+
+Você pode:
+1. **Responder perguntas** sobre qualquer módulo do sistema
+2. **Guiar configurações** passo a passo (metas, equipes, campanhas, permissões)
+3. **Analisar dados** quando o usuário compartilhar informações
+4. **Criar campanhas** — gere o JSON de campanha quando solicitado (mesmo formato do gerador de campanhas)
+5. **Sugerir melhorias** de configuração baseadas em boas práticas
+
+## REGRAS
+
+- Responda sempre em **português brasileiro**
+- Seja direto e prático — o usuário é gestor comercial, não técnico
+- Para ações que o usuário precisa fazer manualmente, indique o caminho exato: "Configurações → Metas → ..."
+- Quando sugerir uma configuração, confirme o que será feito antes
+- Se o usuário pedir para criar uma campanha, use o mesmo formato JSON do gerador de campanhas com os marcadores <<<CAMPAIGN_JSON>>> e <<<END_CAMPAIGN_JSON>>>
+- NUNCA invente dados que não estão no contexto acima
+
+${context.extra ? `## CONTEXTO ADICIONAL\n${context.extra}` : ""}`;
+
+    let text = "";
+    if (cfg.provider === "openai") {
+      text = await callOpenAI(cfg.apiKey, cfg.model, messages, systemPrompt);
+    } else if (cfg.provider === "claude") {
+      text = await callClaude(cfg.apiKey, cfg.model, messages, systemPrompt);
+    } else if (cfg.provider === "groq") {
+      text = await callGroq(cfg.apiKey, cfg.model, messages, systemPrompt);
+    } else if (cfg.provider === "mistral") {
+      text = await callMistral(cfg.apiKey, cfg.model, messages, systemPrompt);
+    } else {
+      text = await callGemini(cfg.apiKey, cfg.model, messages, systemPrompt);
+    }
+
+    // Extract campaign JSON if present (copilot can also create campaigns)
+    const jsonMatch = text.match(/<<<CAMPAIGN_JSON>>>([\s\S]*?)<<<END_CAMPAIGN_JSON>>>/);
+    let campaignDraft = null;
+    let message = text;
+    if (jsonMatch) {
+      try {
+        campaignDraft = JSON.parse(jsonMatch[1].trim());
+        message = text.replace(/<<<CAMPAIGN_JSON>>>[\s\S]*?<<<END_CAMPAIGN_JSON>>>/, "").trim();
+      } catch {}
+    }
+
+    res.json({ message, campaignDraft });
+  } catch (err: any) {
+    console.error("[Copilot] Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

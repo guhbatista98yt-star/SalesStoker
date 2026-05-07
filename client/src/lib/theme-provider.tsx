@@ -9,6 +9,9 @@ interface ThemeContextType {
   toggleTheme: () => void;
   logoTheme: LogoTheme;
   setLogoTheme: (t: LogoTheme) => void;
+  customizerOpen: boolean;
+  openCustomizer: () => void;
+  closeCustomizer: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -21,6 +24,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [logoTheme, setLogoThemeState] = useState<LogoTheme>(() => {
     return (localStorage.getItem("wms:logo-theme") as LogoTheme) || "original";
   });
+
+  const [customizerOpen, setCustomizerOpen] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -37,9 +42,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = (t: Theme) => setThemeState(t);
   const toggleTheme = () => setThemeState(prev => prev === "light" ? "dark" : "light");
   const setLogoTheme = (t: LogoTheme) => setLogoThemeState(t);
+  const openCustomizer = () => setCustomizerOpen(true);
+  const closeCustomizer = () => setCustomizerOpen(false);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, logoTheme, setLogoTheme }}>
+    <ThemeContext.Provider value={{
+      theme, setTheme, toggleTheme,
+      logoTheme, setLogoTheme,
+      customizerOpen, openCustomizer, closeCustomizer,
+    }}>
       {children}
     </ThemeContext.Provider>
   );
