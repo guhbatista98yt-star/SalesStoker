@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp, TrendingDown, Minus, List, Loader2, AlertCircle,
-  CircleDollarSign, AlertTriangle,
+  CircleDollarSign, AlertTriangle, ChevronRight,
 } from "lucide-react";
 import { formatCurrency, formatPercentage } from "@/lib/calendar-utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -266,6 +266,8 @@ function FinancialSheet({
   open: boolean;
   onClose: () => void;
 }) {
+  const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
+
   const { data, isLoading, error } = useQuery<{
     resumo: FinancialSummary | null;
     clientes: ClienteVencido[];
@@ -282,8 +284,21 @@ function FinancialSheet({
     enabled: open,
   });
 
-  const resumo = data?.resumo;
-  const titulos = data?.top_titulos ?? [];
+  const resumo   = data?.resumo;
+  const clientes = data?.clientes ?? [];
+  const titulos  = data?.top_titulos ?? [];
+
+  // Group titles by client id for quick lookup
+  const titulosByCliente = titulos.reduce<Record<number, TituloVencido[]>>((acc, t) => {
+    const key = t.idclifor;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(t);
+    return acc;
+  }, {});
+
+  function toggleCliente(id: number) {
+    setExpandedClientId(prev => (prev === id ? null : id));
+  }
 
   return (
     <Sheet open={open} onOpenChange={v => !v && onClose()}>
@@ -332,8 +347,114 @@ function FinancialSheet({
                   </div>
                 </div>
 
-                {/* ── Título-by-título table ─────────────────────────── */}
-                {titulos.length > 0 ? (
+                {/* ── Accordion por cliente ──────────────────────────── */}
+                {clientes.length > 0 ? (
+                  <div>
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">
+                      Clientes com Pendências
+                    </p>
+                    <div className="rounded-lg border overflow-hidden divide-y divide-border">
+                      {clientes.map(c => {
+                        const isExpanded = expandedClientId === c.idclifor;
+                        const clienteTitulos = titulosByCliente[c.idclifor] ?? [];
+                        const maiorAtraso = Number(c.maior_atraso);
+
+                        return (
+                          <div key={c.idclifor}>
+                            {/* ── Linha do cliente (clicável) ── */}
+                            <button
+                              className={cn(
+                                "w-full flex items-center gap-3 px-3 py-3 text-left transition-colors",
+                                isExpanded
+                                  ? "bg-muted/60"
+                                  : "hover:bg-muted/30"
+                              )}
+                              onClick={() => toggleCliente(c.idclifor)}
+                            >
+                              <ChevronRight
+                                className={cn(
+                                  "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
+                                  isExpanded && "rotate-90"
+                                )}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold truncate leading-snug">{c.nomecliente}</p>
+                                {(c.cidade_cobranca || c.uf_cobranca) && (
+                                  <p className="text-[10px] text-muted-foreground leading-tight">
+                                    {[c.cidade_cobranca, c.uf_cobranca].filter(Boolean).join(" — ")}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 h-4 font-normal"
+                                >
+                                  {c.qtd_titulos} tít.
+                                </Badge>
+                                <span className={cn(
+                                  "text-xs font-bold tabular-nums",
+                                  diasAtrasoColor(maiorAtraso)
+                                )}>
+                                  {maiorAtraso}d
+                                </span>
+                                <span className="text-xs font-semibold text-red-600 dark:text-red-400 tabular-nums whitespace-nowrap">
+                                  {formatCurrency(Number(c.total_vencido))}
+                                </span>
+                              </div>
+                            </button>
+
+                            {/* ── Sub-lista de títulos (expansível) ── */}
+                            {isExpanded && (
+                              <div className="border-t border-border bg-muted/20">
+                                {clienteTitulos.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground px-4 py-3">
+                                    Detalhes não disponíveis.
+                                  </p>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-xs border-collapse">
+                                      <thead>
+                                        <tr className="border-b border-border bg-muted/40">
+                                          <th className="text-left px-4 py-1.5 font-semibold text-muted-foreground">Título</th>
+                                          <th className="text-center px-2 py-1.5 font-semibold text-muted-foreground whitespace-nowrap">Vencimento</th>
+                                          <th className="text-center px-2 py-1.5 font-semibold text-muted-foreground whitespace-nowrap">Atraso</th>
+                                          <th className="text-right px-4 py-1.5 font-semibold text-muted-foreground whitespace-nowrap">Valor</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {clienteTitulos.map((t, i) => (
+                                          <tr
+                                            key={`${t.idtitulo}-${i}`}
+                                            className="border-b last:border-0 border-border/60 hover:bg-muted/30 transition-colors"
+                                          >
+                                            <td className="px-4 py-2 font-mono text-muted-foreground">
+                                              {t.idtitulo}{t.digitotitulo ? `-${t.digitotitulo}` : ""}
+                                            </td>
+                                            <td className="px-2 py-2 text-center tabular-nums whitespace-nowrap">
+                                              {formatDate(t.dtvencimento)}
+                                            </td>
+                                            <td className={cn("px-2 py-2 text-center tabular-nums whitespace-nowrap", diasAtrasoColor(Number(t.dias_atraso)))}>
+                                              {Number(t.dias_atraso)}d
+                                            </td>
+                                            <td className="px-4 py-2 text-right font-semibold tabular-nums whitespace-nowrap text-red-600 dark:text-red-400">
+                                              {formatCurrency(Number(t.valor_aberto))}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : titulos.length > 0 ? (
+                  /* Fallback: se não tem clientes agrupados mas tem títulos, mostra plano */
                   <div>
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">
                       Títulos em Atraso
@@ -358,9 +479,7 @@ function FinancialSheet({
                                     Tít. {t.idtitulo}{t.digitotitulo ? `-${t.digitotitulo}` : ""}
                                   </span>
                                 </td>
-                                <td className="px-2 py-2 text-center tabular-nums whitespace-nowrap">
-                                  {formatDate(t.dtvencimento)}
-                                </td>
+                                <td className="px-2 py-2 text-center tabular-nums whitespace-nowrap">{formatDate(t.dtvencimento)}</td>
                                 <td className={cn("px-2 py-2 text-center tabular-nums whitespace-nowrap", diasAtrasoColor(Number(t.dias_atraso)))}>
                                   {Number(t.dias_atraso)}d
                                 </td>
