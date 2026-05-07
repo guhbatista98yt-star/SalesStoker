@@ -53,9 +53,34 @@ DB2_PWD = os.environ.get("DB2_PWD", "")
 DB2_HOST = os.environ.get("DB2_HOST", "")
 PG_DSN  = os.environ["DATABASE_URL"]
 
-ANOS_HISTORICO = 2          # quantos anos de histórico carregar
-BATCH_SIZE     = 2_000      # linhas por fetchmany
-LOCK_TTL_SEC   = 7_200      # 2 horas — carga histórica pode demorar
+BATCH_SIZE   = 2_000    # linhas por fetchmany
+LOCK_TTL_SEC = 7_200    # 2 horas — carga histórica pode demorar
+
+# ─── Configuração de período por rotina ────────────────────────────────────────
+#
+# Vendas: 2 anos — o dashboard de analytics não precisa de mais.
+#   Após o bootstrap, o sync incremental mantém apenas os últimos 730 dias.
+#
+# Campanhas / Tubos (módulo Compras): histórico completo.
+#   O Copiloto de Compras precisa de toda a curva histórica para calcular
+#   sazonalidade, médias móveis e sugestões de reposição corretas.
+#   10 anos cobre o período de vida útil do ERP na maioria dos cenários.
+#   Esses dados NUNCA são purgados pelo sync incremental.
+#
+ROTINAS_CONFIG: dict[str, dict] = {
+    "vendas": {
+        "anos": 2,
+        "descricao": "Vendas — 2 anos (dashboard analítico)",
+    },
+    "campanhas": {
+        "anos": 10,
+        "descricao": "Campanhas — histórico completo (vida toda do ERP)",
+    },
+    "tubos": {
+        "anos": 10,
+        "descricao": "Tubos/Conexões — histórico completo (vida toda do ERP)",
+    },
+}
 
 logging.basicConfig(
     level=logging.INFO,
@@ -448,11 +473,14 @@ ROTINAS_FN = {
 # ─── Runner por rotina ────────────────────────────────────────────────────────
 
 def run_bootstrap_rotina(rotina: str, force: bool = False) -> None:
-    log.info(f"=== Bootstrap histórico: {rotina} ===")
+    config   = ROTINAS_CONFIG[rotina]
+    anos     = config["anos"]
+    descricao = config["descricao"]
+    log.info(f"=== Bootstrap histórico: {rotina} — {descricao} ===")
 
     hoje      = date.today()
     data_fim  = hoje
-    data_ini  = (hoje - timedelta(days=ANOS_HISTORICO * 365)).replace(day=1)
+    data_ini  = (hoje - timedelta(days=anos * 365)).replace(day=1)
 
     with pg_connection() as pg:
         ensure_schema(pg)
@@ -558,14 +586,23 @@ def show_status() -> None:
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="CONECTUBOS — Bootstrap Histórico 2 anos")
+    parser = argparse.ArgumentParser(
+        description=(
+            "CONECTUBOS — Bootstrap Histórico\n"
+            "  vendas:    2 anos (dashboard analítico)\n"
+            "  campanhas: 10 anos — histórico completo (Compras)\n"
+            "  tubos:     10 anos — histórico completo (Compras)\n"
+            "\nExecuta somente uma vez por rotina (idempotente). Use --force para reprocessar."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--force",  action="store_true", help="Reprocessa mesmo se já concluído")
     parser.add_argument("--status", action="store_true", help="Exibe estado sem executar")
     parser.add_argument(
         "--rotina",
-        choices=list(ROTINAS_FN.keys()),
+        choices=list(ROTINAS_CONFIG.keys()),
         default=None,
-        help="Executa somente uma rotina",
+        help="Executa somente uma rotina (padrão: todas)",
     )
     args = parser.parse_args()
 
@@ -573,7 +610,7 @@ def main() -> None:
         show_status()
         return
 
-    rotinas = [args.rotina] if args.rotina else list(ROTINAS_FN.keys())
+    rotinas = [args.rotina] if args.rotina else list(ROTINAS_CONFIG.keys())
 
     for r in rotinas:
         run_bootstrap_rotina(r, force=args.force)

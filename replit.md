@@ -54,7 +54,8 @@ drizzle-kit push:pg
 - `/shared`: Shared types and models
   - `/shared/schema.ts`: Business data TypeScript types
 - `/sync`: Python ERP synchronization scripts
-  - `/sync/erp_sync.py`: **Main DB2 to PostgreSQL sync script**
+  - `/sync/erp_sync.py`: **Main DB2 to PostgreSQL sync script** (incremental, runs on schedule)
+  - `/sync/bootstrap_historico.py`: **Carga histórica inicial** (run ONCE per routine, idempotent)
   - `/sync/erp_queries.py`: DB2 query definitions
 - `/docs`: Documentation and requirements
   - `/docs/API_INTEGRATION.md`: API integration details
@@ -87,10 +88,41 @@ drizzle-kit push:pg
 
 - **Communication style**: Simple, everyday language.
 
+## Sync Strategy (ERP → PostgreSQL)
+
+### Bootstrap histórico — run ONCE per environment, never on system start
+```bash
+python sync/bootstrap_historico.py             # all routines
+python sync/bootstrap_historico.py --rotina vendas    # vendas only
+python sync/bootstrap_historico.py --status           # show progress
+python sync/bootstrap_historico.py --force            # re-run if needed
+```
+| Rotina    | Período       | Tabela                  | Purge incremental |
+|-----------|--------------|-------------------------|-------------------|
+| vendas    | 2 anos       | `cache_vendas`          | Sim — 730 dias    |
+| campanhas | 10 anos (full)| `cache_campanhas`      | **Não** — vida toda |
+| tubos     | 10 anos (full)| `cache_tubos_conexoes` | **Não** — vida toda |
+
+### Sync incremental — run on schedule (cron/task scheduler)
+```bash
+python sync/erp_sync.py vendas         # every 30–60 min during business hours
+python sync/erp_sync.py campanhas      # every 30–60 min during business hours
+python sync/erp_sync.py tubos          # daily or as needed
+python sync/erp_sync.py pendentes      # every 15 min
+python sync/erp_sync.py contas_receber # every 30–60 min (full snapshot)
+python sync/erp_sync.py estoque_sugestao # every 30 min or on-demand
+```
+
+### Módulos e estratégia de dados
+- **Vendas (dashboard)**: Bootstrap 2 anos → incremental. Purge mantém apenas últimos 730 dias.
+- **Compras (campanhas + tubos)**: Bootstrap 10 anos (vida toda) → incremental sem purge. Histórico completo nunca é apagado.
+- **Financeiro (contas_receber)**: TRUNCATE + INSERT de todos os títulos abertos a cada sync. O ERP view já filtra apenas saldos em aberto.
+- **Estoque/Sugestão**: TRUNCATE + INSERT snapshot do estado atual do ERP.
+
 ## Gotchas
 
-- **DB2 Sync**: Always run `erp_sync.py` to populate `cache_campanhas` before using the "Sincronizar ERP" button for purchase configurations.
-- **Windows Setup**: For purchase configuration, ensure `erp_sync.py all` (or `erp_sync.py campanhas`) runs before clicking "Sincronizar ERP" to populate `cache_campanhas`.
+- **Bootstrap primeiro**: Sempre rode `bootstrap_historico.py` antes de ativar o sync incremental em um ambiente novo.
+- **DB2 Sync**: Always run `erp_sync.py campanhas` to populate `cache_campanhas` before using the "Sincronizar ERP" button for purchase configurations.
 - **Monetary Values**: Monetary values from DB2 are divided by 1,000,000 for correct display in Brazilian Real (R$).
 
 ## Pointers

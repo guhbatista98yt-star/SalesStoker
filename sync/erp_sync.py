@@ -514,8 +514,9 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             )
             total_written = len(all_rows)
 
-        cutoff = date.today() - timedelta(days=MAX_CACHE_DAYS)
-        pgcur.execute('DELETE FROM cache_campanhas WHERE "DTMOVIMENTO" < %s', (cutoff,))
+        # NOTE: campanhas (Compras) retém histórico completo — sem purge por data.
+        # O bootstrap_historico.py carrega 10 anos de uma vez (somente na primeira
+        # execução). O sync incremental atualiza apenas a janela recente.
 
     pg.commit()
     _update_watermark(pg, routine, date_to, total_read, total_written)
@@ -579,11 +580,9 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             )
             total_written = len(all_rows)
 
-        cutoff = date.today() - timedelta(days=MAX_CACHE_DAYS)
-        pgcur.execute(
-            'DELETE FROM cache_tubos_conexoes WHERE "DT_MOVIMENTO" < %s',
-            (cutoff,),
-        )
+        # NOTE: tubos_conexoes (Compras) retém histórico completo — sem purge por data.
+        # O bootstrap_historico.py carrega 10 anos de uma vez (somente na primeira
+        # execução). O sync incremental atualiza apenas a janela recente.
 
     pg.commit()
     _update_watermark(pg, routine, date_to, total_read, total_written)
