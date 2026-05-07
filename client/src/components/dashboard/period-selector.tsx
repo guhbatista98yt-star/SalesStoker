@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { ptBR } from "date-fns/locale";
 import {
   formatDateBR,
-  getClosedMonthPeriod,
   getCurrentWeekPeriod,
   getCurrentMonthPeriod,
 } from "@/lib/calendar-utils";
@@ -26,7 +25,7 @@ interface PeriodSelectorProps {
   inline?: boolean;
 }
 
-type PresetKey = "semana" | "mes" | "fechado" | "custom";
+type PresetKey = "semana" | "mes" | "custom";
 
 // ── Shared compact calendar classNames ─────────────────────────────────────
 const CALENDAR_CLASSNAMES = {
@@ -59,13 +58,10 @@ export function PeriodSelector({
     to: value.endDate ? new Date(value.endDate + "T00:00:00") : undefined,
   }));
 
-  const today = new Date();
   const currentWeek = getCurrentWeekPeriod();
   const monthPeriod = getCurrentMonthPeriod();
-  const closedMonth = getClosedMonthPeriod(today.getFullYear(), today.getMonth() + 1);
 
   const activePreset: PresetKey =
-    value.mode?.type === "fechado_semanas" ? "fechado" :
     value.startDate === currentWeek.startDate && value.endDate === currentWeek.endDate ? "semana" :
     value.startDate === monthPeriod.startDate && value.endDate === monthPeriod.endDate ? "mes" :
     "custom";
@@ -97,21 +93,11 @@ export function PeriodSelector({
         setOpen(false);
       },
     },
-    {
-      key: "fechado" as const,
-      label: "Semanas Fechadas",
-      sub: `${formatDateBR(closedMonth.periodStart)} – ${formatDateBR(closedMonth.periodEnd)}`,
-      onSelect: () => {
-        onChange({ startDate: closedMonth.periodStart, endDate: closedMonth.periodEnd, mode: { type: "fechado_semanas" } });
-        setOpen(false);
-      },
-    },
   ] as const;
 
   const triggerLabel = (() => {
     if (activePreset === "semana") return `Semana · ${formatDateBR(value.startDate).slice(0, 5)}–${formatDateBR(value.endDate).slice(0, 5)}`;
     if (activePreset === "mes") return `Mês · ${monthPeriod.label}`;
-    if (activePreset === "fechado") return `Fechado · ${formatDateBR(value.startDate).slice(0, 5)}–${formatDateBR(value.endDate).slice(0, 5)}`;
     return `${formatDateBR(value.startDate).slice(0, 5)}–${formatDateBR(value.endDate).slice(0, 5)}`;
   })();
 

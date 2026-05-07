@@ -45,7 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getClosedMonthPeriod, getCurrentWeekPeriod, getCurrentMonthPeriod, formatDateBR } from "@/lib/calendar-utils";
+import { getCurrentWeekPeriod, getCurrentMonthPeriod, formatDateBR } from "@/lib/calendar-utils";
 import type { DatePeriod, RankingCriteria, Company, KPISummary, SalespersonRanking, ProductMix, AlertNotification, GoalWithProgress, SalesEvolutionData, SalespersonAFaturar } from "@shared/schema";
 
 function DragHandle({ id, attributes, listeners }: { id: string; attributes: any; listeners: any }) {
@@ -91,7 +91,7 @@ function SortableItem({ id, children, className }: { id: string; children: (drag
   );
 }
 
-type DashboardPeriodMode = "semana" | "mes" | "fechado" | "custom";
+type DashboardPeriodMode = "semana" | "mes" | "custom";
 
 interface DashboardSavedFilters {
   companyId?: string;
@@ -140,7 +140,7 @@ function normalizeRankingCriteria(value: unknown): RankingCriteria {
 }
 
 function normalizePeriodMode(value: unknown): DashboardPeriodMode {
-  return value === "semana" || value === "mes" || value === "fechado" || value === "custom" ? value : "semana";
+  return value === "semana" || value === "mes" || value === "custom" ? value : "semana";
 }
 
 import { useAuth } from "@/lib/auth-context";
@@ -161,11 +161,8 @@ export default function Dashboard() {
   // Single DatePeriod state — replaces periodMode/customStart/customEnd
   const [period, setPeriod] = useState<DatePeriod>(() => {
     const mode = normalizePeriodMode(savedFilters.periodMode);
-    const todayD = new Date();
     const cw = getCurrentWeekPeriod();
     const mp = getCurrentMonthPeriod();
-    const cm = getClosedMonthPeriod(todayD.getFullYear(), todayD.getMonth() + 1);
-    if (mode === "fechado") return { startDate: cm.periodStart, endDate: cm.periodEnd, mode: { type: "fechado_semanas" } };
     if (mode === "mes") return { startDate: mp.startDate, endDate: mp.endDate, mode: { type: "livre" } };
     if (mode === "custom" && isDateString(savedFilters.customStart) && isDateString(savedFilters.customEnd)) {
       return { startDate: savedFilters.customStart, endDate: savedFilters.customEnd, mode: { type: "livre" } };
@@ -176,13 +173,8 @@ export default function Dashboard() {
   const currentWeek = getCurrentWeekPeriod();
   const monthPeriod = useMemo(() => getCurrentMonthPeriod(), [today.getMonth(), today.getFullYear()]);
 
-  const closedMonth = useMemo(() => {
-    return getClosedMonthPeriod(today.getFullYear(), today.getMonth() + 1);
-  }, [today.getFullYear(), today.getMonth()]);
-
   // Derive active preset from period (same logic as PeriodSelector internals)
   const activePreset: DashboardPeriodMode = useMemo(() =>
-    period.mode?.type === "fechado_semanas" ? "fechado" :
     period.startDate === currentWeek.startDate && period.endDate === currentWeek.endDate ? "semana" :
     period.startDate === monthPeriod.startDate && period.endDate === monthPeriod.endDate ? "mes" :
     "custom",
@@ -276,8 +268,7 @@ export default function Dashboard() {
     const now = new Date();
     const periodLabel =
       activePreset === "semana" ? "Semana Atual" :
-      activePreset === "mes" ? "Mês Atual" :
-      activePreset === "fechado" ? "Semanas Fechadas" : "Período Personalizado";
+      activePreset === "mes" ? "Mês Atual" : "Período Personalizado";
 
     const fmt = (v: number) =>
       v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
@@ -442,16 +433,12 @@ export default function Dashboard() {
     ? "Vendas da Semana"
     : activePreset === "mes"
     ? "Vendas do Mês"
-    : activePreset === "fechado"
-    ? "Período Fechado"
     : "Vendas do Período";
 
   const periodoCardSubtitle = activePreset === "semana"
     ? "semana selecionada"
     : activePreset === "mes"
     ? "mês selecionado"
-    : activePreset === "fechado"
-    ? "semanas fechadas"
     : `${period.startDate} — ${period.endDate}`;
 
   const renderKpiCard = (id: string, dragHandle: React.ReactNode) => {
