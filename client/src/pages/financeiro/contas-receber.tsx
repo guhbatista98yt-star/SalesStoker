@@ -280,7 +280,7 @@ function buildQS(filters: Filters, extra: Record<string, string | number> = {}) 
 export default function ContasReceber() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"clientes" | "duplicatas" | "vendedores" | "fila">("clientes");
+  const [tab, setTab] = useState<"clientes" | "duplicatas" | "vendedores">("clientes");
   const [delinquencyDays, setDelinquencyDays] = useState<number>(10);
   const [delinquencyEnabled, setDelinquencyEnabled] = useState<boolean>(true);
   const [showDelinquency, setShowDelinquency] = useState<boolean>(false);
@@ -365,14 +365,6 @@ export default function ContasReceber() {
     staleTime: 30_000,
   });
 
-  // Fila de cobrança — passes same filters (status always forced to VENCIDO/VENCE_HOJE server-side)
-  const filaQS = buildQS(filters);
-  const filaQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/fila-cobranca", filaQS],
-    queryFn: () => apiFetch(`/api/financeiro/contas-receber/fila-cobranca${filaQS}`),
-    enabled: tab === "fila",
-    staleTime: 30_000,
-  });
 
   // Print query — sempre busca TODOS os registros sem paginação
   const printDupsQS = buildQS(filters, { sort: "nomecliente", dir: "asc" });
@@ -820,31 +812,24 @@ export default function ContasReceber() {
             {([
               {
                 key: "clientes",
-                label: "Clientes com Pendência",
+                label: "Por Cliente",
                 shortLabel: "Clientes",
                 icon: Users,
-                title: "Visualize clientes agrupados com valores em aberto e vencidos.",
+                title: "Exposição financeira agrupada por cliente — todos os status.",
               },
               {
                 key: "duplicatas",
-                label: "Duplicatas",
-                shortLabel: "Duplicatas",
+                label: "Títulos",
+                shortLabel: "Títulos",
                 icon: FileText,
-                title: "Visualize cada título individualmente.",
+                title: "Cada título/duplicata individualmente com status e vencimento.",
               },
               {
                 key: "vendedores",
-                label: "Resumo por Vendedor",
-                shortLabel: "Por Vendedor",
+                label: "Por Vendedor",
+                shortLabel: "Vendedor",
                 icon: User,
-                title: "Analise pendências financeiras agrupadas por vendedor responsável.",
-              },
-              {
-                key: "fila",
-                label: "Fila de Cobrança",
-                shortLabel: "Cobrança",
-                icon: List,
-                title: "Priorize clientes que precisam de ação financeira.",
+                title: "Saldo em aberto agrupado por representante comercial.",
               },
             ] as const).map(({ key, label, shortLabel, icon: Icon, title }) => (
               <button
@@ -911,16 +896,6 @@ export default function ContasReceber() {
             />
           )}
 
-          {/* ================================================================
-              TAB: Fila de Cobrança
-              ================================================================ */}
-          {tab === "fila" && (
-            <FilaCobrancaTab
-              data={filaQ.data}
-              loading={filaQ.isLoading}
-              onSelectCliente={setClienteDetalhe}
-            />
-          )}
         </div>
       </div>
 
