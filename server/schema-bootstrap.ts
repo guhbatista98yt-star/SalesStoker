@@ -587,18 +587,17 @@ async function bootstrapCacheTables(): Promise<void> {
     CREATE TABLE IF NOT EXISTS cache_vendas_pendentes (
       "IDVENDEDOR"       INTEGER,
       "NOME_VENDEDOR"    TEXT,
+      "IDEMPRESA"        INTEGER NOT NULL DEFAULT 1,
       "QTD_PEDIDOS"      INTEGER NOT NULL DEFAULT 0,
       "TOTALVENDA_LINHA" NUMERIC(18,2) NOT NULL DEFAULT 0,
       synced_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  // Migrate existing table to add new columns if they don't exist yet
   await exec(`ALTER TABLE cache_vendas_pendentes ADD COLUMN IF NOT EXISTS "IDVENDEDOR" INTEGER`);
+  await exec(`ALTER TABLE cache_vendas_pendentes ADD COLUMN IF NOT EXISTS "IDEMPRESA" INTEGER NOT NULL DEFAULT 1`);
   await exec(`ALTER TABLE cache_vendas_pendentes ADD COLUMN IF NOT EXISTS "QTD_PEDIDOS" INTEGER NOT NULL DEFAULT 0`);
-  // Drop old IDEMPRESA column if exists (no longer used — query aggregates across companies)
-  await exec(`ALTER TABLE cache_vendas_pendentes DROP COLUMN IF EXISTS "IDEMPRESA"`);
-  await exec(`CREATE INDEX IF NOT EXISTS idx_cvp_vendedor
-    ON cache_vendas_pendentes ("IDVENDEDOR")`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cvp_vendedor ON cache_vendas_pendentes ("IDVENDEDOR")`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_cvp_empresa  ON cache_vendas_pendentes ("IDEMPRESA")`);
 
   // Campaign product-level sales cache
   await exec(`

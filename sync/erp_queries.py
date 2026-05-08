@@ -371,10 +371,10 @@ WHERE CRSV.IDEMPRESA IN (1, 2, 3)
 WITH UR
 """
 
-# ─── Pendentes (open orders — full-replace strategy, aggregated per vendor) ───
-# Columns: IDVENDEDOR[0], NOME_VENDEDOR[1], QTD_PEDIDOS[2], VALOR_TOTAL[3]
-# Queries ORCAMENTO (budget) table for orders with pre-nota generated but not yet paid.
-# No date parameters — filters dynamically for last 2 days.
+# ─── Pendentes (open orders — full-replace strategy, aggregated per vendor+empresa) ───
+# Columns: IDVENDEDOR[0], NOME_VENDEDOR[1], IDEMPRESA[2], QTD_PEDIDOS[3], VALOR_TOTAL[4]
+# Queries ORCAMENTO for orders with pre-nota generated but not yet paid and still valid.
+# No date parameters — uses DTVALIDADE >= CURRENT DATE to find all active pending orders.
 SQL_PENDENTES = """
 WITH OrcamentosPendentes AS (
     SELECT
@@ -388,7 +388,6 @@ WITH OrcamentosPendentes AS (
         O.FLAGPRENOTA      = 'T'
         AND O.FLAGPRENOTAPAGA = 'F'
         AND O.FLAGCANCELADO  = 'F'
-        AND O.DTMOVIMENTO   >= (CURRENT DATE - 2 DAYS)
         AND DATE(COALESCE(O.DTVALIDADE, CURRENT DATE)) >= CURRENT DATE
         AND O.IDEMPRESA IN (1, 3)
         AND COALESCE(OPN.IDPLANILHAPRENOTA, 0) = 0
@@ -396,6 +395,7 @@ WITH OrcamentosPendentes AS (
 SELECT
     CAST(OP.IDVENDEDOR AS INTEGER)                                      AS IDVENDEDOR,
     CAST(COALESCE(CF.NOME, '<SEM VENDEDOR>') AS VARCHAR(120))          AS NOME_VENDEDOR,
+    CAST(OPend.IDEMPRESA AS INTEGER)                                    AS IDEMPRESA,
     CAST(COUNT(DISTINCT OP.IDORCAMENTO) AS INTEGER)                    AS QTD_PEDIDOS,
     CAST(COALESCE(SUM(OP.VALTOTLIQUIDO), 0E0) AS DECIMAL(18,2))       AS VALOR_TOTAL
 FROM DBA.ORCAMENTO_PROD OP
@@ -409,7 +409,8 @@ WHERE
     AND OP.IDVENDEDOR > 0
 GROUP BY
     OP.IDVENDEDOR,
-    CF.NOME
+    CF.NOME,
+    OPend.IDEMPRESA
 HAVING COALESCE(SUM(OP.VALTOTLIQUIDO), 0) > 0
 ORDER BY VALOR_TOTAL DESC
 WITH UR

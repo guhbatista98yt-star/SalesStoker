@@ -188,6 +188,7 @@ _REQUIRED_COLUMNS: list[tuple[str, str, str]] = [
     ("cache_vendas",                "IDCLIENTE",     "TEXT"),
     ("cache_vendas",                "NOME_CLIENTE",  "TEXT"),
     ("cache_vendas_pendentes",      "IDVENDEDOR",    "INTEGER"),
+    ("cache_vendas_pendentes",      "IDEMPRESA",     "INTEGER NOT NULL DEFAULT 1"),
     ("cache_vendas_pendentes",      "QTD_PEDIDOS",   "INTEGER NOT NULL DEFAULT 0"),
     ("compras_fornecedores_config", "company_id",    "INTEGER NOT NULL DEFAULT 1"),
     ("compras_produtos_config",     "company_id",    "INTEGER NOT NULL DEFAULT 1"),
@@ -634,10 +635,10 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     """
     Pending orders sync.
 
-    FULL REPLACE strategy — queries ORCAMENTO table for orders with pre-nota
-    generated but not yet paid (last 2 days). No date parameters needed.
+    FULL REPLACE strategy — queries ORCAMENTO for orders with pre-nota
+    generated, not yet paid, and still within validity date. No params.
 
-    Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] QTD_PEDIDOS[2] VALOR_TOTAL[3]
+    Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2] QTD_PEDIDOS[3] VALOR_TOTAL[4]
     """
     routine = "cache_vendas_pendentes"
     today   = date.today()
@@ -660,14 +661,15 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                 pgcur,
                 """
                 INSERT INTO cache_vendas_pendentes
-                  ("IDVENDEDOR","NOME_VENDEDOR","QTD_PEDIDOS","TOTALVENDA_LINHA", synced_at)
+                  ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA","QTD_PEDIDOS","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
                 [
                     (int(r[0]) if r[0] else None,
                      str(r[1]) if r[1] else '<SEM VENDEDOR>',
-                     int(r[2]) if r[2] else 0,
-                     _fix_monetary(r[3]),
+                     int(r[2]) if r[2] else 1,
+                     int(r[3]) if r[3] else 0,
+                     _fix_monetary(r[4]),
                      datetime.now(timezone.utc))
                     for r in all_rows
                 ],

@@ -470,17 +470,18 @@ export class PostgresStorage implements IStorage {
         : null;
 
       const teamFilterPendentes = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`, "");
+      const whereCompanyPendentes = companyId !== "all" ? `AND "IDEMPRESA" = ${parseInt(companyId)}` : "";
 
       const aFaturarResult = await pgGet<{ total: number }>(`
         SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas_pendentes
-        WHERE 1=1 ${teamFilterPendentes}
+        WHERE 1=1 ${whereCompanyPendentes} ${teamFilterPendentes}
       `);
 
       const pedidosResult = await pgGet<{ total: number }>(`
         SELECT COALESCE(SUM("QTD_PEDIDOS"), 0) as total
         FROM cache_vendas_pendentes
-        WHERE 1=1 ${teamFilterPendentes}
+        WHERE 1=1 ${whereCompanyPendentes} ${teamFilterPendentes}
       `);
 
       return {
@@ -1091,6 +1092,7 @@ export class PostgresStorage implements IStorage {
     try {
       // Filter by team members using NOME_VENDEDOR (IDVENDEDOR join not available here)
       const teamFilter = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`, "");
+      const whereCompany = companyId !== "all" ? `AND "IDEMPRESA" = ${parseInt(companyId)}` : "";
 
       const rows = await pgAll<{ id: string; name: string; valorAFaturar: number; qtdPedidos: number }>(`
         SELECT
@@ -1099,7 +1101,7 @@ export class PostgresStorage implements IStorage {
           SUM("TOTALVENDA_LINHA") as "valorAFaturar",
           SUM("QTD_PEDIDOS") as "qtdPedidos"
         FROM cache_vendas_pendentes
-        WHERE 1=1 ${teamFilter}
+        WHERE 1=1 ${whereCompany} ${teamFilter}
         GROUP BY "IDVENDEDOR", "NOME_VENDEDOR"
         HAVING SUM("TOTALVENDA_LINHA") > 0
         ORDER BY "valorAFaturar" DESC
