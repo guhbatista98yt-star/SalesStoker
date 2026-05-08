@@ -400,12 +400,14 @@ export default function ContasReceber() {
     staleTime: 30_000,
   });
 
-  // Print query — sempre busca TODOS os registros sem paginação
+  // Print query — carregada apenas ao clicar em Imprimir (não no load inicial)
+  const [printEnabled, setPrintEnabled] = useState(false);
   const printDupsQS = buildQS(applied, { sort: "nomecliente", dir: "asc" });
   const printDupsQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/duplicatas/all", printDupsQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas/all${printDupsQS}`),
     staleTime: 30_000,
+    enabled: printEnabled,
   });
 
   // Clientes ignorados
@@ -485,6 +487,12 @@ export default function ContasReceber() {
   // ── Imprimir ───────────────────────────────────────────────────────────
 
   function handlePrint() {
+    if (!printDupsQ.data) {
+      setPrintEnabled(true);
+      // Aguarda o dado chegar para então imprimir
+      const unsub = printDupsQ.refetch().then(() => window.print());
+      return;
+    }
     window.print();
   }
 

@@ -71,12 +71,15 @@ async function bootstrapUsers(): Promise<void> {
       last_name     TEXT,
       role          TEXT NOT NULL DEFAULT 'admin',
       team_members  TEXT,
+      supervisor_group_id TEXT,
       module_permissions TEXT,
       created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users (LOWER(email))`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_users_supervisor_group
+    ON users (supervisor_group_id)`);
 }
 
 async function bootstrapGoals(): Promise<void> {
@@ -200,6 +203,44 @@ async function bootstrapAppSettings(): Promise<void> {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+}
+
+async function seedDefaultAppSettings(): Promise<void> {
+  const defaults: Array<[string, string]> = [
+    ["showDtrAmancoTab",                "true"],
+    ["showTvAmancoTab",                 "true"],
+    ["showTintasElitTab",               "true"],
+    ["showAcompanhamentoTab",           "false"],
+    ["dtrAmancoLogoUrl",                ""],
+    ["tvAmancoLogoUrl",                 ""],
+    ["tintasElitLogoUrl",               ""],
+    ["showMovimentacoesButton",         "true"],
+    ["showFinanceiroPendenciasButton",  "false"],
+    ["supervisorPurchaseNotifications", "true"],
+  ];
+  for (const [key, value] of defaults) {
+    await pool.query(
+      `INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`,
+      [key, value],
+    );
+  }
+}
+
+async function seedDefaultAdmin(): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM users WHERE role = 'admin'`,
+  );
+  if (Number(rows[0].cnt) > 0) return;
+
+  const bcrypt = await import("bcryptjs");
+  const hashed = await bcrypt.hash("admin123", 10);
+  await pool.query(
+    `INSERT INTO users (email, password, first_name, role)
+     VALUES ($1, $2, $3, 'admin')
+     ON CONFLICT (email) DO NOTHING`,
+    ["admin", hashed, "Administrador"],
+  );
+  console.log("[schema-bootstrap] Usuário admin padrão criado. Login: admin / Senha: admin123 — TROQUE A SENHA NO PRIMEIRO ACESSO.");
 }
 
 // ---------------------------------------------------------------------------
@@ -641,6 +682,7 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["users", "cargo",          "TEXT"],
     ["users", "company_id",     "TEXT"],
     ["users", "supervisor_id",  "INTEGER"],
+    ["users", "supervisor_group_id", "TEXT"],
     ["users", "status",         "TEXT NOT NULL DEFAULT 'ativo'"],
     ["users", "last_login_at",  "TEXT"],
     ["users", "notes",          "TEXT"],
@@ -1103,10 +1145,18 @@ async function validateSchema(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Demo seed — Contas a Receber (only when table is empty)
+// Demo seed — Contas a Receber (disabled by default)
 // ---------------------------------------------------------------------------
 
 async function seedDemoContasReceber(): Promise<void> {
+  if (process.env.ALLOW_DEMO_FINANCE_SEED !== "true") {
+    return;
+  }
+  if (process.env.NODE_ENV === "production") {
+    console.warn("[schema-bootstrap] ALLOW_DEMO_FINANCE_SEED ignorado em produção; nenhum dado financeiro demo foi inserido.");
+    return;
+  }
+
   const { rows } = await pool.query(`SELECT COUNT(*) AS cnt FROM cache_contas_receber`);
   if (Number(rows[0].cnt) > 0) return;
 
@@ -1159,6 +1209,8 @@ export async function runSchemaBootstrap(): Promise<void> {
     await bootstrapVendorSettings();
     await bootstrapVendorGroups();
     await bootstrapAppSettings();
+    await seedDefaultAppSettings();
+    await seedDefaultAdmin();
 
     // ── Campaigns ─────────────────────────────────────────────────────────
     await bootstrapCampaigns();

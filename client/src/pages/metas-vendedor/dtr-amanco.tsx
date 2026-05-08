@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Percent, Store, Target, TrendingUp } from "lucide-react";
+import { Clock, Store, Target, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/calendar-utils";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
@@ -15,7 +15,6 @@ import {
   GREEN,
   GaugeCard,
   KpiCard,
-  NAVY,
   ORANGE,
   daysRemaining,
   safeDiv,
@@ -33,7 +32,9 @@ type DtrData = {
     gatilho_atingido: boolean;
   };
   crescimento_vendedor: {
-    crescimento_percentual: number;
+    crescimento_percentual: number | null;
+    sem_dados?: boolean;
+    ano_anterior?: number;
   };
   mix_amanco: {
     percentual_conexoes: number;
@@ -41,9 +42,11 @@ type DtrData = {
     status_ok: boolean;
   };
   crescimento_loja: {
-    crescimento_percentual: number;
+    crescimento_percentual: number | null;
     meta_percentual: number;
+    sem_dados?: boolean;
     status_ok: boolean;
+    ano_anterior?: number;
   };
   elegibilidade: { participando: boolean; motivos?: string[] };
   graceInfo?: {
@@ -168,24 +171,24 @@ export default function DtrAmancoTab() {
           />
 
           <KpiCard
-            accentColor={cv.crescimento_percentual >= 0 ? GREEN : ORANGE}
+            accentColor={cv.sem_dados ? ORANGE : (cv.crescimento_percentual !== null && cv.crescimento_percentual >= 0 ? GREEN : ORANGE)}
             icon={<TrendingUp size={18} />}
             label="Seu Crescimento (informativo)"
-            value={signedPct(cv.crescimento_percentual, 1)}
-            subtitle="Comparativo com o mesmo periodo do ano anterior"
-            progressValue={(cv.crescimento_percentual + 100) / 2}
-            progressLeft="Ano anterior"
+            value={cv.sem_dados || cv.crescimento_percentual === null ? "Sem dados" : signedPct(cv.crescimento_percentual, 1)}
+            subtitle={cv.sem_dados ? "Sem dados do ano anterior para comparar" : `vs. mesmo periodo acumulado de ${cv.ano_anterior ?? "ano anterior"}`}
+            progressValue={cv.crescimento_percentual !== null ? (cv.crescimento_percentual + 100) / 2 : 0}
+            progressLeft={cv.ano_anterior ? `Acum. ${cv.ano_anterior}` : "Ano anterior"}
             progressRight="Ano atual"
           />
 
           <KpiCard
-            accentColor={cl.status_ok ? GREEN : ORANGE}
+            accentColor={cl.sem_dados ? ORANGE : (cl.status_ok ? GREEN : ORANGE)}
             icon={<Store size={18} />}
             label="Crescimento Loja"
-            value={signedPct(cl.crescimento_percentual, 2)}
-            subtitle={`Trava da loja: +${cl.meta_percentual}%`}
-            progressValue={safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100}
-            progressLeft={`${Math.max(0, cl.crescimento_percentual).toFixed(1)}%`}
+            value={cl.sem_dados || cl.crescimento_percentual === null ? "Sem dados" : signedPct(cl.crescimento_percentual, 2)}
+            subtitle={cl.sem_dados ? "Sem dados do ano anterior para comparar" : `Trava da loja: +${cl.meta_percentual}% — vs. ${cl.ano_anterior ?? "ano anterior"}`}
+            progressValue={cl.crescimento_percentual !== null ? safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100 : 0}
+            progressLeft={cl.crescimento_percentual !== null ? `${Math.max(0, cl.crescimento_percentual).toFixed(1)}%` : "—"}
             progressRight={`Meta ${cl.meta_percentual}%`}
           />
 
@@ -193,14 +196,6 @@ export default function DtrAmancoTab() {
             valuePct={mx.percentual_conexoes}
             metaPct={mx.meta_percentual}
             label="Conexoes sobre Tubos"
-          />
-
-          <KpiCard
-            accentColor={el.participando ? GREEN : NAVY}
-            icon={<Percent size={18} />}
-            label="Status Geral"
-            value={el.participando ? "Elegivel" : "Pendente"}
-            subtitle={el.participando ? "Todos os criterios foram atingidos" : "Acompanhe os criterios pendentes acima"}
           />
         </div>
 
