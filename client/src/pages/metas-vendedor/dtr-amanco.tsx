@@ -24,6 +24,7 @@ import {
 type DtrData = {
   last_update: string;
   periodo: { inicio: string; fim: string; nome?: string; encerrado?: boolean };
+  periodo_ly?: { inicio: string; fim: string };
   faturamento_amanco: {
     valor_atual: number;
     meta_gatilho: number;
@@ -32,9 +33,12 @@ type DtrData = {
     gatilho_atingido: boolean;
   };
   crescimento_vendedor: {
+    valor_atual?: number;
+    valor_ano_anterior?: number;
     crescimento_percentual: number | null;
     sem_dados?: boolean;
     ano_anterior?: number;
+    periodo_descricao?: string;
   };
   mix_amanco: {
     percentual_conexoes: number;
@@ -42,11 +46,14 @@ type DtrData = {
     status_ok: boolean;
   };
   crescimento_loja: {
+    loja_valor_atual?: number;
+    loja_valor_ano_anterior?: number;
     crescimento_percentual: number | null;
     meta_percentual: number;
     sem_dados?: boolean;
     status_ok: boolean;
     ano_anterior?: number;
+    periodo_descricao?: string;
   };
   elegibilidade: { participando: boolean; motivos?: string[] };
   graceInfo?: {
@@ -175,10 +182,16 @@ export default function DtrAmancoTab() {
             icon={<TrendingUp size={18} />}
             label="Seu Crescimento (informativo)"
             value={cv.sem_dados || cv.crescimento_percentual === null ? "Sem dados" : signedPct(cv.crescimento_percentual, 1)}
-            subtitle={cv.sem_dados ? "Sem dados do ano anterior para comparar" : `vs. mesmo periodo acumulado de ${cv.ano_anterior ?? "ano anterior"}`}
+            subtitle={
+              cv.sem_dados
+                ? "Sem dados do ano anterior para comparar"
+                : cv.valor_ano_anterior != null && cv.valor_atual != null
+                  ? `${formatCurrency(cv.valor_atual)} (${data.periodo.inicio.slice(5)} → ${data.periodo.fim.slice(5)}) vs ${formatCurrency(cv.valor_ano_anterior)} (${cv.periodo_descricao ?? `mesmo período ${cv.ano_anterior}`})`
+                  : `vs. mesmo periodo acumulado de ${cv.ano_anterior ?? "ano anterior"}`
+            }
             progressValue={cv.crescimento_percentual !== null ? (cv.crescimento_percentual + 100) / 2 : 0}
-            progressLeft={cv.ano_anterior ? `Acum. ${cv.ano_anterior}` : "Ano anterior"}
-            progressRight="Ano atual"
+            progressLeft={cv.valor_ano_anterior != null ? formatCurrency(cv.valor_ano_anterior) : (cv.ano_anterior ? `Acum. ${cv.ano_anterior}` : "Ano anterior")}
+            progressRight={cv.valor_atual != null ? formatCurrency(cv.valor_atual) : "Ano atual"}
           />
 
           <KpiCard
@@ -186,10 +199,16 @@ export default function DtrAmancoTab() {
             icon={<Store size={18} />}
             label="Crescimento Loja"
             value={cl.sem_dados || cl.crescimento_percentual === null ? "Sem dados" : signedPct(cl.crescimento_percentual, 2)}
-            subtitle={cl.sem_dados ? "Sem dados do ano anterior para comparar" : `Trava da loja: +${cl.meta_percentual}% — vs. ${cl.ano_anterior ?? "ano anterior"}`}
+            subtitle={
+              cl.sem_dados
+                ? "Sem dados do ano anterior para comparar"
+                : cl.loja_valor_ano_anterior != null && cl.loja_valor_atual != null
+                  ? `Trava: +${cl.meta_percentual}% — Loja ${cl.ano_anterior}: ${formatCurrency(cl.loja_valor_ano_anterior)} → ${cl.ano_anterior != null ? cl.ano_anterior + 1 : "atual"}: ${formatCurrency(cl.loja_valor_atual)}`
+                  : `Trava da loja: +${cl.meta_percentual}% — vs. ${cl.ano_anterior ?? "ano anterior"}`
+            }
             progressValue={cl.crescimento_percentual !== null ? safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100 : 0}
-            progressLeft={cl.crescimento_percentual !== null ? `${Math.max(0, cl.crescimento_percentual).toFixed(1)}%` : "—"}
-            progressRight={`Meta ${cl.meta_percentual}%`}
+            progressLeft={cl.loja_valor_ano_anterior != null ? formatCurrency(cl.loja_valor_ano_anterior) : (cl.crescimento_percentual !== null ? `${Math.max(0, cl.crescimento_percentual).toFixed(1)}%` : "—")}
+            progressRight={cl.loja_valor_atual != null ? formatCurrency(cl.loja_valor_atual) : `Meta ${cl.meta_percentual}%`}
           />
 
           <GaugeCard

@@ -191,6 +191,7 @@ export class CampaignRepository extends BaseRepository {
     return {
       last_update: now.toISOString(),
       periodo: { inicio: inicioStr, fim: fimStr, nome: quarterNames[quarter], encerrado: isEncerrado },
+      periodo_ly: { inicio: inicioLyStr, fim: fimLyStr },
       faturamento_amanco: {
         valor_atual,
         meta_gatilho: gatilho_individual > 0 ? gatilho_individual : meta_gatilho,
@@ -198,9 +199,27 @@ export class CampaignRepository extends BaseRepository {
         faltante: gatilho ? 0 : (gatilho_individual > 0 ? gatilho_individual : meta_gatilho) - valor_atual,
         gatilho_atingido: gatilho,
       },
-      crescimento_vendedor: { valor_atual, valor_ano_anterior, crescimento_percentual: crescVendPerc, sem_dados: crescimento_percentual === null, meta_percentual: 0, status_ok: crescimento_percentual !== null && crescimento_percentual >= 0, ano_anterior: lastYear },
+      crescimento_vendedor: {
+        valor_atual,
+        valor_ano_anterior,
+        crescimento_percentual: crescVendPerc,
+        sem_dados: crescimento_percentual === null,
+        meta_percentual: 0,
+        status_ok: crescimento_percentual !== null && crescimento_percentual >= 0,
+        ano_anterior: lastYear,
+        periodo_descricao: `${inicioLyStr} → ${fimLyStr}`,
+      },
       mix_amanco: { tubos, conexoes, percentual_conexoes: parseFloat(percentual_conexoes.toFixed(2)), meta_percentual: meta_mix, status_ok: mix },
-      crescimento_loja: { loja_valor_atual, loja_valor_ano_anterior, crescimento_percentual: crescLojaPerc, sem_dados: loja_crescimento_percentual === null, meta_percentual: meta_loja, status_ok: crescimento_loja, ano_anterior: lastYear },
+      crescimento_loja: {
+        loja_valor_atual,
+        loja_valor_ano_anterior,
+        crescimento_percentual: crescLojaPerc,
+        sem_dados: loja_crescimento_percentual === null,
+        meta_percentual: meta_loja,
+        status_ok: crescimento_loja,
+        ano_anterior: lastYear,
+        periodo_descricao: `${inicioLyStr} → ${fimLyStr}`,
+      },
       elegibilidade: { gatilho, mix, crescimento_loja, participando: gatilho && mix && crescimento_loja, motivos },
     };
   }
