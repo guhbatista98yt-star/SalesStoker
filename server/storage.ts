@@ -470,21 +470,17 @@ export class PostgresStorage implements IStorage {
         : null;
 
       const teamFilterPendentes = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`, "");
-      let whereCompanyPendentes = "";
-      if (companyId !== "all") {
-        whereCompanyPendentes = `AND "IDEMPRESA" = ${parseInt(companyId)}`;
-      }
 
       const aFaturarResult = await pgGet<{ total: number }>(`
         SELECT COALESCE(SUM("TOTALVENDA_LINHA"), 0) as total
         FROM cache_vendas_pendentes
-        WHERE 1=1 ${whereCompanyPendentes} ${teamFilterPendentes}
+        WHERE 1=1 ${teamFilterPendentes}
       `);
 
       const pedidosResult = await pgGet<{ total: number }>(`
-        SELECT COUNT(*) as total
+        SELECT COALESCE(SUM("QTD_PEDIDOS"), 0) as total
         FROM cache_vendas_pendentes
-        WHERE 1=1 ${whereCompanyPendentes} ${teamFilterPendentes}
+        WHERE 1=1 ${teamFilterPendentes}
       `);
 
       return {
@@ -1093,20 +1089,18 @@ export class PostgresStorage implements IStorage {
 
   async getAFaturarPorVendedor(companyId: string, teamMembers?: string[]): Promise<SalespersonAFaturar[]> {
     try {
+      // Filter by team members using NOME_VENDEDOR (IDVENDEDOR join not available here)
       const teamFilter = this.buildTeamFilter(teamMembers, `"NOME_VENDEDOR"`, "");
-      let whereCompany = "";
-      if (companyId !== "all") {
-        whereCompany = `AND "IDEMPRESA" = ${parseInt(companyId)}`;
-      }
 
-      const rows = await pgAll<{ id: string; name: string; valorAFaturar: number }>(`
+      const rows = await pgAll<{ id: string; name: string; valorAFaturar: number; qtdPedidos: number }>(`
         SELECT
-          "NOME_VENDEDOR" as id,
+          COALESCE("IDVENDEDOR"::TEXT, "NOME_VENDEDOR") as id,
           "NOME_VENDEDOR" as name,
-          SUM("TOTALVENDA_LINHA") as "valorAFaturar"
+          SUM("TOTALVENDA_LINHA") as "valorAFaturar",
+          SUM("QTD_PEDIDOS") as "qtdPedidos"
         FROM cache_vendas_pendentes
-        WHERE 1=1 ${whereCompany} ${teamFilter}
-        GROUP BY "NOME_VENDEDOR"
+        WHERE 1=1 ${teamFilter}
+        GROUP BY "IDVENDEDOR", "NOME_VENDEDOR"
         HAVING SUM("TOTALVENDA_LINHA") > 0
         ORDER BY "valorAFaturar" DESC
       `);

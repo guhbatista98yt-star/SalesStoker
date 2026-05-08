@@ -187,6 +187,8 @@ _REQUIRED_COLUMNS: list[tuple[str, str, str]] = [
     ("cache_tubos_conexoes",        "FABRICANTE",    "TEXT NOT NULL DEFAULT ''"),
     ("cache_vendas",                "IDCLIENTE",     "TEXT"),
     ("cache_vendas",                "NOME_CLIENTE",  "TEXT"),
+    ("cache_vendas_pendentes",      "IDVENDEDOR",    "INTEGER"),
+    ("cache_vendas_pendentes",      "QTD_PEDIDOS",   "INTEGER NOT NULL DEFAULT 0"),
     ("compras_fornecedores_config", "company_id",    "INTEGER NOT NULL DEFAULT 1"),
     ("compras_produtos_config",     "company_id",    "INTEGER NOT NULL DEFAULT 1"),
 ]
@@ -632,22 +634,18 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     """
     Pending orders sync.
 
-    This is a FULL REPLACE strategy (not incremental) because pending orders
-    change status frequently and have no reliable watermark column.
+    FULL REPLACE strategy — queries ORCAMENTO table for orders with pre-nota
+    generated but not yet paid (last 2 days). No date parameters needed.
 
-    Mitigated by:
-      - Very selective query (aggregated by vendor+company)
-      - Runs at most once per hour (enforced by job lock TTL)
-      - Restricted to current month to limit volume
+    Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] QTD_PEDIDOS[2] VALOR_TOTAL[3]
     """
     routine = "cache_vendas_pendentes"
     today   = date.today()
-    month_start = today.replace(day=1)
     total_read, total_written = 0, 0
 
     with db2_connection() as db2conn:
         cur = db2conn.cursor()
-        cur.execute(SQL_PENDENTES, (month_start, today))
+        cur.execute(SQL_PENDENTES)
         all_rows: list[tuple] = []
         for batch in _fetch_batches(cur):
             all_rows.extend(batch)
@@ -655,7 +653,6 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
         cur.close()
 
     # Full replace — small table, safe to truncate
-    # Columns: NOME_VENDEDOR[0] IDEMPRESA[1] TOTALVENDA_LINHA[2]
     with pg.cursor() as pgcur:
         pgcur.execute("TRUNCATE TABLE cache_vendas_pendentes")
         if all_rows:
@@ -663,12 +660,14 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
                 pgcur,
                 """
                 INSERT INTO cache_vendas_pendentes
-                  ("NOME_VENDEDOR","IDEMPRESA","TOTALVENDA_LINHA", synced_at)
+                  ("IDVENDEDOR","NOME_VENDEDOR","QTD_PEDIDOS","TOTALVENDA_LINHA", synced_at)
                 VALUES %s
                 """,
                 [
-                    (r[0], r[1],
-                     _fix_monetary(r[2]),
+                    (int(r[0]) if r[0] else None,
+                     str(r[1]) if r[1] else '<SEM VENDEDOR>',
+                     int(r[2]) if r[2] else 0,
+                     _fix_monetary(r[3]),
                      datetime.now(timezone.utc))
                     for r in all_rows
                 ],
