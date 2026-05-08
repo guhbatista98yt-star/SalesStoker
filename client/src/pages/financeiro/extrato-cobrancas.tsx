@@ -121,9 +121,11 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
   const clientGroups = Array.from(byClient.values());
 
   let grandVencido = 0, grandAVencer = 0, grandJuros = 0, grandPago = 0, grandSaldo = 0;
+  let qtdVencido = 0, qtdAVencer = 0, qtdVenceHoje = 0;
   for (const row of allDups) {
-    if (row.status === "VENCIDO") grandVencido += Number(row.valor_original) || 0;
-    else grandAVencer += Number(row.valor_original) || 0;
+    if (row.status === "VENCIDO")     { grandVencido += Number(row.valor_original) || 0; qtdVencido++; }
+    else if (row.status === "VENCE_HOJE") { grandAVencer += Number(row.valor_original) || 0; qtdVenceHoje++; }
+    else                              { grandAVencer += Number(row.valor_original) || 0; qtdAVencer++; }
     grandJuros += Number(row.valor_juros_pendente) || 0;
     grandPago  += Number(row.valor_pago) || 0;
     grandSaldo += Number(row.valor_aberto) || 0;
@@ -181,6 +183,15 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
       <div style={{ textAlign: "center", fontSize: "7pt", lineHeight: "1.7", ...base }}>
         {filterLines.map((line, i) => <div key={i}>{line}</div>)}
       </div>
+      <div style={{ textAlign: "center", fontSize: "7pt", lineHeight: "1.6", ...base, marginTop: "1px" }}>
+        {(() => {
+          const partes: string[] = [];
+          if (qtdVencido > 0)   partes.push(`Vencidos: ${qtdVencido}`);
+          if (qtdVenceHoje > 0) partes.push(`Vence Hoje: ${qtdVenceHoje}`);
+          if (qtdAVencer > 0)   partes.push(`A Vencer: ${qtdAVencer}`);
+          return partes.length > 0 ? <div>{partes.join(" | ")} | Total: {allDups.length} título(s)</div> : null;
+        })()}
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", marginBottom: "3px", ...base, fontSize: "7pt" }}>
         <span>Financeiro</span>
         <span>{allDups.length} título(s) · {clientGroups.length} cliente(s)</span>
@@ -218,13 +229,24 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
               {allDups.length} títulos · {clientGroups.length} clientes · Emitido: {now}
             </td>
           </tr>
+          <tr>
+            <td colSpan={12} style={{ ...td("center"), fontSize: "6.5pt", color: "#333", padding: "0px 3px 1px 3px" }}>
+              {[
+                qtdVencido   > 0 ? `Vencidos: ${qtdVencido}`       : null,
+                qtdVenceHoje > 0 ? `Vence Hoje: ${qtdVenceHoje}`   : null,
+                qtdAVencer   > 0 ? `A Vencer: ${qtdAVencer}`       : null,
+              ].filter(Boolean).join("   |   ")}
+            </td>
+          </tr>
         </tfoot>
 
         {clientGroups.map(({ info, rows }) => {
           let clVencido = 0, clAVencer = 0, clJuros = 0, clPago = 0, clSaldo = 0;
+          let clQtdVenc = 0, clQtdAVencer = 0, clQtdHoje = 0;
           for (const r of rows) {
-            if (r.status === "VENCIDO") clVencido += Number(r.valor_original) || 0;
-            else clAVencer += Number(r.valor_original) || 0;
+            if (r.status === "VENCIDO")     { clVencido += Number(r.valor_original) || 0; clQtdVenc++; }
+            else if (r.status === "VENCE_HOJE") { clAVencer += Number(r.valor_original) || 0; clQtdHoje++; }
+            else                            { clAVencer += Number(r.valor_original) || 0; clQtdAVencer++; }
             clJuros += Number(r.valor_juros_pendente) || 0;
             clPago  += Number(r.valor_pago) || 0;
             clSaldo += Number(r.valor_aberto) || 0;
@@ -260,26 +282,41 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
                 const nota  = row.numnota ?? "PRE";
                 const serie = row.serienota ? ` - ${row.serienota}` : "";
                 const titulo = `${row.idtitulo} - ${String(row.digitotitulo ?? "01").padStart(2, "0")}`;
+                const obs = (row.observacao_titulo ?? "").trim();
                 return (
-                  <tr key={row.id}>
-                    <td style={td("left")}>{nota}{serie}</td>
-                    <td style={td("left")}>{titulo}</td>
-                    <td style={td("left", { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 })}>{row.forma_recebimento ?? ""}</td>
-                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(valVencido)}</td>
-                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(valAVencer)}</td>
-                    <td style={td("center", { whiteSpace: "nowrap" })}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
-                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
-                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_pago) || 0)}</td>
-                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_aberto) || 0)}</td>
-                    <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtmovimento)}</td>
-                    <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtvencimento)}</td>
-                    <td style={td("left", { fontSize: "6.5pt", whiteSpace: "nowrap", overflow: "hidden" })}>{row.numnota ?? ""}</td>
-                  </tr>
+                  <React.Fragment key={row.id}>
+                    <tr>
+                      <td style={td("left")}>{nota}{serie}</td>
+                      <td style={td("left")}>{titulo}</td>
+                      <td style={td("left", { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 })}>{row.forma_recebimento ?? ""}</td>
+                      <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(valVencido)}</td>
+                      <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(valAVencer)}</td>
+                      <td style={td("center", { whiteSpace: "nowrap" })}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
+                      <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
+                      <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_pago) || 0)}</td>
+                      <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_aberto) || 0)}</td>
+                      <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtmovimento)}</td>
+                      <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtvencimento)}</td>
+                      <td style={td("left", { fontSize: "6.5pt", whiteSpace: "nowrap", overflow: "hidden" })}>{row.numnota ?? ""}</td>
+                    </tr>
+                    {obs && (
+                      <tr>
+                        <td colSpan={12} style={{ ...td("left"), fontSize: "6.5pt", fontStyle: "italic", color: "#444", paddingLeft: "6px", paddingBottom: "1px" }}>
+                          Obs.: {obs}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
               <tr style={{ borderTop: "1px solid #aaa", borderBottom: "1px solid #ccc" }}>
                 <td colSpan={3} style={{ ...td("left"), fontWeight: "bold", paddingTop: "1px", paddingBottom: "2px" }}>
-                  {"    "}Total do Cliente:
+                  {"    "}Total do Cliente: {rows.length} título(s)
+                  {[
+                    clQtdVenc   > 0 ? ` · ${clQtdVenc} venc.`    : "",
+                    clQtdHoje   > 0 ? ` · ${clQtdHoje} vence hj` : "",
+                    clQtdAVencer > 0 ? ` · ${clQtdAVencer} a vencer` : "",
+                  ].join("")}
                 </td>
                 <td style={{ ...td("right"), fontWeight: "bold" }}>{fmtN(clVencido)}</td>
                 <td style={{ ...td("right"), fontWeight: "bold" }}>{fmtN(clAVencer)}</td>
