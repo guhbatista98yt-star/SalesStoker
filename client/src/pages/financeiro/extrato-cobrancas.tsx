@@ -104,11 +104,12 @@ function fmtDatetime(d: string | null | undefined) {
 
 // ── Print Report (ERP style — same as contas-receber) ────────────────────────
 
-function PrintReport({ filters, resumo, dupsData, companiesList }: {
+function PrintReport({ filters, resumo, dupsData, companiesList, orientation }: {
   filters: Filters;
   resumo: any;
   dupsData: any;
   companiesList: { id: string; name: string }[];
+  orientation: "landscape" | "portrait";
 }) {
   const now = new Date().toLocaleString("pt-BR");
   const allDups: any[] = dupsData?.data ?? [];
@@ -137,8 +138,10 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
     return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
   }
 
+  const isPortrait = orientation === "portrait";
   const MONO = "'Courier New', Courier, monospace";
-  const base: React.CSSProperties = { fontFamily: MONO, fontSize: "7.5pt", color: "#000", lineHeight: "1.3" };
+  const fontSize = isPortrait ? "6pt" : "7.5pt";
+  const base: React.CSSProperties = { fontFamily: MONO, fontSize, color: "#000", lineHeight: "1.3" };
 
   const th = (align: React.CSSProperties["textAlign"]): React.CSSProperties => ({
     ...base, textAlign: align, padding: "2px 3px", fontWeight: "bold",
@@ -148,7 +151,11 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
     ...base, textAlign: align, padding: "0px 3px", verticalAlign: "top", ...extra,
   });
 
-  const W = ["10%","9%","20%","8%","8%","4%","7%","7%","8%","7%","7%","5%"] as const;
+  // Landscape: 12 colunas em A4 horizontal (largura ~280mm)
+  // Portrait : mesmas 12 colunas em A4 vertical (largura ~190mm) — fonte menor compensa
+  const W = isPortrait
+    ? ["11%","10%","17%","9%","9%","4%","7%","7%","8%","7%","7%","4%"] as const
+    : ["10%","9%","20%","8%","8%","4%","7%","7%","8%","7%","7%","5%"] as const;
 
   const filterLines = [
     `Informe a(s) empresa(s) = ( ${filters.empresa === "all" ? "Todas" : (companiesList.find(c => String(c.id) === filters.empresa)?.name ?? filters.empresa)} )`,
@@ -166,7 +173,7 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
     <div style={{ ...base, backgroundColor: "#fff", padding: "0" }}>
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 10mm 8mm; }
+          @page { size: A4 ${isPortrait ? "portrait" : "landscape"}; margin: ${isPortrait ? "10mm 10mm" : "10mm 8mm"}; }
           .ec-thead { display: table-header-group; }
           .ec-tfoot { display: table-footer-group; }
           .ec-tbody tr { page-break-inside: avoid; }
@@ -212,7 +219,7 @@ function PrintReport({ filters, resumo, dupsData, companiesList }: {
             <th style={{ ...th("right"),  width: W[8]  }}>Saldo a Pagar</th>
             <th style={{ ...th("center"), width: W[9]  }}>Emissão</th>
             <th style={{ ...th("center"), width: W[10] }}>Vencimento</th>
-            <th style={{ ...th("left"),   width: W[11] }}>Nota</th>
+            <th style={{ ...th("left"),   width: W[11] }}>Cupom</th>
           </tr>
         </thead>
 
@@ -389,6 +396,7 @@ function DatePicker({ value, onChange, placeholder = "Qualquer data" }: {
 export default function ExtratoCobracas() {
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
   const [applied, setApplied] = useState<Filters | null>(null);
+  const [orientation, setOrientation] = useState<"landscape" | "portrait">("landscape");
   const pendingPrint = useRef(false);
 
   // Only fetch when user clicks "Gerar Extrato"
@@ -475,7 +483,7 @@ export default function ExtratoCobracas() {
       `}</style>
       {hasResults && createPortal(
         <div className="ec-print-portal">
-          <PrintReport filters={applied!} resumo={resumoQ.data} dupsData={printQ.data} companiesList={companiesList} />
+          <PrintReport filters={applied!} resumo={resumoQ.data} dupsData={printQ.data} companiesList={companiesList} orientation={orientation} />
         </div>,
         document.body
       )}
@@ -627,6 +635,44 @@ export default function ExtratoCobracas() {
                   />
                 </div>
 
+                {/* Orientação de impressão */}
+                <div>
+                  <Label className="text-xs">Orientação da impressão</Label>
+                  <div className="flex gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setOrientation("landscape")}
+                      className={cn(
+                        "flex-1 h-8 text-xs rounded border flex items-center justify-center gap-1.5 transition-colors",
+                        orientation === "landscape"
+                          ? "border-primary bg-primary/10 text-primary font-semibold"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                      )}
+                    >
+                      {/* ícone horizontal */}
+                      <svg width="14" height="10" viewBox="0 0 14 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor"/>
+                      </svg>
+                      Paisagem
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrientation("portrait")}
+                      className={cn(
+                        "flex-1 h-8 text-xs rounded border flex items-center justify-center gap-1.5 transition-colors",
+                        orientation === "portrait"
+                          ? "border-primary bg-primary/10 text-primary font-semibold"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                      )}
+                    >
+                      {/* ícone vertical */}
+                      <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0.5" y="0.5" width="9" height="13" rx="1" stroke="currentColor"/>
+                      </svg>
+                      Retrato
+                    </button>
+                  </div>
+                </div>
 
               </div>
 
@@ -695,7 +741,7 @@ export default function ExtratoCobracas() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Extrato gerado. Se a impressão não abriu automaticamente, clique em <strong>Imprimir novamente</strong> ou use <strong>Ctrl+P</strong>.
-                  O documento será impresso em A4 paisagem.
+                  O documento será impresso em A4 <strong>{orientation === "landscape" ? "paisagem" : "retrato"}</strong>.
                 </p>
               </CardContent>
             </Card>
