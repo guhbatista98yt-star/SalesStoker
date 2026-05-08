@@ -1471,6 +1471,20 @@ function SyncSection() {
     onError: () => toast({ title: "Erro ao resetar bootstrap", variant: "destructive" }),
   });
 
+  const reloadMutation = useMutation({
+    mutationFn: async (rotina: string) => {
+      const res = await apiRequest("POST", "/api/sync/reload", { rotina });
+      if (!res.ok) throw new Error("Falha ao iniciar reload");
+      return res.json();
+    },
+    onSuccess: (result, rotina) => {
+      if (result.logFile) setLastLogFile(result.logFile.split(/[\\/]/).pop() ?? result.logFile);
+      toast({ title: "Recarregamento iniciado", description: `Dados do último ano de '${ROTINA_LABELS[rotina] ?? rotina}' serão re-sincronizados com fabricante. Aguarde alguns minutos.` });
+      setTimeout(() => refetch(), 15_000);
+    },
+    onError: () => toast({ title: "Erro ao recarregar dados", variant: "destructive" }),
+  });
+
   const syncState = data?.syncState ?? [];
   const bootstrapStatus = data?.bootstrapStatus ?? [];
 
@@ -1615,6 +1629,11 @@ function SyncSection() {
             <div className="space-y-2">
               {syncState.map(s => {
                 const hasError = !!s.last_error;
+                const routineKey = s.routine_name.replace("cache_", "").replace("_conexoes", "s");
+                const reloadKey = s.routine_name === "cache_tubos_conexoes" ? "tubos"
+                  : s.routine_name === "cache_vendas" ? "vendas"
+                  : s.routine_name === "cache_campanhas" ? "campanhas"
+                  : null;
                 return (
                   <div key={s.routine_name} className="flex items-center justify-between p-3 rounded-lg border bg-card">
                     <div className="flex items-center gap-3 min-w-0">
@@ -1634,13 +1653,27 @@ function SyncSection() {
                         )}
                       </div>
                     </div>
-                    <Button
-                      size="sm" variant="ghost"
-                      onClick={() => triggerMutation.mutate(s.routine_name.replace("cache_", "").replace("_conexoes", "s"))}
-                      disabled={triggerMutation.isPending}
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {reloadKey && (
+                        <Button
+                          size="sm" variant="outline"
+                          className="text-xs h-7 px-2"
+                          onClick={() => reloadMutation.mutate(reloadKey)}
+                          disabled={reloadMutation.isPending}
+                          title="Apaga dados do último ano e re-sincroniza com fabricante preenchido"
+                        >
+                          <Database className="h-3 w-3 mr-1" />
+                          Recarregar
+                        </Button>
+                      )}
+                      <Button
+                        size="sm" variant="ghost"
+                        onClick={() => triggerMutation.mutate(routineKey)}
+                        disabled={triggerMutation.isPending}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 );
               })}

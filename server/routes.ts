@@ -199,8 +199,6 @@ export async function registerRoutes(
     }
   });
 
-  await seedAuthUsersIfNeeded();
-
   app.use("/api/auth", createAuthRouter());
   app.use("/api/admin", usersAdminRouter);
 
@@ -1026,6 +1024,7 @@ export async function registerRoutes(
   // PID registry: logTag → pid (for cancel support)
   const runningPids = new Map<string, number>();
 
+
   function spawnPyBackground(scriptPath: string, args: string[], logTag: string): string {
     const logDir = path.join(process.cwd(), "sync", "logs");
     fs.mkdirSync(logDir, { recursive: true });
@@ -1055,6 +1054,7 @@ export async function registerRoutes(
     return true;
   }
 
+
   // ── Sync Trigger ──────────────────────────────────────────────────────────
   const VALID_SYNC_ROTINAS = new Set([
     "vendas", "campanhas", "tubos", "pendentes",
@@ -1070,6 +1070,40 @@ export async function registerRoutes(
     const args = force ? [rotina, "--force"] : [rotina];
     const logFile = spawnPyBackground(scriptPath, args, `sync_${rotina}`);
     res.json({ success: true, rotina, force, logFile, message: `Sync '${rotina}' iniciado em background` });
+  });
+
+  // ── Sync Reload (reset watermark + re-sync last 1 year) ───────────────────
+  const RELOAD_TABLE_MAP: Record<string, string> = {
+    tubos: "cache_tubos_conexoes",
+    vendas: "cache_vendas",
+    campanhas: "cache_campanhas",
+  };
+  const RELOAD_DATE_COL: Record<string, string> = {
+    tubos: "DT_MOVIMENTO",
+    vendas: "DT_MOVIMENTO",
+    campanhas: "DTMOVIMENTO",
+  };
+
+  app.post("/api/sync/reload", isAuthenticated, async (req: AuthRequest, res) => {
+    if (req.userRole !== "admin") return res.status(403).json({ error: "Apenas administradores podem recarregar sync" });
+    const rotina = String(req.body?.rotina ?? "").trim();
+    if (!RELOAD_TABLE_MAP[rotina]) return res.status(400).json({ error: "Rotina não suportada para reload" });
+
+    const table = RELOAD_TABLE_MAP[rotina];
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    oneYearAgo.setDate(1); // primeiro dia do mês
+    const dateStr = oneYearAgo.toISOString().split("T")[0];
+
+    const dateCol = RELOAD_DATE_COL[rotina];
+    // Clear watermark, lock, and recent rows so next sync fetches fresh with FABRICANTE
+    await pool.query("DELETE FROM sync_state WHERE routine_name = $1", [table]);
+    await pool.query("DELETE FROM job_locks WHERE routine_name = $1", [table]);
+    await pool.query(`DELETE FROM ${table} WHERE "${dateCol}" >= $1`, [dateStr]);
+
+    const scriptPath = path.join(process.cwd(), "sync", "erp_sync.py");
+    const logFile = spawnPyBackground(scriptPath, [rotina, "--force"], `sync_reload_${rotina}`);
+    res.json({ success: true, rotina, logFile, message: `Reload de '${rotina}' iniciado — último 1 ano será re-sincronizado` });
   });
 
   // ── Bootstrap Trigger ─────────────────────────────────────────────────────
