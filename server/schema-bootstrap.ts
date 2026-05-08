@@ -71,12 +71,15 @@ async function bootstrapUsers(): Promise<void> {
       last_name     TEXT,
       role          TEXT NOT NULL DEFAULT 'admin',
       team_members  TEXT,
+      supervisor_group_id TEXT,
       module_permissions TEXT,
       created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users (LOWER(email))`);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_users_supervisor_group
+    ON users (supervisor_group_id)`);
 }
 
 async function bootstrapGoals(): Promise<void> {
@@ -200,6 +203,44 @@ async function bootstrapAppSettings(): Promise<void> {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+}
+
+async function seedDefaultAppSettings(): Promise<void> {
+  const defaults: Array<[string, string]> = [
+    ["showDtrAmancoTab",                "true"],
+    ["showTvAmancoTab",                 "true"],
+    ["showTintasElitTab",               "true"],
+    ["showAcompanhamentoTab",           "false"],
+    ["dtrAmancoLogoUrl",                ""],
+    ["tvAmancoLogoUrl",                 ""],
+    ["tintasElitLogoUrl",               ""],
+    ["showMovimentacoesButton",         "true"],
+    ["showFinanceiroPendenciasButton",  "false"],
+    ["supervisorPurchaseNotifications", "true"],
+  ];
+  for (const [key, value] of defaults) {
+    await pool.query(
+      `INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`,
+      [key, value],
+    );
+  }
+}
+
+async function seedDefaultAdmin(): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM users WHERE role = 'admin'`,
+  );
+  if (Number(rows[0].cnt) > 0) return;
+
+  const bcrypt = await import("bcryptjs");
+  const hashed = await bcrypt.hash("admin123", 10);
+  await pool.query(
+    `INSERT INTO users (email, password, first_name, role)
+     VALUES ($1, $2, $3, 'admin')
+     ON CONFLICT (email) DO NOTHING`,
+    ["admin", hashed, "Administrador"],
+  );
+  console.log("[schema-bootstrap] Usuário admin padrão criado. Login: admin / Senha: admin123 — TROQUE A SENHA NO PRIMEIRO ACESSO.");
 }
 
 // ---------------------------------------------------------------------------
@@ -584,6 +625,7 @@ async function bootstrapCacheTables(): Promise<void> {
       "DT_MOVIMENTO"     DATE,
       "TOTALVENDA_LINHA" NUMERIC(18,2) NOT NULL DEFAULT 0,
       "TIPO_PRODUTO"     TEXT NOT NULL DEFAULT '',
+      "FABRICANTE"       TEXT NOT NULL DEFAULT '',
       synced_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
@@ -641,6 +683,7 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["users", "cargo",          "TEXT"],
     ["users", "company_id",     "TEXT"],
     ["users", "supervisor_id",  "INTEGER"],
+    ["users", "supervisor_group_id", "TEXT"],
     ["users", "status",         "TEXT NOT NULL DEFAULT 'ativo'"],
     ["users", "last_login_at",  "TEXT"],
     ["users", "notes",          "TEXT"],
@@ -665,6 +708,9 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     const did = await addColumnIfMissing(table, col, def);
     if (did) added.push(`${table}.${col}`);
   }
+
+  // Migrations with quoted (case-sensitive) column names
+  await exec(`ALTER TABLE cache_tubos_conexoes ADD COLUMN IF NOT EXISTS "FABRICANTE" TEXT NOT NULL DEFAULT ''`);
 }
 
 // ---------------------------------------------------------------------------
@@ -1103,10 +1149,18 @@ async function validateSchema(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Demo seed — Contas a Receber (only when table is empty)
+// Demo seed — Contas a Receber (disabled by default)
 // ---------------------------------------------------------------------------
 
 async function seedDemoContasReceber(): Promise<void> {
+  if (process.env.ALLOW_DEMO_FINANCE_SEED !== "true") {
+    return;
+  }
+  if (process.env.NODE_ENV === "production") {
+    console.warn("[schema-bootstrap] ALLOW_DEMO_FINANCE_SEED ignorado em produção; nenhum dado financeiro demo foi inserido.");
+    return;
+  }
+
   const { rows } = await pool.query(`SELECT COUNT(*) AS cnt FROM cache_contas_receber`);
   if (Number(rows[0].cnt) > 0) return;
 
@@ -1138,6 +1192,93 @@ async function seedDemoContasReceber(): Promise<void> {
 // Entry point
 // ---------------------------------------------------------------------------
 
+async function seedDefaultCampaigns(): Promise<void> {
+  const campaigns = [
+    {
+      id: "camp-dtr-amanco-2026-q2",
+      code: "dtr_amanco_2026_q2",
+      name: "DTR Amanco",
+      description: "Campanha trimestral Amanco Wavin — Q2 2026 (ABR/MAI/JUN). Critérios: gatilho de faturamento Amanco, mix de conexões ≥ 40% sobre tubos e crescimento global da loja ≥ 25% vs. 2025.",
+      objective: "Aumentar faturamento Amanco com mix equilibrado entre tubos e conexões",
+      supplier_name: "Amanco Wavin",
+      logo_url: "",
+      brand_color: "#0066CC",
+      campaign_type: "padrao",
+      campaign_mode: "atingimento",
+      status: "ativa",
+      priority: 90,
+      is_exclusive: 0,
+      starts_at: "2026-04-01",
+      ends_at: "2026-06-30",
+      targets: JSON.stringify({ gatilho_padrao: 120000, meta_mix: 40, meta_crescimento_loja: 25 }),
+      bases: JSON.stringify({ elegibilidade: { gatilho: true, mix_minimo: 40, crescimento_loja: 25 }, fonte_dados: "cache_campanhas+cache_tubos_conexoes", filtro_fabricante: "AMANCO%" }),
+      natural_language: "Vendedor elegível se: (1) faturamento Amanco ≥ gatilho individual (padrão R$120k), (2) conexões/tubos Amanco ≥ 40%, (3) crescimento Amanco da loja ≥ 25% vs mesmo trimestre 2025.",
+      created_by: "sistema",
+    },
+    {
+      id: "camp-tv-amanco-2026-q2",
+      code: "tv_amanco_2026_q2",
+      name: "TV Amanco",
+      description: "Campanha trimestral TV Amanco — Q2 2026 (ABR/MAI/JUN). Critérios: gatilho de faturamento, crescimento individual ≥ 20%, mix de conexões ≥ 45% e crescimento global da loja ≥ 25%.",
+      objective: "Premiar vendedores TV com alto crescimento e mix de conexões",
+      supplier_name: "Amanco Wavin",
+      logo_url: "",
+      brand_color: "#00AA44",
+      campaign_type: "padrao",
+      campaign_mode: "atingimento",
+      status: "ativa",
+      priority: 85,
+      is_exclusive: 0,
+      starts_at: "2026-04-01",
+      ends_at: "2026-06-30",
+      targets: JSON.stringify({ gatilho_padrao: 60000, meta_mix: 45, meta_crescimento_vendedor: 20, meta_crescimento_loja: 25 }),
+      bases: JSON.stringify({ elegibilidade: { gatilho: true, crescimento_vendedor: 20, mix_minimo: 45, crescimento_loja: 25 }, fonte_dados: "cache_campanhas+cache_tubos_conexoes", filtro_fabricante: "AMANCO%" }),
+      natural_language: "Vendedor elegível se: (1) faturamento Amanco ≥ gatilho individual (padrão R$60k), (2) crescimento individual ≥ 20% vs 2025, (3) conexões/tubos Amanco ≥ 45%, (4) crescimento Amanco da loja ≥ 25% vs 2025.",
+      created_by: "sistema",
+    },
+    {
+      id: "camp-elit-tintas-semanal",
+      code: "elit_tintas_semanal",
+      name: "Tintas Elit",
+      description: "Campanha semanal Tintas Elit (sábado a sábado). Critério: faturamento em tintas e vernizes não-Amanco ≥ gatilho semanal. Prêmio calculado por unidade vendida conforme tabela de comissões.",
+      objective: "Aumentar vendas de tintas e vernizes Elit com premiação semanal",
+      supplier_name: "Elit Tintas",
+      logo_url: "",
+      brand_color: "#FF6600",
+      campaign_type: "padrao",
+      campaign_mode: "atingimento",
+      status: "ativa",
+      priority: 80,
+      is_exclusive: 0,
+      starts_at: "2026-01-01",
+      ends_at: "2026-12-31",
+      targets: JSON.stringify({ gatilho_padrao: 3000, ciclo: "semanal_sabado" }),
+      bases: JSON.stringify({ elegibilidade: { gatilho: true }, fonte_dados: "cache_campanhas", filtro_fabricante: "NOT AMANCO%", ciclo: "sabado_a_sabado", premio: "por_unidade_tabela" }),
+      natural_language: "A cada semana (sábado–sábado), vendedor que faturar ≥ R$3.000 em produtos não-Amanco recebe prêmio por unidade vendida conforme tabela de comissões Elit.",
+      created_by: "sistema",
+    },
+  ];
+
+  for (const c of campaigns) {
+    await pool.query(
+      `INSERT INTO campaigns
+        (id, code, name, description, objective, supplier_name, logo_url, brand_color,
+         campaign_type, campaign_mode, status, priority, is_exclusive,
+         starts_at, ends_at, targets, bases, natural_language, created_by,
+         valid_weekdays, conditions, triggers, rewards, limits, exceptions)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+               '[]','{}','[]','{}','{}','[]')
+       ON CONFLICT (code) DO NOTHING`,
+      [c.id, c.code, c.name, c.description, c.objective, c.supplier_name,
+       c.logo_url, c.brand_color, c.campaign_type, c.campaign_mode,
+       c.status, c.priority, c.is_exclusive, c.starts_at, c.ends_at,
+       c.targets, c.bases, c.natural_language, c.created_by],
+    );
+  }
+  const { rows } = await pool.query(`SELECT COUNT(*) AS cnt FROM campaigns`);
+  console.log(`[schema-bootstrap] Campanhas: ${rows[0].cnt} registradas.`);
+}
+
 export async function runSchemaBootstrap(): Promise<void> {
   const start = Date.now();
   console.log("[schema-bootstrap] Iniciando verificação e criação do schema PostgreSQL...");
@@ -1159,9 +1300,12 @@ export async function runSchemaBootstrap(): Promise<void> {
     await bootstrapVendorSettings();
     await bootstrapVendorGroups();
     await bootstrapAppSettings();
+    await seedDefaultAppSettings();
+    await seedDefaultAdmin();
 
     // ── Campaigns ─────────────────────────────────────────────────────────
     await bootstrapCampaigns();
+    await seedDefaultCampaigns();
 
     // ── Commissions ───────────────────────────────────────────────────────
     await bootstrapCommissions();

@@ -19,11 +19,157 @@
 import { Router, Response } from "express";
 import { isAuthenticated, isAdmin, AuthRequest } from "../auth";
 import { pgAll, pgGet, pgRun } from "../pg-client";
-import XLSX from "xlsx";
 
 const router = Router();
 
+const CSV_FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
+function csvCell(value: unknown): string {
+  const raw = value == null ? "" : String(value);
+  const safe = typeof value === "string" && CSV_FORMULA_PREFIX.test(raw) ? `'${raw}` : raw;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+function toCsvBuffer(rows: readonly (readonly unknown[])[]): Buffer {
+  const csv = `\uFEFF${rows.map(row => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
+  return Buffer.from(csv, "utf8");
+}
+
+// ── Formas de pagamento excluídas por empresa ──────────────────────────────
+// Títulos com essas formas são ocultados de todos os endpoints e filtros.
+
+// Formas excluídas globalmente (aplicadas a todas as empresas).
+// Usa prefixo para cobrir variantes como "L1 - VENDA DIRETA (registros mistos)".
+const FORMAS_EXCLUIDAS_GLOBAL: string[] = [
+  "DINHEIRO",
+  "L1 - 2X CARTAO DE CREDITO",
+  "L1 - 3X CARTAO DE CREDITO",
+  "L1 - 4X CARTAO CREDITO",
+  "L1 - 5X CARTAO CREDITO",
+  "L1 - 6X CARTAO CREDITO",
+  "L1 - ADIANTAMENTO DEPOSITO",
+  "L1 - BANESE DEBITO",
+  "L1 - BOLETO BB S/ENTRADA",
+  "L1 - CARTAO CREDITO- INATIVO",
+  "L1 - CARTAO CREDITO TEF",
+  "L1 - CARTAO DEBITO LOJA",
+  "L1 - CARTAO DEBITO TEF",
+  "L1 - CARTAO INATIVO",
+  "L1 - CARTAO LINK",
+  "L1 - CARTAO POS",
+  "L1 - CARTEIRA",
+  "L1 - CREDITO/DEVOLUCAO",
+  "L1 - CREDITO/DEVOLUÇÃO",
+  "L1 - DEPOSITO / PIX CHAVE",
+  "L1 - ENTREGA 28 DIAS",
+  "L1 - PIX SICREDI",
+  "L1 - PIX TEF",
+  "L1 - REC LOCAL A VISTA",
+  "L1 - REC LOCAL CARTAO",
+  "L1 - REC LOCAL CHEQUE PRAZO",
+  "L1 - REC VALE TROCA/DEV",
+  "L1 - RECEBIMENTO CARTAO",
+  "L1 - VENDA DIRETA",
+  "L3 - CARTEIRA",
+  "L3 - CREDITO/DEVOLUCAO",
+  "L3 - DEPOSITO ENTREGA",
+  "L3 - ENTREGA CARTAO CREDITO",
+  "L3 - ENTREGA CARTAO DEBITO",
+  "L3 - ENTREGA CHEQUE",
+  "L3 - FORA EST 28 A 84",
+  "L3 - REC CARTAO",
+  "L3 - VENDA DIRETA",
+];
+
+// Helper: retorna a cláusula SQL de exclusão global e os params, com offset de $n.
+// Títulos com forma_recebimento NULL são MANTIDOS (não excluídos).
+function formasExcluidasClause(startN: number): { sql: string; params: string[] } {
+  let n = startN;
+  const likeClauses = FORMAS_EXCLUIDAS_GLOBAL.map(() => `UPPER(TRIM(forma_recebimento)) LIKE $${n++}`).join(" OR ");
+  return {
+    sql: `(forma_recebimento IS NULL OR NOT (${likeClauses}))`,
+    params: FORMAS_EXCLUIDAS_GLOBAL.map(f => `${f}%`),
+  };
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+class BadRequestError extends Error {
+  statusCode = 400;
+  errorCode = "INVALID_FILTER";
+}
+
+function sendRouteError(res: Response, label: string, err: unknown, fallbackMessage: string) {
+  const statusCode = err instanceof BadRequestError ? err.statusCode : 500;
+  const message = err instanceof BadRequestError ? err.message : fallbackMessage;
+  if (statusCode >= 500) {
+    console.error(`[financeiro] ${label}:`, err);
+  }
+  res.status(statusCode).json({
+    success: false,
+    message,
+    error: message,
+    error_code: err instanceof BadRequestError ? err.errorCode : "FINANCEIRO_API_ERROR",
+  });
+}
+
+function firstQueryValue(value: unknown): string {
+  if (Array.isArray(value)) return firstQueryValue(value[0]);
+  return String(value ?? "").trim();
+}
+
+function isBlankFilter(value: unknown): boolean {
+  const normalized = firstQueryValue(value);
+  return normalized === "" || normalized === "all" || normalized === "todos" || normalized === "__all__";
+}
+
+function parsePositiveIntFilter(q: Record<string, unknown>, key: string): number | undefined {
+  if (isBlankFilter(q[key])) return undefined;
+  const value = firstQueryValue(q[key]);
+  if (!/^\d+$/.test(value)) throw new BadRequestError(`Filtro ${key} inválido`);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new BadRequestError(`Filtro ${key} inválido`);
+  return parsed;
+}
+
+function parseMoneyFilter(q: Record<string, unknown>, key: string): number | undefined {
+  if (isBlankFilter(q[key])) return undefined;
+  const value = firstQueryValue(q[key]).replace(",", ".");
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new BadRequestError(`Filtro ${key} inválido`);
+  return parsed;
+}
+
+function parseDateFilter(q: Record<string, unknown>, key: string): string | undefined {
+  if (isBlankFilter(q[key])) return undefined;
+  const value = firstQueryValue(q[key]);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestError(`Data ${key} inválida. Use YYYY-MM-DD.`);
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year
+    || parsed.getUTCMonth() !== month - 1
+    || parsed.getUTCDate() !== day
+  ) {
+    throw new BadRequestError(`Data ${key} inválida. Use YYYY-MM-DD.`);
+  }
+  return value;
+}
+
+function parsePagination(q: Record<string, unknown>, defaultLimit: number, maxLimit: number) {
+  const page = isBlankFilter(q.page) ? 1 : parsePositiveIntFilter(q, "page")!;
+  const limitRaw = isBlankFilter(q.limit) ? defaultLimit : parsePositiveIntFilter(q, "limit")!;
+  const limit = Math.min(maxLimit, Math.max(10, limitRaw));
+  return { page, limit, offset: (page - 1) * limit };
+}
+
+function parseStatus(q: Record<string, unknown>): string | undefined {
+  if (isBlankFilter(q.status)) return undefined;
+  const status = firstQueryValue(q.status).toUpperCase();
+  const allowed = new Set(["VENCIDO", "VENCE_HOJE", "A_VENCER", "RECEBIDO"]);
+  if (!allowed.has(status)) throw new BadRequestError("Status financeiro inválido");
+  return status;
+}
 
 async function getIgnoredClientIds(): Promise<number[]> {
   try {
@@ -37,7 +183,7 @@ async function getIgnoredClientIds(): Promise<number[]> {
 }
 
 function buildWhereClause(
-  q: Record<string, string | undefined>,
+  q: Record<string, unknown>,
   opts: { tableAlias?: string; paramOffset?: number; ignoredIds?: number[] } = {}
 ): { where: string; params: unknown[] } {
   const t = opts.tableAlias ? `${opts.tableAlias}.` : "";
@@ -47,32 +193,40 @@ function buildWhereClause(
 
   const p = () => `$${n++}`;
 
-  if (q.status && q.status !== "todos") {
+  const status = parseStatus(q);
+  if (status) {
     conditions.push(`${t}status = ${p()}`);
-    params.push(q.status.toUpperCase());
+    params.push(status);
   }
-  if (q.empresa && q.empresa !== "all") {
+  const empresa = parsePositiveIntFilter(q, "empresa");
+  if (empresa !== undefined) {
     conditions.push(`${t}idempresa = ${p()}`);
-    params.push(Number(q.empresa));
+    params.push(empresa);
   }
-  if (q.idclifor) {
+  const idclifor = parsePositiveIntFilter(q, "idclifor");
+  if (idclifor !== undefined) {
     conditions.push(`${t}idclifor = ${p()}`);
-    params.push(Number(q.idclifor));
+    params.push(idclifor);
   }
-  if (q.idvendedor) {
+  const idvendedor = parsePositiveIntFilter(q, "idvendedor");
+  if (idvendedor !== undefined) {
     conditions.push(`${t}idvendedor = ${p()}`);
-    params.push(Number(q.idvendedor));
+    params.push(idvendedor);
   }
-  if (q.venc_de) {
+  const vencDe = parseDateFilter(q, "venc_de");
+  if (vencDe) {
     conditions.push(`${t}dtvencimento >= ${p()}`);
-    params.push(q.venc_de);
+    params.push(vencDe);
   }
-  if (q.venc_ate) {
+  const vencAte = parseDateFilter(q, "venc_ate");
+  if (vencAte) {
+    if (vencDe && vencDe > vencAte) throw new BadRequestError("Período inválido: vencimento inicial maior que final");
     conditions.push(`${t}dtvencimento <= ${p()}`);
-    params.push(q.venc_ate);
+    params.push(vencAte);
   }
-  if (q.busca) {
-    const like = `%${q.busca}%`;
+  const busca = firstQueryValue(q.busca);
+  if (busca) {
+    const like = `%${busca}%`;
     conditions.push(
       `(LOWER(${t}nomecliente) LIKE LOWER(${p()}) OR LOWER(${t}nomevendedor) LIKE LOWER(${p()}) ` +
       `OR CAST(${t}idclifor AS TEXT) LIKE ${p()} OR CAST(${t}idtitulo AS TEXT) LIKE ${p()} ` +
@@ -81,40 +235,56 @@ function buildWhereClause(
     params.push(like, like, like, like, like, like);
     // p() already incremented n 6 times in the template above — no extra n+= needed
   }
-  if (q.somente_vencidos === "1") {
+  if (firstQueryValue(q.somente_vencidos) === "1") {
     conditions.push(`${t}status = 'VENCIDO'`);
   }
-  if (q.somente_com_juros === "1") {
+  if (firstQueryValue(q.somente_com_juros) === "1") {
     conditions.push(`${t}valor_juros_pendente > 0`);
   }
-  if (q.uf) {
+  const uf = firstQueryValue(q.uf).toUpperCase();
+  if (uf) {
+    if (!/^[A-Z]{2}$/.test(uf)) throw new BadRequestError("UF inválida");
     conditions.push(`${t}uf_cobranca = ${p()}`);
-    params.push(q.uf.toUpperCase());
+    params.push(uf);
   }
-  if (q.forma_recebimento) {
+  const formaRecebimento = firstQueryValue(q.forma_recebimento);
+  if (formaRecebimento) {
     conditions.push(`LOWER(${t}forma_recebimento) LIKE LOWER(${p()})`);
-    params.push(`%${q.forma_recebimento}%`);
+    params.push(`%${formaRecebimento}%`);
   }
-  if (q.idtitulo) {
+  const idtitulo = parsePositiveIntFilter(q, "idtitulo");
+  if (idtitulo !== undefined) {
     conditions.push(`${t}idtitulo = ${p()}`);
-    params.push(Number(q.idtitulo));
+    params.push(idtitulo);
   }
-  if (q.numnota) {
+  const numnota = firstQueryValue(q.numnota);
+  if (numnota) {
     conditions.push(`CAST(${t}numnota AS TEXT) LIKE ${p()}`);
-    params.push(`%${q.numnota}%`);
+    params.push(`%${numnota}%`);
   }
-  if (q.valor_min) {
+  const valorMin = parseMoneyFilter(q, "valor_min");
+  if (valorMin !== undefined) {
     conditions.push(`${t}valor_aberto >= ${p()}`);
-    params.push(Number(q.valor_min));
+    params.push(valorMin);
   }
-  if (q.valor_max) {
+  const valorMax = parseMoneyFilter(q, "valor_max");
+  if (valorMax !== undefined) {
+    if (valorMin !== undefined && valorMin > valorMax) throw new BadRequestError("Faixa de valor inválida");
     conditions.push(`${t}valor_aberto <= ${p()}`);
-    params.push(Number(q.valor_max));
+    params.push(valorMax);
   }
   if (opts.ignoredIds && opts.ignoredIds.length > 0) {
     const placeholders = opts.ignoredIds.map(() => `$${n++}`).join(", ");
     conditions.push(`${t}idclifor NOT IN (${placeholders})`);
     params.push(...opts.ignoredIds);
+  }
+
+  // Exclusão global de formas de pagamento (independente de empresa).
+  // Títulos com forma_recebimento NULL são MANTIDOS (não excluídos).
+  if (FORMAS_EXCLUIDAS_GLOBAL.length > 0) {
+    const likeClauses = FORMAS_EXCLUIDAS_GLOBAL.map(() => `UPPER(TRIM(${t}forma_recebimento)) LIKE ${p()}`).join(" OR ");
+    conditions.push(`(${t}forma_recebimento IS NULL OR NOT (${likeClauses}))`);
+    params.push(...FORMAS_EXCLUIDAS_GLOBAL.map(f => `${f}%`));
   }
 
   return { where: conditions.join(" AND "), params };
@@ -125,7 +295,7 @@ function buildWhereClause(
 
 router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const q = req.query as Record<string, string | undefined>;
+    const q = req.query as Record<string, unknown>;
     const hasFilters = Object.values(q).some(v => v && v !== "" && v !== "todos" && v !== "all" && v !== "0");
 
     const ignoredIds = await getIgnoredClientIds();
@@ -174,6 +344,7 @@ router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) =
     `);
 
     res.json({
+      success: true,
       total_aberto: totais?.total_aberto ?? 0,
       total_vencido: totais?.total_vencido ?? 0,
       total_vence_hoje: totais?.total_vence_hoje ?? 0,
@@ -191,26 +362,43 @@ router.get("/resumo", isAuthenticated, async (req: AuthRequest, res: Response) =
       filtros_ativos: hasFilters,
     });
   } catch (err) {
-    console.error("[financeiro] /resumo:", err);
-    res.status(500).json({ error: "Erro ao buscar resumo financeiro" });
+    sendRouteError(res, "/resumo", err, "Erro ao buscar resumo financeiro");
   }
 });
 
 // ── GET /formas-recebimento (distinct values) ────────────────────────────────
 
-router.get("/formas-recebimento", isAuthenticated, async (_req: AuthRequest, res: Response) => {
+router.get("/formas-recebimento", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const rows = await pgAll<{ forma: string }>(
-      `SELECT DISTINCT UPPER(TRIM(forma_recebimento)) AS forma
-       FROM cache_contas_receber
-       WHERE forma_recebimento IS NOT NULL AND TRIM(forma_recebimento) <> ''
-       ORDER BY 1`
-    );
+    const empresa = req.query.empresa as string | undefined;
+    const conditions: string[] = [
+      "forma_recebimento IS NOT NULL",
+      "TRIM(forma_recebimento) <> ''",
+    ];
+    const params: unknown[] = [];
+    let n = 1;
+
+    if (empresa && empresa !== "all") {
+      conditions.push(`idempresa = $${n++}`);
+      params.push(Number(empresa));
+    }
+
+    // Exclusão global de formas de pagamento (independente de empresa)
+    if (FORMAS_EXCLUIDAS_GLOBAL.length > 0) {
+      const likeClauses = FORMAS_EXCLUIDAS_GLOBAL.map(() => `UPPER(TRIM(forma_recebimento)) LIKE $${n++}`).join(" OR ");
+      conditions.push(`NOT (${likeClauses})`);
+      params.push(...FORMAS_EXCLUIDAS_GLOBAL.map(f => `${f}%`));
+    }
+
+    const sql = `SELECT DISTINCT UPPER(TRIM(forma_recebimento)) AS forma
+                 FROM cache_contas_receber
+                 WHERE ${conditions.join(" AND ")}
+                 ORDER BY 1`;
+    const rows = await pgAll<{ forma: string }>(sql, params.length ? params : undefined);
     const formas = rows.map(r => r.forma).filter(Boolean);
     res.json({ formas });
   } catch (err) {
-    console.error("[financeiro] /formas-recebimento:", err);
-    res.status(500).json({ formas: [] });
+    sendRouteError(res, "/formas-recebimento", err, "Erro ao buscar formas de recebimento");
   }
 });
 
@@ -218,10 +406,8 @@ router.get("/formas-recebimento", isAuthenticated, async (_req: AuthRequest, res
 
 router.get("/clientes", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const q = req.query as Record<string, string | undefined>;
-    const page = Math.max(1, Number(q.page ?? 1));
-    const limit = Math.min(200, Math.max(10, Number(q.limit ?? 50)));
-    const offset = (page - 1) * limit;
+    const q = req.query as Record<string, unknown>;
+    const { page, limit, offset } = parsePagination(q, 50, 200);
     const sort = (q.sort ?? "total_vencido") as string;
     const dir = q.dir === "asc" ? "ASC" : "DESC";
 
@@ -275,15 +461,16 @@ router.get("/clientes", isAuthenticated, async (req: AuthRequest, res: Response)
     );
 
     res.json({
+      success: true,
       data: rows,
       total: Number(totalRows?.cnt ?? 0),
       page,
       limit,
       pages: Math.ceil(Number(totalRows?.cnt ?? 0) / limit),
+      meta: { total: Number(totalRows?.cnt ?? 0), page, limit, pages: Math.ceil(Number(totalRows?.cnt ?? 0) / limit) },
     });
   } catch (err) {
-    console.error("[financeiro] /clientes:", err);
-    res.status(500).json({ error: "Erro ao buscar clientes" });
+    sendRouteError(res, "/clientes", err, "Erro ao buscar clientes");
   }
 });
 
@@ -292,7 +479,11 @@ router.get("/clientes", isAuthenticated, async (req: AuthRequest, res: Response)
 router.get("/cliente/:idclifor", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
     const idclifor = Number(req.params.idclifor);
-    if (!idclifor) return res.status(400).json({ error: "idclifor inválido" });
+    if (!Number.isSafeInteger(idclifor) || idclifor <= 0) return res.status(400).json({ success: false, error: "idclifor inválido", message: "idclifor inválido" });
+
+    // $1 = idclifor; $2...$N = params de exclusão de formas de pagamento
+    const formasEx = formasExcluidasClause(2);
+    const baseParams = [idclifor, ...formasEx.params];
 
     const [info, duplicatas, cobrancas] = await Promise.all([
       pgGet(`
@@ -307,16 +498,16 @@ router.get("/cliente/:idclifor", isAuthenticated, async (req: AuthRequest, res: 
           MIN(CASE WHEN status IN ('A_VENCER','VENCE_HOJE') THEN dtvencimento END) AS proximo_vencimento,
           MAX(dtultimopagamento) AS ultimo_pagamento
         FROM cache_contas_receber
-        WHERE idclifor = $1 AND valor_aberto > 0
+        WHERE idclifor = $1 AND valor_aberto > 0 AND ${formasEx.sql}
         GROUP BY idclifor, nomecliente, idvendedor, nomevendedor,
                  cidade_cobranca, uf_cobranca, endereco_cobranca, bairro_cobranca
-      `, [idclifor]),
+      `, baseParams),
 
       pgAll(`
         SELECT * FROM cache_contas_receber
-        WHERE idclifor = $1 AND valor_aberto > 0
+        WHERE idclifor = $1 AND valor_aberto > 0 AND ${formasEx.sql}
         ORDER BY dtvencimento ASC, idtitulo ASC
-      `, [idclifor]),
+      `, baseParams),
 
       pgAll(`
         SELECT fc.*, fch.acao, fch.criado_em AS hist_em, fch.usuario AS hist_usuario
@@ -331,8 +522,7 @@ router.get("/cliente/:idclifor", isAuthenticated, async (req: AuthRequest, res: 
 
     res.json({ data: info, duplicatas, cobrancas });
   } catch (err) {
-    console.error("[financeiro] /cliente:", err);
-    res.status(500).json({ error: "Erro ao buscar cliente" });
+    sendRouteError(res, "/cliente", err, "Erro ao buscar cliente");
   }
 });
 
@@ -340,10 +530,8 @@ router.get("/cliente/:idclifor", isAuthenticated, async (req: AuthRequest, res: 
 
 router.get("/duplicatas", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const q = req.query as Record<string, string | undefined>;
-    const page = Math.max(1, Number(q.page ?? 1));
-    const limit = Math.min(500, Math.max(10, Number(q.limit ?? 100)));
-    const offset = (page - 1) * limit;
+    const q = req.query as Record<string, unknown>;
+    const { page, limit, offset } = parsePagination(q, 100, 500);
     const sort = (q.sort ?? "dtvencimento") as string;
     const dir = q.dir === "desc" ? "DESC" : "ASC";
 
@@ -372,15 +560,16 @@ router.get("/duplicatas", isAuthenticated, async (req: AuthRequest, res: Respons
     );
 
     res.json({
+      success: true,
       data: rows,
       total: Number(totalRows?.cnt ?? 0),
       page,
       limit,
       pages: Math.ceil(Number(totalRows?.cnt ?? 0) / limit),
+      meta: { total: Number(totalRows?.cnt ?? 0), page, limit, pages: Math.ceil(Number(totalRows?.cnt ?? 0) / limit) },
     });
   } catch (err) {
-    console.error("[financeiro] /duplicatas:", err);
-    res.status(500).json({ error: "Erro ao buscar duplicatas" });
+    sendRouteError(res, "/duplicatas", err, "Erro ao buscar duplicatas");
   }
 });
 
@@ -388,7 +577,7 @@ router.get("/duplicatas", isAuthenticated, async (req: AuthRequest, res: Respons
 
 router.get("/duplicatas/all", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const q = req.query as Record<string, string | undefined>;
+    const q = req.query as Record<string, unknown>;
     const sort = (q.sort ?? "nomecliente") as string;
     const dir = q.dir === "desc" ? "DESC" : "ASC";
 
@@ -417,12 +606,13 @@ router.get("/duplicatas/all", isAuthenticated, async (req: AuthRequest, res: Res
     );
 
     res.json({
+      success: true,
       data: rows,
       total: Number(totalRows?.cnt ?? 0),
+      meta: { total: Number(totalRows?.cnt ?? 0) },
     });
   } catch (err) {
-    console.error("[financeiro] /duplicatas/all:", err);
-    res.status(500).json({ error: "Erro ao buscar duplicatas para impressão" });
+    sendRouteError(res, "/duplicatas/all", err, "Erro ao buscar duplicatas para impressão");
   }
 });
 
@@ -431,7 +621,7 @@ router.get("/duplicatas/all", isAuthenticated, async (req: AuthRequest, res: Res
 
 router.get("/vendedores", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const q = req.query as Record<string, string | undefined>;
+    const q = req.query as Record<string, unknown>;
     const ignoredIds = await getIgnoredClientIds();
     const { where, params } = buildWhereClause(q, { ignoredIds });
 
@@ -459,10 +649,9 @@ router.get("/vendedores", isAuthenticated, async (req: AuthRequest, res: Respons
       GROUP BY idvendedor, nomevendedor
       ORDER BY total_vencido DESC
     `, params);
-    res.json({ data: rows });
+    res.json({ success: true, data: rows });
   } catch (err) {
-    console.error("[financeiro] /vendedores:", err);
-    res.status(500).json({ error: "Erro ao buscar vendedores" });
+    sendRouteError(res, "/vendedores", err, "Erro ao buscar vendedores");
   }
 });
 
@@ -471,7 +660,16 @@ router.get("/vendedores", isAuthenticated, async (req: AuthRequest, res: Respons
 router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
     const idvendedor = Number(req.params.idvendedor);
-    if (!idvendedor) return res.status(400).json({ error: "idvendedor inválido" });
+    if (!Number.isSafeInteger(idvendedor) || idvendedor <= 0) return res.status(400).json({ success: false, error: "idvendedor inválido", message: "idvendedor inválido" });
+
+    const empresaParam = req.query.empresa as string | undefined;
+    const empresaFilter = empresaParam && empresaParam !== "all" ? Number(empresaParam) : null;
+
+    // Build params: $1=idvendedor, [$2=idempresa if filtered], then exclusions
+    let paramN = 2;
+    const empresaSql = empresaFilter !== null ? ` AND idempresa = $${paramN++}` : "";
+    const excl = formasExcluidasClause(paramN);
+    const baseParams: unknown[] = [idvendedor, ...(empresaFilter !== null ? [empresaFilter] : []), ...excl.params];
 
     const [resumo, clientes, topTitulos] = await Promise.all([
       pgGet(`
@@ -488,9 +686,9 @@ router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, re
           SUM(valor_juros_pendente) AS juros_pendente,
           MAX(dias_atraso) AS maior_atraso
         FROM cache_contas_receber
-        WHERE idvendedor = $1 AND valor_aberto > 0
+        WHERE idvendedor = $1${empresaSql} AND valor_aberto > 0 AND ${excl.sql}
         GROUP BY idvendedor, nomevendedor
-      `, [idvendedor]),
+      `, baseParams),
 
       pgAll(`
         SELECT
@@ -504,25 +702,25 @@ router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, re
                WHEN MAX(dias_atraso) BETWEEN 1 AND 7 THEN 'ATENCAO'
                ELSE 'EM_DIA' END AS status_cliente
         FROM cache_contas_receber
-        WHERE idvendedor = $1 AND valor_aberto > 0
+        WHERE idvendedor = $1${empresaSql} AND valor_aberto > 0 AND ${excl.sql}
         GROUP BY idclifor, nomecliente, cidade_cobranca, uf_cobranca
+        HAVING SUM(CASE WHEN status='VENCIDO' THEN valor_aberto ELSE 0 END) >= 0.01
         ORDER BY total_vencido DESC
         LIMIT 50
-      `, [idvendedor]),
+      `, baseParams),
 
       pgAll(`
-        SELECT idtitulo, digitotitulo, serienota, nomecliente, idclifor,
-               dtvencimento, dias_atraso, valor_aberto, status
+        SELECT idtitulo, digitotitulo, numnota, nomecliente, idclifor,
+               dtvencimento, dias_atraso, valor_aberto, status, forma_recebimento
         FROM cache_contas_receber
-        WHERE idvendedor = $1 AND status = 'VENCIDO'
-        ORDER BY nomecliente ASC, dias_atraso DESC
-      `, [idvendedor]),
+        WHERE idvendedor = $1${empresaSql} AND status = 'VENCIDO' AND ${excl.sql}
+        ORDER BY nomecliente ASC, numnota ASC, dias_atraso DESC
+      `, baseParams),
     ]);
 
     res.json({ resumo: resumo ?? null, clientes, top_titulos: topTitulos });
   } catch (err) {
-    console.error("[financeiro] /vendedor:", err);
-    res.status(500).json({ error: "Erro ao buscar vendedor" });
+    sendRouteError(res, "/vendedor", err, "Erro ao buscar vendedor");
   }
 });
 
@@ -530,6 +728,7 @@ router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, re
 
 router.get("/aging", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
+    const exclAging = formasExcluidasClause(1);
     const rows = await pgAll<{
       faixa: string; qtd_titulos: number; qtd_clientes: number;
       valor_total: number; ordem: number;
@@ -559,10 +758,10 @@ router.get("/aging", isAuthenticated, async (req: AuthRequest, res: Response) =>
         COUNT(DISTINCT idclifor) AS qtd_clientes,
         SUM(valor_aberto) AS valor_total
       FROM cache_contas_receber
-      WHERE valor_aberto > 0
+      WHERE valor_aberto > 0 AND ${exclAging.sql}
       GROUP BY faixa, ordem
       ORDER BY ordem
-    `);
+    `, exclAging.params);
 
     const totalVencido = rows
       .filter(r => r.ordem >= 2)
@@ -578,10 +777,9 @@ router.get("/aging", isAuthenticated, async (req: AuthRequest, res: Response) =>
         : 0,
     }));
 
-    res.json({ data, total_vencido: totalVencido });
+    res.json({ success: true, data, total_vencido: totalVencido });
   } catch (err) {
-    console.error("[financeiro] /aging:", err);
-    res.status(500).json({ error: "Erro ao calcular aging" });
+    sendRouteError(res, "/aging", err, "Erro ao calcular aging");
   }
 });
 
@@ -590,7 +788,7 @@ router.get("/aging", isAuthenticated, async (req: AuthRequest, res: Response) =>
 
 router.get("/fila-cobranca", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const q = req.query as Record<string, string | undefined>;
+    const q = req.query as Record<string, unknown>;
     const hoje = new Date().toISOString().split("T")[0];
 
     const ignoredIds = await getIgnoredClientIds();
@@ -660,8 +858,7 @@ router.get("/fila-cobranca", isAuthenticated, async (req: AuthRequest, res: Resp
       qtd_vencidos: Number(r.qtd_vencidos),
     })) });
   } catch (err) {
-    console.error("[financeiro] /fila-cobranca:", err);
-    res.status(500).json({ error: "Erro ao buscar fila de cobrança" });
+    sendRouteError(res, "/fila-cobranca", err, "Erro ao buscar fila de cobrança");
   }
 });
 
@@ -769,7 +966,7 @@ router.get("/cobranca/:chave_titulo", isAuthenticated, async (req: AuthRequest, 
 
 router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response) => {
   try {
-    const q = req.query as Record<string, string | undefined>;
+    const q = req.query as Record<string, unknown>;
     const ignoredIds = await getIgnoredClientIds();
     const { where, params } = buildWhereClause(q, { ignoredIds });
 
@@ -796,7 +993,7 @@ router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response)
     const fmtNum = (v: number | null) =>
       v == null ? 0 : Number(v);
 
-    const wsData = [
+    const csvRows = [
       [
         "Vendedor", "Cliente", "Cód.Cliente", "Cidade", "UF",
         "Título", "Dígito", "Série", "Nota/Cupom", "Planilha",
@@ -818,26 +1015,14 @@ router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response)
       ]),
     ];
 
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    ws["!cols"] = [
-      { wch: 22 }, { wch: 30 }, { wch: 10 }, { wch: 18 }, { wch: 4 },
-      { wch: 8 }, { wch: 6 }, { wch: 6 }, { wch: 10 }, { wch: 10 },
-      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 },
-      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-      { wch: 14 }, { wch: 14 },
-      { wch: 16 }, { wch: 14 }, { wch: 24 },
-    ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Contas a Receber");
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const buf = toCsvBuffer(csvRows);
 
-    const filename = `contas-receber-${new Date().toISOString().split("T")[0]}.xlsx`;
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const filename = `contas-receber-${new Date().toISOString().split("T")[0]}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(buf);
   } catch (err) {
-    console.error("[financeiro] /exportar:", err);
-    res.status(500).json({ error: "Erro ao exportar" });
+    sendRouteError(res, "/exportar", err, "Erro ao exportar");
   }
 });
 

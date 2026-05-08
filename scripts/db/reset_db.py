@@ -5,6 +5,10 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 DATABASE_PATH = os.path.join(PROJECT_ROOT, "database.db")
 
 def reset_db():
+    if os.environ.get("ALLOW_SQLITE_CACHE_RESET", "").lower() not in {"1", "true", "yes", "sim"}:
+        print("Reset SQLite bloqueado. Defina ALLOW_SQLITE_CACHE_RESET=true somente com autorização explícita.")
+        return
+
     print("Iniciando limpeza do banco de dados (preservando usuarios e metas)...")
     
     if not os.path.exists(DATABASE_PATH):
@@ -15,12 +19,11 @@ def reset_db():
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
 
-        # Limpando as tabelas cacheadas apagando a tabela inteira (re-criadas pelo DB2)
-        cursor.execute("DROP TABLE IF EXISTS cache_vendas")
-        cursor.execute("DROP TABLE IF EXISTS cache_vendas_pendentes")
-        cursor.execute("DROP TABLE IF EXISTS cache_tubos_conexoes")
-        cursor.execute("DROP TABLE IF EXISTS companies")
-        cursor.execute("DROP TABLE IF EXISTS alerts")
+        # Limpando dados de cache sem remover a estrutura das tabelas.
+        for table in ["cache_vendas", "cache_vendas_pendentes", "cache_tubos_conexoes", "companies", "alerts"]:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+            if cursor.fetchone():
+                cursor.execute(f"DELETE FROM {table}")
 
         conn.commit()
 

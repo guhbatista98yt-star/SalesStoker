@@ -70,6 +70,7 @@ export class CampaignRepository extends BaseRepository {
         COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos
       FROM cache_tubos_conexoes
       WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+        AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicio, fim]);
 
     const valor_conexoes = mixResult?.conexoes || 0;
@@ -105,7 +106,7 @@ export class CampaignRepository extends BaseRepository {
     const resultAtual = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioStr, fimStr]);
 
     const valor_atual = resultAtual?.total || 0;
@@ -116,6 +117,7 @@ export class CampaignRepository extends BaseRepository {
         COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes
       FROM cache_tubos_conexoes
       WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+        AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioStr, fimStr]);
 
     const tubos = resultMix?.tubos || 0;
@@ -124,12 +126,17 @@ export class CampaignRepository extends BaseRepository {
 
     const lastYear = year - 1;
     const inicioLyStr = this.formatLocalDate(new Date(lastYear, quarterStartMonth, 1));
-    const fimLyStr = this.formatLocalDate(new Date(lastYear, quarterEndMonth + 1, 0));
+    const quarterEndDate = new Date(year, quarterEndMonth + 1, 0);
+    // Compare same elapsed days: if quarter is still running, cap prior year at equivalent date
+    const referenceDate = now < quarterEndDate ? now : quarterEndDate;
+    const lyEquivalentDate = new Date(lastYear, referenceDate.getMonth(), referenceDate.getDate());
+    const lyQuarterEnd = new Date(lastYear, quarterEndMonth + 1, 0);
+    const fimLyStr = this.formatLocalDate(lyEquivalentDate < lyQuarterEnd ? lyEquivalentDate : lyQuarterEnd);
 
     const resultLy = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioLyStr, fimLyStr]);
 
     const valor_ano_anterior = resultLy?.total || 0;
@@ -140,22 +147,26 @@ export class CampaignRepository extends BaseRepository {
     `, [normalizedVendorId, year]);
 
     const gatilho_individual = triggerQuery?.triggerValue || 0;
-    const crescimento_percentual = valor_ano_anterior > 0 ? ((valor_atual - valor_ano_anterior) / valor_ano_anterior) * 100 : (valor_atual > 0 ? 100 : 0);
+    const crescimento_percentual: number | null = valor_ano_anterior > 0
+      ? ((valor_atual - valor_ano_anterior) / valor_ano_anterior) * 100
+      : null;
 
     const resultLoja = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [inicioStr, fimStr]);
     const loja_valor_atual = resultLoja?.total || 0;
 
     const resultLojaLy = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [inicioLyStr, fimLyStr]);
     const loja_valor_ano_anterior = resultLojaLy?.total || 0;
-    const loja_crescimento_percentual = loja_valor_ano_anterior > 0 ? ((loja_valor_atual - loja_valor_ano_anterior) / loja_valor_ano_anterior) * 100 : (loja_valor_atual > 0 ? 100 : 0);
+    const loja_crescimento_percentual: number | null = loja_valor_ano_anterior > 0
+      ? ((loja_valor_atual - loja_valor_ano_anterior) / loja_valor_ano_anterior) * 100
+      : null;
 
     const meta_gatilho = 120000;
     const meta_mix = 40.0;
@@ -164,14 +175,19 @@ export class CampaignRepository extends BaseRepository {
     const gatilho = valor_atual >= (gatilho_individual > 0 ? gatilho_individual : meta_gatilho);
     const percentual_conexoes_arredondado = parseFloat(percentual_conexoes.toFixed(2));
     const mix = percentual_conexoes_arredondado >= meta_mix;
-    const crescimento_loja = loja_crescimento_percentual >= meta_loja;
+    // Crescimento loja: se sem dados históricos, não bloqueia elegibilidade
+    const crescimento_loja = loja_crescimento_percentual === null ? false : loja_crescimento_percentual >= meta_loja;
+    const semDadosHistoricosLoja = loja_crescimento_percentual === null;
 
     const motivos: string[] = [];
     if (!gatilho) motivos.push("Abaixo do gatilho mínimo");
     if (!mix) motivos.push("Mix de conexões abaixo de 40%");
-    if (!crescimento_loja) motivos.push("Crescimento global da loja insuficiente (meta: 25%)");
+    if (semDadosHistoricosLoja) motivos.push("Sem dados históricos para crescimento da loja");
+    else if (!crescimento_loja) motivos.push("Crescimento global da loja insuficiente (meta: 25%)");
 
     const quarterNames = ["JAN/FEV/MAR", "ABR/MAI/JUN", "JUL/AGO/SET", "OUT/NOV/DEZ"];
+    const crescVendPerc = crescimento_percentual !== null ? parseFloat(crescimento_percentual.toFixed(2)) : null;
+    const crescLojaPerc = loja_crescimento_percentual !== null ? parseFloat(loja_crescimento_percentual.toFixed(2)) : null;
     return {
       last_update: now.toISOString(),
       periodo: { inicio: inicioStr, fim: fimStr, nome: quarterNames[quarter], encerrado: isEncerrado },
@@ -182,9 +198,9 @@ export class CampaignRepository extends BaseRepository {
         faltante: gatilho ? 0 : (gatilho_individual > 0 ? gatilho_individual : meta_gatilho) - valor_atual,
         gatilho_atingido: gatilho,
       },
-      crescimento_vendedor: { valor_atual, valor_ano_anterior, crescimento_percentual: parseFloat(crescimento_percentual.toFixed(2)), meta_percentual: 0, status_ok: crescimento_percentual >= 0 },
+      crescimento_vendedor: { valor_atual, valor_ano_anterior, crescimento_percentual: crescVendPerc, sem_dados: crescimento_percentual === null, meta_percentual: 0, status_ok: crescimento_percentual !== null && crescimento_percentual >= 0, ano_anterior: lastYear },
       mix_amanco: { tubos, conexoes, percentual_conexoes: parseFloat(percentual_conexoes.toFixed(2)), meta_percentual: meta_mix, status_ok: mix },
-      crescimento_loja: { loja_valor_atual, loja_valor_ano_anterior, crescimento_percentual: parseFloat(loja_crescimento_percentual.toFixed(2)), meta_percentual: meta_loja, status_ok: crescimento_loja },
+      crescimento_loja: { loja_valor_atual, loja_valor_ano_anterior, crescimento_percentual: crescLojaPerc, sem_dados: loja_crescimento_percentual === null, meta_percentual: meta_loja, status_ok: crescimento_loja, ano_anterior: lastYear },
       elegibilidade: { gatilho, mix, crescimento_loja, participando: gatilho && mix && crescimento_loja, motivos },
     };
   }
@@ -200,7 +216,7 @@ export class CampaignRepository extends BaseRepository {
     const resultAtual = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioStr, fimStr]);
 
     const valor_atual = resultAtual?.total || 0;
@@ -211,6 +227,7 @@ export class CampaignRepository extends BaseRepository {
         COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes
       FROM cache_tubos_conexoes
       WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+        AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioStr, fimStr]);
 
     const tubos = resultMix?.tubos || 0;
@@ -224,7 +241,7 @@ export class CampaignRepository extends BaseRepository {
     const resultLy = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioLyStr, fimLyStr]);
 
     const valor_ano_anterior = resultLy?.total || 0;
@@ -235,22 +252,26 @@ export class CampaignRepository extends BaseRepository {
     `, [normalizedVendorId, year]);
 
     const gatilho_individual = triggerQuery?.triggerValue || 0;
-    const crescimento_percentual = valor_ano_anterior > 0 ? ((valor_atual - valor_ano_anterior) / valor_ano_anterior) * 100 : (valor_atual > 0 ? 100 : 0);
+    const crescimento_percentual: number | null = valor_ano_anterior > 0
+      ? ((valor_atual - valor_ano_anterior) / valor_ano_anterior) * 100
+      : null;
 
     const resultLoja = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [inicioStr, fimStr]);
     const loja_valor_atual = resultLoja?.total || 0;
 
     const resultLojaLy = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND "FABRICANTE" = 'AMANCO'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [inicioLyStr, fimLyStr]);
     const loja_valor_ano_anterior = resultLojaLy?.total || 0;
-    const loja_crescimento_percentual = loja_valor_ano_anterior > 0 ? ((loja_valor_atual - loja_valor_ano_anterior) / loja_valor_ano_anterior) * 100 : (loja_valor_atual > 0 ? 100 : 0);
+    const loja_crescimento_percentual: number | null = loja_valor_ano_anterior > 0
+      ? ((loja_valor_atual - loja_valor_ano_anterior) / loja_valor_ano_anterior) * 100
+      : null;
 
     const meta_gatilho = 60000;
     const meta_mix = 45.0;
@@ -258,16 +279,23 @@ export class CampaignRepository extends BaseRepository {
     const meta_loja = 25.0;
 
     const gatilho = valor_atual >= (gatilho_individual > 0 ? gatilho_individual : meta_gatilho);
-    const crescimento_vendedor_ok = crescimento_percentual >= meta_crescimento_vendedor;
+    const crescimento_vendedor_ok = crescimento_percentual !== null && crescimento_percentual >= meta_crescimento_vendedor;
+    const semDadosHistoricosCrescimento = crescimento_percentual === null;
     const percentual_conexoes_arredondado = parseFloat(percentual_conexoes.toFixed(2));
     const mix = percentual_conexoes_arredondado >= meta_mix;
-    const crescimento_loja_ok = loja_crescimento_percentual >= meta_loja;
+    const crescimento_loja_ok = loja_crescimento_percentual !== null && loja_crescimento_percentual >= meta_loja;
+    const semDadosHistoricosLoja = loja_crescimento_percentual === null;
 
     const motivos: string[] = [];
     if (!gatilho) motivos.push("Abaixo do gatilho mínimo");
-    if (!crescimento_vendedor_ok) motivos.push("Crescimento vs. ano anterior abaixo de 20%");
+    if (semDadosHistoricosCrescimento) motivos.push("Sem dados históricos para crescimento do vendedor");
+    else if (!crescimento_vendedor_ok) motivos.push("Crescimento vs. ano anterior abaixo de 20%");
     if (!mix) motivos.push("Mix de conexões abaixo de 45%");
-    if (!crescimento_loja_ok) motivos.push("Crescimento global da loja insuficiente (meta: 25%)");
+    if (semDadosHistoricosLoja) motivos.push("Sem dados históricos para crescimento da loja");
+    else if (!crescimento_loja_ok) motivos.push("Crescimento global da loja insuficiente (meta: 25%)");
+
+    const crescVendPerc = crescimento_percentual !== null ? parseFloat(crescimento_percentual.toFixed(2)) : null;
+    const crescLojaPerc = loja_crescimento_percentual !== null ? parseFloat(loja_crescimento_percentual.toFixed(2)) : null;
 
     return {
       last_update: now.toISOString(),
@@ -279,9 +307,9 @@ export class CampaignRepository extends BaseRepository {
         faltante: gatilho ? 0 : (gatilho_individual > 0 ? gatilho_individual : meta_gatilho) - valor_atual,
         gatilho_atingido: gatilho,
       },
-      crescimento_vendedor: { valor_atual, valor_ano_anterior, crescimento_percentual: parseFloat(crescimento_percentual.toFixed(2)), meta_percentual: meta_crescimento_vendedor, status_ok: crescimento_vendedor_ok },
+      crescimento_vendedor: { valor_atual, valor_ano_anterior, crescimento_percentual: crescVendPerc, sem_dados: semDadosHistoricosCrescimento, meta_percentual: meta_crescimento_vendedor, status_ok: crescimento_vendedor_ok },
       mix_amanco: { tubos, conexoes, percentual_conexoes: parseFloat(percentual_conexoes.toFixed(2)), meta_percentual: meta_mix, status_ok: mix },
-      crescimento_loja: { loja_valor_atual, loja_valor_ano_anterior, crescimento_percentual: parseFloat(loja_crescimento_percentual.toFixed(2)), meta_percentual: meta_loja, status_ok: crescimento_loja_ok },
+      crescimento_loja: { loja_valor_atual, loja_valor_ano_anterior, crescimento_percentual: crescLojaPerc, sem_dados: semDadosHistoricosLoja, meta_percentual: meta_loja, status_ok: crescimento_loja_ok },
       elegibilidade: { gatilho, crescimento_vendedor: crescimento_vendedor_ok, mix, crescimento_loja: crescimento_loja_ok, participando: gatilho && crescimento_vendedor_ok && mix && crescimento_loja_ok, motivos },
     };
   }
@@ -317,7 +345,7 @@ export class CampaignRepository extends BaseRepository {
         "IDPRODUTO" as "DESCRICAOPRODUTO",
         SUM("QTD") as qty
       FROM cache_campanhas
-      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND ("FABRICANTE" IS NULL OR "FABRICANTE" <> 'AMANCO')
+      WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND ("FABRICANTE" IS NULL OR UPPER("FABRICANTE") NOT LIKE 'AMANCO%')
       GROUP BY "IDPRODUTO"
     `, [normalizedVendorId, inicioStr, fimStr]);
 

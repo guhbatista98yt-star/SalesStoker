@@ -3,15 +3,20 @@
  * Requer o .env com DATABASE_URL configurado.
  *
  * Uso: npm run reset-admin
- * Resultado: login = admin  /  senha = admin123
+ * Defina ADMIN_RESET_PASSWORD para escolher a senha; se omitida, uma senha forte
+ * temporária será gerada e exibida uma única vez no terminal.
  */
 
 import bcrypt from "bcryptjs";
 import pg from "pg";
+import { randomBytes } from "crypto";
 
 const { Client } = pg;
 
-const NEW_PASSWORD = "admin123";
+const NEW_PASSWORD = process.env.ADMIN_RESET_PASSWORD || randomBytes(18).toString("base64url");
+if (NEW_PASSWORD.length < 12) {
+  throw new Error("ADMIN_RESET_PASSWORD deve ter pelo menos 12 caracteres.");
+}
 
 async function main() {
   const dbUrl = process.env.DATABASE_URL;
@@ -37,13 +42,13 @@ async function main() {
     );
     console.log("\n✅ Usuário admin criado!");
     console.log("   Login : admin");
-    console.log("   Senha : admin123");
+    console.log(`   Senha : ${NEW_PASSWORD}`);
   } else {
     const u = rows[0];
     await client.query(`UPDATE users SET password = $1 WHERE id = $2`, [hashed, u.id]);
     console.log(`\n✅ Senha redefinida!`);
     console.log(`   Login : ${u.email}`);
-    console.log("   Senha : admin123");
+    console.log(`   Senha : ${NEW_PASSWORD}`);
   }
 
   await client.end();

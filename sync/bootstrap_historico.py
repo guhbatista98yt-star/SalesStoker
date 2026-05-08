@@ -47,11 +47,13 @@ load_dotenv()  # fallback: project root .env
 
 # ─── Configuração ─────────────────────────────────────────────────────────────
 
-DB2_DSN = os.environ.get("DB2_DSN", "CISSODBC")
-DB2_UID = os.environ.get("DB2_UID", "CONSULTA")
+DB2_DSN = os.environ.get("DB2_DSN", "")
+DB2_UID = os.environ.get("DB2_UID", "")
 DB2_PWD = os.environ.get("DB2_PWD", "")
 DB2_HOST = os.environ.get("DB2_HOST", "")
-PG_DSN  = os.environ["DATABASE_URL"]
+PG_DSN  = os.environ.get("DATABASE_URL", "")
+if not PG_DSN:
+    raise SystemExit("DATABASE_URL não configurada. Defina sync/.env ou .env antes de rodar o bootstrap histórico.")
 
 BATCH_SIZE   = 2_000    # linhas por fetchmany
 LOCK_TTL_SEC = 7_200    # 2 horas — carga histórica pode demorar
@@ -92,6 +94,17 @@ log = logging.getLogger("bootstrap_historico")
 # ─── Conexões ─────────────────────────────────────────────────────────────────
 
 def _db2_conn_string() -> str:
+    missing = [name for name, value in {
+        "DB2_DSN": DB2_DSN,
+        "DB2_UID": DB2_UID,
+        "DB2_PWD": DB2_PWD,
+    }.items() if not value]
+    if missing:
+        raise RuntimeError(
+            "Credenciais DB2 ausentes: "
+            + ", ".join(missing)
+            + ". Configure variáveis de ambiente; este script não usa fallback hardcoded."
+        )
     if DB2_HOST:
         return (
             f"DSN={DB2_DSN};UID={DB2_UID};PWD={DB2_PWD};"
@@ -444,16 +457,17 @@ def _sync_tubos_mes(
             (inicio, fim),
         )
         # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
-        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4] TIPO_PRODUTO[5]
+        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4] TIPO_PRODUTO[5] FABRICANTE[6]
         if rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 'INSERT INTO cache_tubos_conexoes ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",'
-                '"DT_MOVIMENTO","TOTALVENDA_LINHA","TIPO_PRODUTO",synced_at) VALUES %s',
+                '"DT_MOVIMENTO","TOTALVENDA_LINHA","TIPO_PRODUTO","FABRICANTE",synced_at) VALUES %s',
                 [
                     (r[0], r[1], r[2], r[3],
                      _fix_monetary(r[4]),
                      str(r[5]) if len(r) > 5 and r[5] else '',
+                     str(r[6]) if len(r) > 6 and r[6] else '',
                      datetime.now(timezone.utc))
                     for r in rows
                 ],
@@ -489,6 +503,10 @@ def run_bootstrap_rotina(rotina: str, force: bool = False) -> None:
         if not force and _bootstrap_concluido(pg, rotina):
             log.info(f"[{rotina}] Bootstrap já concluído. Use --force para reprocessar.")
             return
+
+        if force:
+            _release_lock(pg, rotina)
+            log.info(f"[{rotina}] Lock liberado por --force")
 
         if not _acquire_lock(pg, rotina):
             log.warning(f"[{rotina}] Já em execução em outro processo — abortando.")

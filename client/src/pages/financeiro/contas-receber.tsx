@@ -47,9 +47,21 @@ async function apiFetch(path: string, opts?: RequestInit) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error ?? "Erro desconhecido");
+    throw new Error(err.message ?? err.error ?? "Erro desconhecido");
   }
   return res.json();
+}
+
+async function apiBlob(path: string, opts?: RequestInit): Promise<Blob> {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { ...authHeaders(), ...(opts?.headers ?? {}) },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.message ?? err.error ?? "Erro desconhecido");
+  }
+  return res.blob();
 }
 
 // ── Formatters ─────────────────────────────────────────────────────────────
@@ -364,6 +376,13 @@ export default function ContasReceber() {
     return n;
   }, [applied]);
 
+  // ── Companies ──────────────────────────────────────────────────────────
+  const companiesQ = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/companies"],
+    staleTime: 600_000,
+  });
+  const companiesList = companiesQ.data ?? [];
+
   // ── Queries ────────────────────────────────────────────────────────────
 
   // Resumo (KPI cards) — passes applied filters so cards stay consistent with all tabs
@@ -400,12 +419,14 @@ export default function ContasReceber() {
     staleTime: 30_000,
   });
 
-  // Print query — sempre busca TODOS os registros sem paginação
+  // Print query — carregada apenas ao clicar em Imprimir (não no load inicial)
+  const [printEnabled, setPrintEnabled] = useState(false);
   const printDupsQS = buildQS(applied, { sort: "nomecliente", dir: "asc" });
   const printDupsQ = useQuery({
     queryKey: ["/api/financeiro/contas-receber/duplicatas/all", printDupsQS],
     queryFn: () => apiFetch(`/api/financeiro/contas-receber/duplicatas/all${printDupsQS}`),
     staleTime: 30_000,
+    enabled: printEnabled,
   });
 
   // Clientes ignorados
@@ -473,28 +494,63 @@ export default function ContasReceber() {
 
   // ── Exportar ───────────────────────────────────────────────────────────
 
-  function handleExportar() {
-    const qs = buildQS(applied);
-    const url = `/api/financeiro/contas-receber/exportar${qs}`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `contas-receber-${new Date().toISOString().slice(0,10)}.xlsx`;
-    a.click();
+  async function handleExportar() {
+    try {
+      const qs = buildQS(applied);
+      const blob = await apiBlob(`/api/financeiro/contas-receber/exportar${qs}`);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contas-receber-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({
+        title: "Não foi possível exportar",
+        description: err instanceof Error ? err.message : "Erro ao gerar arquivo",
+        variant: "destructive",
+      });
+    }
   }
 
   // ── Imprimir ───────────────────────────────────────────────────────────
 
   function handlePrint() {
+    if (!printEnabled) {
+      setPrintEnabled(true);
+      printDupsQ.refetch().then(() => window.print());
+      return;
+    }
+    if (printDupsQ.isLoading || resumoQ.isLoading) {
+      toast({ title: "Aguarde os dados do relatório carregarem", variant: "destructive" });
+      return;
+    }
+    if (printDupsQ.error || resumoQ.error) {
+      toast({ title: "Não foi possível imprimir", description: "Corrija o erro de carregamento antes de gerar o relatório.", variant: "destructive" });
+      return;
+    }
     window.print();
   }
 
-  // ── Formas de recebimento (dinâmico) ──────────────────────────────────
+  // ── Formas de recebimento (dinâmico, filtrado por empresa) ───────────
   const formasQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/formas-recebimento"],
-    queryFn: () => apiFetch("/api/financeiro/contas-receber/formas-recebimento"),
+    queryKey: ["/api/financeiro/contas-receber/formas-recebimento", applied.empresa],
+    queryFn: () => {
+      const qs = applied.empresa && applied.empresa !== "all" ? `?empresa=${applied.empresa}` : "";
+      return apiFetch(`/api/financeiro/contas-receber/formas-recebimento${qs}`);
+    },
     staleTime: 300_000,
   });
-  const formasList: string[] = formasQ.data?.formas ?? FORMAS_RECEBIMENTO;
+  const formasList: string[] = formasQ.data?.formas ?? [];
+
+  // Clear forma_recebimento filter when it's no longer valid for the selected company
+  useEffect(() => {
+    if (applied.forma_recebimento && formasList.length > 0 && !formasList.includes(applied.forma_recebimento)) {
+      setAppliedField("forma_recebimento", "");
+    }
+  }, [formasList, applied.forma_recebimento]);
 
   const r = resumo.data;
   const isEmptyCache = r && r.qtd_total === 0;
@@ -510,7 +566,7 @@ export default function ContasReceber() {
       <PrintReport filters={applied} resumo={r} clientesData={clientesQ.data} dupsData={printDupsQ.data} tab={tab} />
 
       {/* ── Page header ────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 shrink-0 border-b border-border print:hidden">
+      <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 shrink-0 border-b border-border print:hidden">
         <div>
           <h1 className="text-lg font-bold tracking-tight">Contas a Receber</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -520,13 +576,34 @@ export default function ContasReceber() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Seletor de empresa — aplica imediatamente */}
+          <Select
+            value={applied.empresa}
+            onValueChange={v => {
+              setApplied(f => ({ ...f, empresa: v }));
+              setDraft(f => ({ ...f, empresa: v }));
+              setClientePage(1);
+              setDuplicataPage(1);
+            }}
+          >
+            <SelectTrigger className="h-8 w-[160px] text-sm gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <SelectValue placeholder="Empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as empresas</SelectItem>
+              {companiesList.map(c => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="outline" size="sm"
             onClick={() => syncMut.mutate()}
             disabled={syncMut.isPending}
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", syncMut.isPending && "animate-spin")} />
-            Atualizar
+            Verificar cache
           </Button>
         </div>
       </div>
@@ -1140,13 +1217,14 @@ function ClientesTab({
               {/* Client info */}
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1 rounded shrink-0">#{row.idclifor}</span>
                   <p className="font-semibold text-sm truncate">{row.nomecliente}</p>
                   <RiscoBadge risco={row.status_cliente} />
                 </div>
                 <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-0.5">
                     <User className="h-3 w-3" />
-                    {row.nomevendedor ?? "—"}
+                    <span className="font-mono">#{row.idvendedor}</span>&nbsp;{row.nomevendedor ?? "—"}
                   </span>
                   {row.cidade_cobranca && (
                     <span className="flex items-center gap-0.5">
@@ -1214,6 +1292,29 @@ function ClientesTab({
 // TAB: Duplicatas
 // ============================================================================
 
+const NF_STATUS_PRIORITY: Record<string, number> = { VENCIDO: 3, VENCE_HOJE: 2, A_VENCER: 1 };
+
+function groupByNF(rows: any[]) {
+  const map = new Map<string, any[]>();
+  for (const row of rows) {
+    const key = row.numnota ? `nf_${row.numnota}_${row.idclifor}` : `t_${row.id}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(row);
+  }
+  return Array.from(map.values()).map(parcelas => {
+    const first = parcelas[0];
+    const key = first.numnota ? `nf_${first.numnota}_${first.idclifor}` : `t_${first.id}`;
+    const totalAberto = parcelas.reduce((s: number, r: any) => s + Number(r.valor_aberto ?? 0), 0);
+    const totalOriginal = parcelas.reduce((s: number, r: any) => s + Number(r.valor_original ?? 0), 0);
+    const worstStatus = parcelas.reduce<string>((w, r) =>
+      (NF_STATUS_PRIORITY[r.status] ?? 0) > (NF_STATUS_PRIORITY[w] ?? 0) ? r.status : w, "A_VENCER");
+    const maxAtraso = parcelas.reduce((m: number, r: any) => Math.max(m, r.dias_atraso ?? 0), 0);
+    const formaSet = new Set(parcelas.map((r: any) => r.forma_recebimento).filter(Boolean));
+    const forma = formaSet.size === 1 ? [...formaSet][0] as string : formaSet.size > 1 ? "Misto" : "—";
+    return { key, numnota: first.numnota as string | null, parcelas, totalAberto, totalOriginal, worstStatus, maxAtraso, forma, first };
+  });
+}
+
 function DuplicatasTab({
   data, loading, page, onPage, perPage, onPerPage, sort, onSort, onSelectCliente,
 }: {
@@ -1225,6 +1326,17 @@ function DuplicatasTab({
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 1;
+
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  function toggleGroup(key: string) {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  const grouped = useMemo(() => groupByNF(rows), [rows]);
 
   function SortBtn({ field, label }: { field: string; label: string }) {
     const active = sort.sort === field;
@@ -1260,72 +1372,194 @@ function DuplicatasTab({
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left px-4 py-2.5"><SortBtn field="nomecliente" label="Cliente" /></th>
-              <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">Título</th>
-              <th className="text-left px-4 py-2.5"><SortBtn field="dtvencimento" label="Vencimento" /></th>
+              <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">NF</th>
+              <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">Parcelas</th>
               <th className="text-left px-4 py-2.5"><SortBtn field="dias_atraso" label="Atraso" /></th>
               <th className="text-right px-4 py-2.5 text-xs text-muted-foreground">V. Original</th>
               <th className="text-right px-4 py-2.5"><SortBtn field="valor_aberto" label="V. Aberto" /></th>
+              <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">Forma Pagto</th>
               <th className="text-left px-4 py-2.5"><SortBtn field="status" label="Status" /></th>
-              <th className="px-4 py-2.5"></th>
+              <th className="px-2 py-2.5 w-8"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((row: any) => (
-              <tr
-                key={row.id}
-                className="hover:bg-muted/30 transition-colors cursor-pointer"
-                onClick={() => onSelectCliente(row.idclifor)}
-              >
-                <td className="px-4 py-3">
-                  <p className="font-medium truncate max-w-[200px]">{row.nomecliente}</p>
-                  <p className="text-[10px] text-muted-foreground">{row.nomevendedor}</p>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs">
-                  {row.idtitulo}/{row.digitotitulo}
-                  {row.serienota ? `-${row.serienota}` : ""}
-                </td>
-                <td className="px-4 py-3 text-sm">{fmtDate(row.dtvencimento)}</td>
-                <td className="px-4 py-3">
-                  {row.dias_atraso > 0 ? (
-                    <span className={cn("text-sm font-semibold",
-                      row.dias_atraso > 30 ? "text-red-600 dark:text-red-400" : "text-amber-600")}>
-                      {row.dias_atraso}d
-                    </span>
-                  ) : <span className="text-muted-foreground text-xs">—</span>}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums text-sm text-muted-foreground">
-                  {fmtBRL(row.valor_original)}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums font-semibold text-sm">
-                  {fmtBRL(row.valor_aberto)}
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={row.status} />
-                </td>
-              </tr>
-            ))}
+          <tbody>
+            {grouped.map(group => {
+              const isOpen = openGroups.has(group.key);
+              const hasMany = group.parcelas.length > 1;
+              const groupRowClass = cn(
+                "border-t border-border transition-colors",
+                hasMany ? "cursor-pointer hover:bg-muted/20" : "cursor-pointer hover:bg-muted/20",
+                group.worstStatus === "VENCIDO" ? "bg-red-50/40 dark:bg-red-950/10" :
+                group.worstStatus === "VENCE_HOJE" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""
+              );
+              return (
+                <React.Fragment key={group.key}>
+                  {/* NF group header row */}
+                  <tr
+                    className={groupRowClass}
+                    onClick={hasMany ? () => toggleGroup(group.key) : () => onSelectCliente(group.first.idclifor)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1 rounded shrink-0">#{group.first.idclifor}</span>
+                        <p className="font-medium truncate max-w-[180px]">{group.first.nomecliente}</p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        <span className="font-mono">#{group.first.idvendedor}</span> {group.first.nomevendedor}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {group.numnota
+                        ? <span className="font-mono font-semibold text-sm">{group.numnota}</span>
+                        : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {group.parcelas.length} parc.
+                    </td>
+                    <td className="px-4 py-3">
+                      {group.maxAtraso > 0 ? (
+                        <span className={cn("text-sm font-semibold", group.maxAtraso > 30 ? "text-red-600 dark:text-red-400" : "text-amber-600")}>
+                          {group.maxAtraso}d
+                        </span>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-sm text-muted-foreground">
+                      {fmtBRL(group.totalOriginal)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-sm">
+                      {fmtBRL(group.totalAberto)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground max-w-[130px]">
+                      <span className="truncate block" title={group.forma}>{group.forma}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={group.worstStatus} />
+                    </td>
+                    <td className="px-2 py-3 text-center">
+                      {hasMany
+                        ? <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
+                        : <button onClick={e => { e.stopPropagation(); onSelectCliente(group.first.idclifor); }}><Eye className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                      }
+                    </td>
+                  </tr>
+
+                  {/* Expanded parcelas sub-rows */}
+                  {isOpen && group.parcelas.map((parc: any) => (
+                    <tr
+                      key={parc.id}
+                      className="border-t border-border/40 bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => onSelectCliente(parc.idclifor)}
+                    >
+                      <td className="pl-10 pr-4 py-2 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <ChevronRight className="h-3 w-3 shrink-0" />
+                          Parcela
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground" colSpan={2}>
+                        Tít.&nbsp;{parc.idtitulo}/{parc.digitotitulo}{parc.serienota ? `-${parc.serienota}` : ""}
+                        &nbsp;·&nbsp;Vence&nbsp;{fmtDate(parc.dtvencimento)}
+                      </td>
+                      <td className="px-4 py-2">
+                        {parc.dias_atraso > 0 ? (
+                          <span className={cn("text-xs font-semibold", parc.dias_atraso > 30 ? "text-red-600 dark:text-red-400" : "text-amber-600")}>
+                            {parc.dias_atraso}d
+                          </span>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                        {fmtBRL(parc.valor_original)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-xs font-semibold">
+                        {fmtBRL(parc.valor_aberto)}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-muted-foreground max-w-[130px]">
+                        <span className="truncate block" title={parc.forma_recebimento ?? ""}>{parc.forma_recebimento || "—"}</span>
+                      </td>
+                      <td className="px-4 py-2"><StatusBadge status={parc.status} /></td>
+                      <td className="px-2 py-2 text-center">
+                        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-2">
-        {rows.map((row: any) => (
-          <Card key={row.id} className="cursor-pointer hover:shadow-sm" onClick={() => onSelectCliente(row.idclifor)}>
-            <CardContent className="p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm truncate">{row.nomecliente}</p>
-                  <p className="text-[10px] text-muted-foreground">Tít. {row.idtitulo}/{row.digitotitulo} · Vence {fmtDate(row.dtvencimento)}</p>
+        {grouped.map(group => {
+          const isOpen = openGroups.has(group.key);
+          const hasMany = group.parcelas.length > 1;
+          return (
+            <Card
+              key={group.key}
+              className={cn(
+                "overflow-hidden",
+                group.worstStatus === "VENCIDO" ? "border-red-200 dark:border-red-900/50" :
+                group.worstStatus === "VENCE_HOJE" ? "border-amber-200 dark:border-amber-900/50" : ""
+              )}
+            >
+              {/* Group header */}
+              <CardContent
+                className="p-3 cursor-pointer"
+                onClick={hasMany ? () => toggleGroup(group.key) : () => onSelectCliente(group.first.idclifor)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1 rounded shrink-0">#{group.first.idclifor}</span>
+                      <p className="font-medium text-sm truncate">{group.first.nomecliente}</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      <span className="font-mono">#{group.first.idvendedor}</span> {group.first.nomevendedor}
+                      {group.numnota ? ` · NF ${group.numnota}` : ""}
+                      {` · ${group.parcelas.length} parc.`}
+                      {group.maxAtraso > 0 ? ` · ${group.maxAtraso}d atraso` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 flex items-center gap-1.5">
+                    <div>
+                      <p className="font-bold text-sm">{fmtBRL(group.totalAberto)}</p>
+                      <StatusBadge status={group.worstStatus} />
+                    </div>
+                    {hasMany && <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0", isOpen && "rotate-180")} />}
+                  </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="font-bold text-sm">{fmtBRL(row.valor_aberto)}</p>
-                  <StatusBadge status={row.status} />
+              </CardContent>
+
+              {/* Expanded parcelas */}
+              {isOpen && (
+                <div className="border-t border-border divide-y divide-border/60">
+                  {group.parcelas.map((parc: any) => (
+                    <div
+                      key={parc.id}
+                      className="px-3 py-2 flex items-center justify-between gap-2 bg-muted/20 cursor-pointer hover:bg-muted/40 transition-colors"
+                      onClick={() => onSelectCliente(parc.idclifor)}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-muted-foreground">
+                          Tít.&nbsp;{parc.idtitulo}/{parc.digitotitulo} · Vence {fmtDate(parc.dtvencimento)}
+                          {parc.dias_atraso > 0 ? ` · ${parc.dias_atraso}d` : ""}
+                        </p>
+                        {parc.forma_recebimento && (
+                          <p className="text-[10px] text-muted-foreground truncate">{parc.forma_recebimento}</p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-semibold text-sm">{fmtBRL(parc.valor_aberto)}</p>
+                        <StatusBadge status={parc.status} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              )}
+            </Card>
+          );
+        })}
       </div>
 
       {(pages > 1 || total > 0) && (
@@ -1370,7 +1604,10 @@ function VendedoresTab({
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <p className="font-semibold">{row.nomevendedor ?? `Vendedor ${row.idvendedor}`}</p>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1 rounded">#{row.idvendedor}</span>
+                  <p className="font-semibold">{row.nomevendedor ?? `Vendedor ${row.idvendedor}`}</p>
+                </div>
                 <RiscoBadge risco={row.status_risco} />
               </div>
               <Button size="sm" variant="outline" onClick={e => { e.stopPropagation(); onSelectVendedor(row.idvendedor); }}>
@@ -1522,6 +1759,16 @@ function ClienteDetalheContent({
 }: {
   info: any; duplicatas: any[]; cobrancas: any[];
 }) {
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  function toggleGroup(key: string) {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+  const grouped = useMemo(() => groupByNF(duplicatas), [duplicatas]);
+
   return (
     <div className="mt-6 space-y-5">
       {/* Summary */}
@@ -1561,40 +1808,96 @@ function ClienteDetalheContent({
       </div>
 
 
-      {/* Duplicatas */}
+      {/* Duplicatas agrupadas por NF */}
       <div>
-        <h3 className="text-sm font-semibold mb-2">Duplicatas em Aberto ({duplicatas.length})</h3>
+        <h3 className="text-sm font-semibold mb-2">
+          Duplicatas em Aberto ({duplicatas.length} tít. · {grouped.length} NF{grouped.length !== 1 ? "s" : ""})
+        </h3>
         <div className="space-y-2">
-          {duplicatas.map((d: any) => (
-            <div
-              key={d.id}
-              className={cn(
-                "flex items-center justify-between gap-2 p-3 rounded-xl border text-sm",
-                d.status === "VENCIDO" ? "border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20" :
-                d.status === "VENCE_HOJE" ? "border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20" :
-                "border-border bg-muted/30"
-              )}
-            >
-              <div>
-                <p className="font-mono text-xs text-muted-foreground">
-                  Tít. {d.idtitulo}/{d.digitotitulo}{d.serienota ? `-${d.serienota}` : ""}
-                  {d.numnota ? ` · NF ${d.numnota}` : ""}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Venc: {fmtDate(d.dtvencimento)}
-                  {d.dias_atraso > 0 ? ` · ${d.dias_atraso}d em atraso` : ""}
-                  {d.forma_recebimento ? ` · ${d.forma_recebimento}` : ""}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="font-bold">{fmtBRL(d.valor_aberto)}</p>
-                <StatusBadge status={d.status} />
-              </div>
-            </div>
-          ))}
-          {duplicatas.length === 0 && (
+          {grouped.length === 0 && (
             <p className="text-center text-muted-foreground text-sm py-4">Nenhuma duplicata em aberto.</p>
           )}
+          {grouped.map(group => {
+            const isOpen = openGroups.has(group.key);
+            const hasMany = group.parcelas.length > 1;
+            return (
+              <div
+                key={group.key}
+                className={cn(
+                  "rounded-xl border overflow-hidden",
+                  group.worstStatus === "VENCIDO" ? "border-red-200 dark:border-red-900/50" :
+                  group.worstStatus === "VENCE_HOJE" ? "border-amber-200 dark:border-amber-900/50" :
+                  "border-border"
+                )}
+              >
+                {/* NF header */}
+                <div
+                  className={cn(
+                    "flex items-center justify-between gap-2 p-3 text-sm",
+                    hasMany ? "cursor-pointer" : "",
+                    group.worstStatus === "VENCIDO" ? "bg-red-50/50 dark:bg-red-950/20" :
+                    group.worstStatus === "VENCE_HOJE" ? "bg-amber-50/50 dark:bg-amber-950/20" :
+                    "bg-muted/30"
+                  )}
+                  onClick={hasMany ? () => toggleGroup(group.key) : undefined}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {group.numnota
+                        ? <span className="font-mono font-semibold text-sm">NF {group.numnota}</span>
+                        : <span className="font-mono text-xs text-muted-foreground">Tít. {group.first.idtitulo}/{group.first.digitotitulo}</span>
+                      }
+                      {hasMany && (
+                        <span className="text-[10px] text-muted-foreground bg-background/60 px-1.5 py-0.5 rounded-full border">
+                          {group.parcelas.length} parcelas
+                        </span>
+                      )}
+                      <StatusBadge status={group.worstStatus} />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {group.forma}
+                      {group.maxAtraso > 0 ? ` · ${group.maxAtraso}d em atraso` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 flex items-center gap-1.5">
+                    <div>
+                      <p className="font-bold">{fmtBRL(group.totalAberto)}</p>
+                      {group.parcelas.length > 1 && (
+                        <p className="text-[10px] text-muted-foreground">de {fmtBRL(group.totalOriginal)}</p>
+                      )}
+                    </div>
+                    {hasMany && (
+                      <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0", isOpen && "rotate-180")} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Parcelas expandidas */}
+                {(isOpen || !hasMany) && (
+                  <div className="divide-y divide-border/60 border-t border-border/40">
+                    {group.parcelas.map((d: any) => (
+                      <div key={d.id} className="flex items-center justify-between gap-2 px-4 py-2.5 bg-background/60 text-sm">
+                        <div>
+                          <p className="font-mono text-xs text-muted-foreground">
+                            Tít.&nbsp;{d.idtitulo}/{d.digitotitulo}{d.serienota ? `-${d.serienota}` : ""}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Venc: {fmtDate(d.dtvencimento)}
+                            {d.dias_atraso > 0 ? ` · ${d.dias_atraso}d em atraso` : ""}
+                            {d.forma_recebimento && group.parcelas.length > 1 ? ` · ${d.forma_recebimento}` : ""}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-semibold">{fmtBRL(d.valor_aberto)}</p>
+                          {hasMany && <StatusBadge status={d.status} />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1666,10 +1969,15 @@ function VendedorDetalheContent({
             {topTitulos.map((t: any, i: number) => (
               <div key={i} className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20 text-sm cursor-pointer hover:bg-red-100/50" onClick={() => onSelectCliente(t.idclifor)}>
                 <div>
-                  <p className="font-medium text-xs">{t.nomecliente}</p>
-                  <p className="text-[10px] text-muted-foreground">Tít. {t.idtitulo} · Venc. {fmtDate(t.dtvencimento)} · {t.dias_atraso}d</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-muted-foreground bg-background/60 px-1 rounded">#{t.idclifor}</span>
+                    <p className="font-medium text-xs">{t.nomecliente}</p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {t.numnota ? `NF ${t.numnota} · ` : ""}Tít. {t.idtitulo} · Venc. {fmtDate(t.dtvencimento)} · {t.dias_atraso}d
+                  </p>
                 </div>
-                <p className="font-bold text-red-600 dark:text-red-400">{fmtBRL(t.valor_aberto)}</p>
+                <p className="font-bold text-red-600 dark:text-red-400 shrink-0">{fmtBRL(t.valor_aberto)}</p>
               </div>
             ))}
           </div>

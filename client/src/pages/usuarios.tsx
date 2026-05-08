@@ -47,7 +47,7 @@ const MODULES = [
   { key: "usuarios",      label: "Usuários & Permissões" },
   { key: "relatorios",    label: "Relatórios & Exportações" },
   { key: "financeiro",    label: "Financeiro (Contas a Receber)" },
-  { key: "compras",       label: "Compras (Copiloto)" },
+  { key: "compras",       label: "Análise de Compras" },
 ];
 
 const ACTIONS = [
@@ -99,6 +99,7 @@ interface AppUser {
   cargo: string | null;
   company_id: string | null;
   supervisor_id: number | null;
+  supervisor_group_id: string | null;
   supervisor_first_name: string | null;
   supervisor_last_name: string | null;
   team_members: string | null;
@@ -134,13 +135,19 @@ interface AuditEntry {
   created_at: string;
 }
 
+interface VendorGroup {
+  id: string;
+  name: string;
+  members: string[];
+}
+
 // ── Empty form helpers ───────────────────────────────────────────────────────
 
 function emptyUser() {
   return {
     email: "", password: "", firstName: "", lastName: "", displayName: "",
     role: "vendedor", vendorCode: "", phone: "", cargo: "",
-    companyId: "", supervisorId: "", teamMembers: "", notes: "", status: "ativo",
+    companyId: "", supervisorId: "", supervisorGroupId: "", teamMembers: "", notes: "", status: "ativo",
   };
 }
 
@@ -201,6 +208,14 @@ function UsersTab() {
     queryKey: ["/api/admin/users", "", "", ""],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/admin/users");
+      return res.json();
+    },
+  });
+
+  const { data: vendorGroups = [] } = useQuery<VendorGroup[]>({
+    queryKey: ["/api/admin/vendor-groups"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/vendor-groups");
       return res.json();
     },
   });
@@ -282,6 +297,7 @@ function UsersTab() {
       cargo: user.cargo ?? "",
       companyId: user.company_id ?? "",
       supervisorId: user.supervisor_id ? String(user.supervisor_id) : "",
+      supervisorGroupId: user.supervisor_group_id ?? "",
       teamMembers: user.team_members ?? "",
       notes: user.notes ?? "",
       status: user.status,
@@ -300,6 +316,7 @@ function UsersTab() {
       cargo: form.cargo || null,
       companyId: form.companyId || null,
       supervisorId: form.supervisorId ? parseInt(form.supervisorId) : null,
+      supervisorGroupId: form.role === "supervisor" ? form.supervisorGroupId || null : null,
       teamMembers: form.teamMembers || null,
       notes: form.notes || null,
     };
@@ -510,10 +527,42 @@ function UsersTab() {
               </Select>
             </div>
             {(form.role === "supervisor") && (
-              <div className="col-span-2">
-                <Label className="text-xs">Membros da equipe (separados por vírgula)</Label>
-                <Input className="h-8 mt-1" value={form.teamMembers} onChange={e => setForm(f => ({ ...f, teamMembers: e.target.value }))} placeholder="João, Maria, Pedro..." />
-              </div>
+              <>
+                <div className="col-span-2">
+                  <Label className="text-xs">Grupo de vendedores do supervisor</Label>
+                  <Select
+                    value={form.supervisorGroupId || "none"}
+                    onValueChange={v => {
+                      const nextGroupId = v === "none" ? "" : v;
+                      const group = vendorGroups.find(g => g.id === nextGroupId);
+                      setForm(f => ({
+                        ...f,
+                        supervisorGroupId: nextGroupId,
+                        teamMembers: group ? group.members.join(",") : f.teamMembers,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 mt-1">
+                      <SelectValue placeholder="Nenhum grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum grupo</SelectItem>
+                      {vendorGroups.map(group => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name} ({group.members.length})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Use esta opção para limitar o supervisor a um grupo específico, sem depender de nomes digitados.
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs">IDs da equipe (legado, separados por vírgula)</Label>
+                  <Input className="h-8 mt-1" value={form.teamMembers} onChange={e => setForm(f => ({ ...f, teamMembers: e.target.value }))} placeholder="1014115, 14093, 1004249" />
+                </div>
+              </>
             )}
             <div className="col-span-2">
               <Label className="text-xs">Observações internas</Label>

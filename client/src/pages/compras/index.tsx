@@ -25,6 +25,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/csv-export";
 /* ── KPI Card ─────────────────────────────────────────────────────── */
 function KPICard({
   title, value, icon: Icon, color, subtitle, loading,
@@ -282,16 +283,14 @@ export default function ComprasDashboard() {
       return;
     }
 
-    const XLSX = await import("xlsx");
     const now = new Date();
     const empresa = companyId === "all" ? "Todas" : companies.find(c => c.id === companyId)?.name || companyId;
 
-    const metaSheet = XLSX.utils.aoa_to_sheet([
+    const rows = [
       ["CONECTUBOS — Relatório de Compras"],
       ["Gerado em", now.toLocaleString("pt-BR")],
       ["Empresa", empresa],
-    ]);
-    const dataRows = [
+      [],
       ["Código", "Descrição", "Fornecedor", "Criticidade", "Estoque Atual", "Cobertura (dias)", "Data Est. Ruptura", "Sugestão Compra"],
       ...produtosFiltrados.map(p => [
         p.codigo,
@@ -304,15 +303,7 @@ export default function ComprasDashboard() {
         p.sugestaoCompra,
       ]),
     ];
-    const dataSheet = XLSX.utils.aoa_to_sheet(dataRows);
-    dataSheet["!cols"] = [
-      { wch: 10 }, { wch: 40 }, { wch: 24 }, { wch: 12 },
-      { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
-    ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, dataSheet, "Compras");
-    XLSX.utils.book_append_sheet(wb, metaSheet, "Informações");
-    XLSX.writeFile(wb, `compras-relatorio-${now.toISOString().slice(0,10)}.xlsx`);
+    downloadCsv(`compras-relatorio-${now.toISOString().slice(0,10)}.csv`, rows);
 
     toast({ title: "Relatório exportado com sucesso!" });
   }
@@ -372,7 +363,7 @@ export default function ComprasDashboard() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold">Copiloto de Compras</h1>
+            <h1 className="text-xl font-bold">Análise de Compras</h1>
             <p className="text-sm text-muted-foreground">Visão em tempo real do estoque crítico e sugestões de compra</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -529,7 +520,7 @@ export default function ComprasDashboard() {
             onClick={handleExportCompras}
           >
             <Download className="h-4 w-4" />
-            Exportar XLSX
+            Exportar CSV
           </Button>
         </div>
 
@@ -764,7 +755,7 @@ export default function ComprasDashboard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <HelpCircle className="h-5 w-5 text-primary" />
-              Como funciona o Copiloto de Compras
+              Como funciona a Análise de Compras
             </DialogTitle>
             <DialogDescription>
               Guia rápido para entender os indicadores e tomar decisões de compra com mais segurança.
@@ -774,10 +765,10 @@ export default function ComprasDashboard() {
 
             <div className="space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Info className="h-4 w-4 text-blue-500 shrink-0" /> O que é o Copiloto?
+                <Info className="h-4 w-4 text-blue-500 shrink-0" /> O que é a Análise de Compras?
               </h3>
               <p className="text-sm text-muted-foreground">
-                O Copiloto analisa automaticamente as vendas dos últimos meses e o estoque atual para indicar quais produtos precisam ser comprados e em qual quantidade — antes que faltem na prateleira.
+                A análise cruza automaticamente as vendas dos últimos meses com o estoque atual para indicar quais produtos precisam ser comprados e em qual quantidade — antes que faltem na prateleira.
               </p>
             </div>
 

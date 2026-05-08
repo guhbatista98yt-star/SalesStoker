@@ -8,10 +8,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { GroupSelector } from "@/components/dashboard/group-selector";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { SalespersonCard, type FinancialSummary } from "@/components/dashboard/salesperson-card";
-import { Search, Users, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
@@ -45,7 +46,7 @@ export default function Vendedores() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [companyId, setCompanyId] = useState<string>("1");
   const [search, setSearch] = useState("");
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -80,16 +81,27 @@ export default function Vendedores() {
     enabled: isSupervisor,
   });
 
-  const canSeeFinanceiro = isAdmin || isSupervisor;
+  const { data: settingFinanceiroPendencias } = useQuery<{ key: string; value: string | null }>({
+    queryKey: ["/api/app-settings/showFinanceiroPendenciasButton"],
+    enabled: isSupervisor,
+  });
 
-  const { data: financialVendedores } = useQuery<{ data: FinancialSummary[] }>({
-    queryKey: ["/api/financeiro/contas-receber/vendedores"],
+  const hasFinanceiroModulePermission = user?.modulePermissions?.Financeiro !== false;
+  const canSeeFinanceiro = isAdmin
+    || (isSupervisor && hasFinanceiroModulePermission && settingFinanceiroPendencias?.value === "true");
+
+  const { data: financialVendedores, error: financialError } = useQuery<{ data: FinancialSummary[] }>({
+    queryKey: ["/api/financeiro/contas-receber/vendedores", companyId],
     queryFn: async () => {
       const token = getAuthToken();
-      const res = await fetch("/api/financeiro/contas-receber/vendedores", {
+      const qs = companyId && companyId !== "all" ? `?empresa=${companyId}` : "";
+      const res = await fetch(`/api/financeiro/contas-receber/vendedores${qs}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) return { data: [] };
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Erro ao buscar pendências financeiras" }));
+        throw new Error(err.error ?? err.message ?? "Erro ao buscar pendências financeiras");
+      }
       return res.json();
     },
     enabled: canSeeFinanceiro,
@@ -135,9 +147,7 @@ export default function Vendedores() {
     return Array.from(byId.values());
   }, [salespersons]);
 
-  const selectedGroup = selectedGroupId === "all"
-    ? undefined
-    : normalizedGroups.find(g => g.id === selectedGroupId);
+  const selectedGroup = selectedGroupId ? normalizedGroups.find(g => g.id === selectedGroupId) : undefined;
 
   const filteredSalespersons = useMemo(() => {
     const searchTerm = search.trim().toLowerCase();
@@ -164,12 +174,12 @@ export default function Vendedores() {
     return false;
   }
 
-  const showGroupFilter = (isAdmin || isSupervisor) && normalizedGroups.length > 0;
+  const showGroupFilter = isAdmin || isSupervisor;
 
   // Count active non-default filters for badge
   const activeFiltersCount = [
     companyId !== "1" && companyId !== "all",
-    selectedGroupId !== "all",
+    selectedGroupId !== null,
   ].filter(Boolean).length;
 
   return (
@@ -205,18 +215,11 @@ export default function Vendedores() {
               {/* Desktop: Inline filter controls */}
               <div className="hidden sm:flex items-center gap-2 flex-wrap">
                 {showGroupFilter && (
-                  <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                    <SelectTrigger className="h-8 text-xs w-36 gap-1.5">
-                      <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                      <SelectValue placeholder="Grupo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all" className="text-xs">Todos os grupos</SelectItem>
-                      {normalizedGroups.map(g => (
-                        <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <GroupSelector
+                    groups={normalizedGroups}
+                    selectedGroupId={selectedGroupId}
+                    onChange={setSelectedGroupId}
+                  />
                 )}
                 <CompanySelector
                   companies={companies}
@@ -251,6 +254,12 @@ export default function Vendedores() {
         </div>
       </div>
 
+      {canSeeFinanceiro && financialError && (
+        <div className="mx-4 sm:mx-6 mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Não foi possível carregar as pendências financeiras dos vendedores. Os botões continuam disponíveis, mas os totais não serão exibidos até a API responder.
+        </div>
+      )}
+
       {/* ── Mobile Filters Sheet ─────────────────────────────── */}
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="rounded-t-xl pb-8">
@@ -264,9 +273,11 @@ export default function Vendedores() {
             {showGroupFilter && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Grupo</p>
-                <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); }}>
+                <Select
+                  value={selectedGroupId ?? "all"}
+                  onValueChange={v => setSelectedGroupId(v === "all" ? null : v)}
+                >
                   <SelectTrigger className="h-10 text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground mr-1 shrink-0" />
                     <SelectValue placeholder="Grupo..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -332,6 +343,7 @@ export default function Vendedores() {
                 showMovimentacoesButton={showMovimentacoesButton()}
                 showFinanceiroButton={canSeeFinanceiro}
                 financialSummary={canSeeFinanceiro ? (financialByVendedor.get(salesperson.id) ?? null) : null}
+                companyId={companyId}
               />
             ))}
           </div>

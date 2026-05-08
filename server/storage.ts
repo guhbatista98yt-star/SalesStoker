@@ -93,7 +93,7 @@ export interface IStorage {
 
   getCampaignReport(campaignName: string): Promise<any[]>;
 
-  getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string): Promise<any[]>;
+  getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string, empresa?: string): Promise<any[]>;
 
   getAppSetting(key: string): Promise<string | null>;
   setAppSetting(key: string, value: string): Promise<void>;
@@ -198,6 +198,7 @@ export class PostgresStorage implements IStorage {
           COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos
         FROM cache_tubos_conexoes
         WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? ${whereCompany} ${wherePeriod}
+          AND UPPER("FABRICANTE") LIKE 'AMANCO%'
       `, [this.normalizeVendorId(vendedorId)]);
 
       const tubosNum = Number(result?.tubos || 0);
@@ -981,9 +982,11 @@ export class PostgresStorage implements IStorage {
             WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" = ?
           `, [sp.id, dateStrYoy]);
 
-          dailySales.push({ day: days[dayOfWeek], value: result?.total ?? 0, yoyValue: resultYoy?.total ?? 0 });
-          totalWeek += result?.total ?? 0;
-          totalWeekYoy += resultYoy?.total ?? 0;
+          const dayValue = Number(result?.total ?? 0) || 0;
+          const dayValueYoy = Number(resultYoy?.total ?? 0) || 0;
+          dailySales.push({ day: days[dayOfWeek], value: dayValue, yoyValue: dayValueYoy });
+          totalWeek += dayValue;
+          totalWeekYoy += dayValueYoy;
         } catch {
           dailySales.push({ day: days[dayOfWeek], value: 0, yoyValue: 0 });
         }
@@ -1046,8 +1049,8 @@ export class PostgresStorage implements IStorage {
             WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ? AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
           `, [sp.id, weekStartYoy, weekEndYoy]);
 
-          const value = result?.total ?? 0;
-          const yoyValue = resultYoy?.total ?? 0;
+          const value = Number(result?.total ?? 0) || 0;
+          const yoyValue = Number(resultYoy?.total ?? 0) || 0;
           cumulative += value;
           cumulativeYoy += yoyValue;
 
@@ -1431,8 +1434,12 @@ export class PostgresStorage implements IStorage {
     return this.campaignRepo.getCampaignReport(campaignName);
   }
 
-  async getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string): Promise<any[]> {
+  async getMovimentacoesPorVendedor(vendedorId: string, startDate: string, endDate: string, empresa?: string): Promise<any[]> {
     try {
+      const empresaFilter = empresa && empresa !== "all" ? Number(empresa) : null;
+      const empresaSql = empresaFilter !== null ? ` AND "IDEMPRESA" = ?` : "";
+      const params: unknown[] = [this.normalizeVendorId(vendedorId), startDate, endDate];
+      if (empresaFilter !== null) params.push(empresaFilter);
       const rows = await pgAll(`
         SELECT
           "DT_MOVIMENTO"              AS "dtMovimento",
@@ -1448,10 +1455,10 @@ export class PostgresStorage implements IStorage {
         FROM cache_vendas
         WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) = ?
           AND "DT_MOVIMENTO" >= ?
-          AND "DT_MOVIMENTO" <= ?
+          AND "DT_MOVIMENTO" <= ?${empresaSql}
         GROUP BY "DT_MOVIMENTO", "IDCLIENTE", "NOME_CLIENTE", "IDEMPRESA", "IDPLANILHA"
         ORDER BY "DT_MOVIMENTO" DESC, "IDPLANILHA"
-      `, [this.normalizeVendorId(vendedorId), startDate, endDate]);
+      `, params);
       return rows.map(r => ({
         ...r,
         valContabil: Number(r.valContabil),
@@ -1538,7 +1545,7 @@ export const storage = {
   saveVendorGroup: (id: string, n: string, m: string[]) => getStorage().then(s => s.saveVendorGroup(id, n, m)),
   deleteVendorGroup: (id: string) => getStorage().then(s => s.deleteVendorGroup(id)),
   getCampaignReport: (cn: string) => getStorage().then(s => s.getCampaignReport(cn)),
-  getMovimentacoesPorVendedor: (vid: string, sd: string, ed: string) => getStorage().then(s => s.getMovimentacoesPorVendedor(vid, sd, ed)),
+  getMovimentacoesPorVendedor: (vid: string, sd: string, ed: string, emp?: string) => getStorage().then(s => s.getMovimentacoesPorVendedor(vid, sd, ed, emp)),
   getAppSetting: (key: string) => getStorage().then(s => s.getAppSetting(key)),
   setAppSetting: (key: string, val: string) => getStorage().then(s => s.setAppSetting(key, val)),
 };

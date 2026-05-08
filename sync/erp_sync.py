@@ -71,6 +71,9 @@ MAX_CACHE_DAYS = 730
 
 # Lock expiry: if a lock is older than this, treat it as stale
 LOCK_TTL_SECONDS = 900  # 15 minutes — reduced from 3600 so failed runs don't block for an hour
+ALLOW_EMPTY_ERP_SNAPSHOT = os.environ.get("ALLOW_EMPTY_ERP_SNAPSHOT", "").lower() in {"1", "true", "yes", "sim"}
+ALLOW_LARGE_ERP_SNAPSHOT_DROP = os.environ.get("ALLOW_LARGE_ERP_SNAPSHOT_DROP", "").lower() in {"1", "true", "yes", "sim"}
+MAX_SNAPSHOT_DROP_RATIO = float(os.environ.get("MAX_SNAPSHOT_DROP_RATIO", "0.85"))
 
 
 logging.basicConfig(
@@ -139,6 +142,37 @@ def pg_connection() -> Generator[psycopg2.extensions.connection, None, None]:
             conn.close()
 
 
+def _table_count(pg: psycopg2.extensions.connection, table: str) -> int:
+    with pg.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) FROM {table}")
+        row = cur.fetchone()
+        return int(row[0] if row else 0)
+
+
+def _guard_full_snapshot_replace(
+    pg: psycopg2.extensions.connection,
+    routine: str,
+    table: str,
+    rows_read: int,
+) -> None:
+    current_count = _table_count(pg, table)
+    if rows_read == 0 and current_count > 0 and not ALLOW_EMPTY_ERP_SNAPSHOT:
+        raise RuntimeError(
+            f"[{routine}] DB2 retornou 0 linhas, mas {table} tem {current_count} registros. "
+            "TRUNCATE bloqueado para evitar perda de snapshot real. "
+            "Use ALLOW_EMPTY_ERP_SNAPSHOT=true apenas quando a base vazia for esperada."
+        )
+
+    if current_count >= 100 and rows_read > 0:
+        drop_ratio = (current_count - rows_read) / current_count
+        if drop_ratio > MAX_SNAPSHOT_DROP_RATIO and not ALLOW_LARGE_ERP_SNAPSHOT_DROP:
+            raise RuntimeError(
+                f"[{routine}] DB2 retornou {rows_read} linhas contra {current_count} atuais "
+                f"({drop_ratio:.1%} de queda). TRUNCATE bloqueado. "
+                "Use ALLOW_LARGE_ERP_SNAPSHOT_DROP=true após confirmar que a queda é legítima."
+            )
+
+
 # ─── Schema guard ─────────────────────────────────────────────────────────────
 #
 # Mirrors the column-addition logic in server/schema-bootstrap.ts so the Python
@@ -150,6 +184,7 @@ _REQUIRED_COLUMNS: list[tuple[str, str, str]] = [
     ("cache_campanhas",             "IDEMPRESA",     "TEXT NOT NULL DEFAULT ''"),
     ("cache_estoque_sugestao",      "DESCRICAO",     "TEXT NOT NULL DEFAULT ''"),
     ("cache_tubos_conexoes",        "TIPO_PRODUTO",  "TEXT NOT NULL DEFAULT ''"),
+    ("cache_tubos_conexoes",        "FABRICANTE",    "TEXT NOT NULL DEFAULT ''"),
     ("cache_vendas",                "IDCLIENTE",     "TEXT"),
     ("cache_vendas",                "NOME_CLIENTE",  "TEXT"),
     ("compras_fornecedores_config", "company_id",    "INTEGER NOT NULL DEFAULT 1"),
@@ -559,20 +594,21 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
             (watermark, date_to),
         )
         # Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2]
-        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4] TIPO_PRODUTO[5]
+        #          DT_MOVIMENTO[3] TOTALVENDA_LINHA[4] TIPO_PRODUTO[5] FABRICANTE[6]
         if all_rows:
             psycopg2.extras.execute_values(
                 pgcur,
                 """
                 INSERT INTO cache_tubos_conexoes
                   ("IDVENDEDOR","NOME_VENDEDOR","IDEMPRESA",
-                   "DT_MOVIMENTO","TOTALVENDA_LINHA","TIPO_PRODUTO", synced_at)
+                   "DT_MOVIMENTO","TOTALVENDA_LINHA","TIPO_PRODUTO","FABRICANTE", synced_at)
                 VALUES %s
                 """,
                 [
                     (r[0], r[1], r[2], r[3],
                      _fix_monetary(r[4]),
                      str(r[5]) if len(r) > 5 and r[5] else '',
+                     str(r[6]) if len(r) > 6 and r[6] else '',
                      datetime.now(timezone.utc))
                     for r in all_rows
                 ],
@@ -675,6 +711,7 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
         cur.close()
 
     with pg.cursor() as pgcur:
+        _guard_full_snapshot_replace(pg, routine, "cache_estoque_sugestao", total_read)
         pgcur.execute("TRUNCATE TABLE cache_estoque_sugestao")
         if all_rows:
             psycopg2.extras.execute_values(
@@ -764,6 +801,7 @@ def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
 
     # ── PostgreSQL write ─────────────────────────────────────────────────────
     with pg.cursor() as pgcur:
+        _guard_full_snapshot_replace(pg, routine, "cache_contas_receber", total_read)
         pgcur.execute("TRUNCATE TABLE cache_contas_receber")
 
         def _compute_status(dtvenc: Any, valor_aberto: float) -> str:

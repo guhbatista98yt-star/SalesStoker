@@ -41,8 +41,8 @@ const coreItems = [
 ];
 
 const comprasItems = [
-  { title: "Copiloto de Compras", url: "/compras", icon: ShoppingCart },
-  { title: "Configuração de Compras", url: "/compras/configuracoes", icon: Settings },
+  { title: "Análise de Compras", url: "/compras", icon: ShoppingCart },
+  { title: "Configurações de Compras", url: "/compras/configuracoes", icon: Settings },
 ];
 
 const financeiroItems = [
@@ -268,12 +268,12 @@ export function AppSidebar({ collapsible = "icon", side = "left" }: { collapsibl
               <SidebarMenuButton
                 asChild
                 isActive={location === "/copiloto"}
-                tooltip="Copiloto de IA"
+                tooltip="Assistente IA"
                 className="h-9 rounded-lg text-sm font-medium"
               >
                 <Link href="/copiloto" data-testid="nav-link-copiloto">
                   <Sparkles className="h-4 w-4 shrink-0" />
-                  <span>Copiloto de IA</span>
+                  <span>Assistente IA</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

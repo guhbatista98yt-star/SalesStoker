@@ -1105,7 +1105,7 @@ export default function ComprasConfiguracoes() {
                   Configuração de Compras
                 </h1>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed hidden sm:block">
-                  Defina regras padrão por fornecedor e exceções por produto para melhorar as sugestões do Copiloto.
+                  Defina regras padrão por fornecedor e exceções por produto para melhorar as sugestões de compra.
                 </p>
               </div>
             </div>

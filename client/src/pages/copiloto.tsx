@@ -68,7 +68,7 @@ export default function Copiloto() {
 
   const [msgs, setMsgs] = useState<CopilotMsg[]>([{
     role: "assistant",
-    content: "Olá! Sou o **Copiloto Stoker Sales**. Posso ajudar com:\n\n- Dúvidas sobre qualquer módulo do sistema\n- Configuração de metas, equipes e permissões\n- Criação de campanhas de incentivo\n- Análise de dados e sugestões\n\nComo posso ajudar?",
+    content: "Olá! Sou o **Assistente Stoker Sales**. Posso ajudar com:\n\n- Dúvidas sobre qualquer módulo do sistema\n- Configuração de metas, equipes e permissões\n- Criação de campanhas de incentivo\n- Análise de dados e sugestões\n\nComo posso ajudar?",
     ts: Date.now(),
   }]);
   const [inputVal, setInputVal] = useState("");
@@ -146,7 +146,7 @@ export default function Copiloto() {
         <div className="flex items-baseline gap-3">
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-violet-600" />
-            Copiloto de IA
+            Assistente IA
           </h1>
           <span className="hidden sm:inline text-xs text-muted-foreground font-medium">
             Assistente especialista no Stoker Sales
@@ -208,7 +208,7 @@ export default function Copiloto() {
             {!cfg?.hasKey && (
               <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800 text-xs text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                Configure uma chave API abaixo para usar o Copiloto.
+                Configure uma chave API abaixo para usar o Assistente IA.
               </div>
             )}
             <div className="flex gap-2 items-end">

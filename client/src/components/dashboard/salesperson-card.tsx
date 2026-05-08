@@ -44,12 +44,14 @@ interface TituloVencido {
   idtitulo: number;
   digitotitulo: string;
   serienota: string;
+  numnota: string | null;
   nomecliente: string;
   idclifor: number;
   dtvencimento: string;
   dias_atraso: number;
   valor_aberto: number;
   status: string;
+  forma_recebimento: string | null;
 }
 
 interface SalespersonCardProps {
@@ -60,6 +62,7 @@ interface SalespersonCardProps {
   showMovimentacoesButton?: boolean;
   showFinanceiroButton?: boolean;
   financialSummary?: FinancialSummary | null;
+  companyId?: string;
 }
 
 interface Movimentacao {
@@ -120,21 +123,22 @@ function riskLabel(risco: string): string {
 function MovimentacoesModal({
   salesperson,
   period,
+  companyId,
   open,
   onClose,
 }: {
   salesperson: Salesperson;
   period: { startDate: string; endDate: string };
+  companyId?: string;
   open: boolean;
   onClose: () => void;
 }) {
   const { data, isLoading, error } = useQuery<Movimentacao[]>({
-    queryKey: ["/api/movimentacoes", salesperson.id, period.startDate, period.endDate],
+    queryKey: ["/api/movimentacoes", salesperson.id, period.startDate, period.endDate, companyId],
     queryFn: async () => {
-      const res = await apiRequest(
-        "GET",
-        `/api/movimentacoes/${encodeURIComponent(salesperson.id)}/${period.startDate}/${period.endDate}`
-      );
+      const base = `/api/movimentacoes/${encodeURIComponent(salesperson.id)}/${period.startDate}/${period.endDate}`;
+      const qs = companyId && companyId !== "all" ? `?empresa=${companyId}` : "";
+      const res = await apiRequest("GET", `${base}${qs}`);
       return res.json();
     },
     enabled: open,
@@ -209,6 +213,7 @@ function MovimentacoesModal({
                       <tr className="bg-muted/40 border-b">
                         <th className="text-left px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[90px]">Data</th>
                         <th className="text-left px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[70px]">NF</th>
+                        <th className="text-left px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[52px]">Loja</th>
                         <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Cliente</th>
                         <th className="text-right px-3 py-2 font-semibold text-muted-foreground whitespace-nowrap w-[110px]">Valor</th>
                       </tr>
@@ -226,6 +231,7 @@ function MovimentacoesModal({
                         >
                           <td className="px-3 py-2 whitespace-nowrap tabular-nums">{formatDate(mov.dtMovimento)}</td>
                           <td className="px-3 py-2 font-mono whitespace-nowrap">{mov.numNota || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap tabular-nums text-muted-foreground">{mov.idEmpresa ?? "—"}</td>
                           <td className="px-3 py-2">
                             <span className="block truncate max-w-[180px] sm:max-w-none">{mov.nomeCliente || "—"}</span>
                           </td>
@@ -259,25 +265,29 @@ function diasAtrasoColor(dias: number): string {
 
 function FinancialSheet({
   salesperson,
+  companyId,
   open,
   onClose,
 }: {
   salesperson: Salesperson;
+  companyId?: string;
   open: boolean;
   onClose: () => void;
 }) {
   const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
+  const [expandedNFs, setExpandedNFs] = useState<Set<string>>(new Set());
 
   const { data, isLoading, error } = useQuery<{
     resumo: FinancialSummary | null;
     clientes: ClienteVencido[];
     top_titulos: TituloVencido[];
   }>({
-    queryKey: ["/api/financeiro/contas-receber/vendedor", salesperson.id],
+    queryKey: ["/api/financeiro/contas-receber/vendedor", salesperson.id, companyId],
     queryFn: async () => {
+      const qs = companyId && companyId !== "all" ? `?empresa=${companyId}` : "";
       const res = await apiRequest(
         "GET",
-        `/api/financeiro/contas-receber/vendedor/${encodeURIComponent(salesperson.id)}`
+        `/api/financeiro/contas-receber/vendedor/${encodeURIComponent(salesperson.id)}${qs}`
       );
       return res.json();
     },
@@ -288,16 +298,43 @@ function FinancialSheet({
   const clientes = data?.clientes ?? [];
   const titulos  = data?.top_titulos ?? [];
 
-  // Group titles by client id for quick lookup
+  // Group titles by client, then by NF
   const titulosByCliente = titulos.reduce<Record<number, TituloVencido[]>>((acc, t) => {
-    const key = t.idclifor;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(t);
+    if (!acc[t.idclifor]) acc[t.idclifor] = [];
+    acc[t.idclifor].push(t);
     return acc;
   }, {});
 
+  function groupByNF(rows: TituloVencido[]) {
+    const map = new Map<string, TituloVencido[]>();
+    for (const t of rows) {
+      const key = t.numnota ? `nf_${t.numnota}` : `t_${t.idtitulo}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    }
+    return Array.from(map.entries()).map(([key, parcelas]) => ({
+      key,
+      numnota: parcelas[0].numnota,
+      parcelas,
+      total: parcelas.reduce((s, t) => s + Number(t.valor_aberto), 0),
+      maxAtraso: parcelas.reduce((m, t) => Math.max(m, Number(t.dias_atraso)), 0),
+      forma: (() => {
+        const formas = new Set(parcelas.map(t => t.forma_recebimento).filter(Boolean));
+        return formas.size === 1 ? [...formas][0] : formas.size > 1 ? "Misto" : "—";
+      })(),
+    }));
+  }
+
   function toggleCliente(id: number) {
     setExpandedClientId(prev => (prev === id ? null : id));
+  }
+
+  function toggleNF(key: string) {
+    setExpandedNFs(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   }
 
   return (
@@ -412,38 +449,70 @@ function FinancialSheet({
                                     Detalhes não disponíveis.
                                   </p>
                                 ) : (
-                                  <div className="overflow-x-auto">
-                                    <table className="w-full text-xs border-collapse">
-                                      <thead>
-                                        <tr className="border-b border-border bg-muted/40">
-                                          <th className="text-left px-4 py-1.5 font-semibold text-muted-foreground">Título</th>
-                                          <th className="text-center px-2 py-1.5 font-semibold text-muted-foreground whitespace-nowrap">Vencimento</th>
-                                          <th className="text-center px-2 py-1.5 font-semibold text-muted-foreground whitespace-nowrap">Atraso</th>
-                                          <th className="text-right px-4 py-1.5 font-semibold text-muted-foreground whitespace-nowrap">Valor</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {clienteTitulos.map((t, i) => (
-                                          <tr
-                                            key={`${t.idtitulo}-${i}`}
-                                            className="border-b last:border-0 border-border/60 hover:bg-muted/30 transition-colors"
+                                  <div className="divide-y divide-border/60">
+                                    {groupByNF(clienteTitulos).map(nfGroup => {
+                                      const isNFExpanded = expandedNFs.has(nfGroup.key);
+                                      const hasMultiple = nfGroup.parcelas.length > 1;
+                                      return (
+                                        <div key={nfGroup.key}>
+                                          {/* NF header row */}
+                                          <div
+                                            className={cn(
+                                              "flex items-center gap-2 px-3 py-2 text-xs",
+                                              hasMultiple ? "cursor-pointer hover:bg-muted/40" : "bg-transparent"
+                                            )}
+                                            onClick={() => hasMultiple && toggleNF(nfGroup.key)}
                                           >
-                                            <td className="px-4 py-2 font-mono text-muted-foreground">
-                                              {t.idtitulo}{t.digitotitulo ? `-${t.digitotitulo}` : ""}
-                                            </td>
-                                            <td className="px-2 py-2 text-center tabular-nums whitespace-nowrap">
-                                              {formatDate(t.dtvencimento)}
-                                            </td>
-                                            <td className={cn("px-2 py-2 text-center tabular-nums whitespace-nowrap", diasAtrasoColor(Number(t.dias_atraso)))}>
-                                              {Number(t.dias_atraso)}d
-                                            </td>
-                                            <td className="px-4 py-2 text-right font-semibold tabular-nums whitespace-nowrap text-red-600 dark:text-red-400">
-                                              {formatCurrency(Number(t.valor_aberto))}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                                            {hasMultiple && (
+                                              <ChevronRight className={cn("h-3 w-3 shrink-0 text-muted-foreground transition-transform", isNFExpanded && "rotate-90")} />
+                                            )}
+                                            {!hasMultiple && <span className="w-3" />}
+                                            <span className="font-mono text-muted-foreground shrink-0">
+                                              {nfGroup.numnota ? `NF ${nfGroup.numnota}` : `${nfGroup.parcelas[0].idtitulo}${nfGroup.parcelas[0].digitotitulo ? `-${nfGroup.parcelas[0].digitotitulo}` : ""}`}
+                                            </span>
+                                            {hasMultiple && (
+                                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0">
+                                                {nfGroup.parcelas.length} parc.
+                                              </Badge>
+                                            )}
+                                            <span className="flex-1 truncate text-muted-foreground text-[10px]">{nfGroup.forma}</span>
+                                            <span className={cn("tabular-nums font-semibold whitespace-nowrap shrink-0", diasAtrasoColor(nfGroup.maxAtraso))}>
+                                              {nfGroup.maxAtraso}d
+                                            </span>
+                                            <span className="tabular-nums font-semibold text-red-600 dark:text-red-400 whitespace-nowrap shrink-0">
+                                              {formatCurrency(nfGroup.total)}
+                                            </span>
+                                          </div>
+                                          {/* Sub-rows when expanded */}
+                                          {hasMultiple && isNFExpanded && (
+                                            <div className="bg-muted/20 border-t border-border/40">
+                                              {nfGroup.parcelas.map((t, i) => (
+                                                <div key={`${t.idtitulo}-${i}`} className="flex items-center gap-2 px-3 py-1.5 text-xs border-b last:border-0 border-border/30">
+                                                  <span className="w-3 shrink-0" />
+                                                  <span className="font-mono text-muted-foreground shrink-0 w-16">
+                                                    {t.idtitulo}{t.digitotitulo ? `-${t.digitotitulo}` : ""}
+                                                  </span>
+                                                  <span className="flex-1 truncate text-muted-foreground text-[10px]">{t.forma_recebimento ?? "—"}</span>
+                                                  <span className="tabular-nums text-muted-foreground whitespace-nowrap shrink-0">{formatDate(t.dtvencimento)}</span>
+                                                  <span className={cn("tabular-nums whitespace-nowrap shrink-0 w-8 text-right", diasAtrasoColor(Number(t.dias_atraso)))}>
+                                                    {Number(t.dias_atraso)}d
+                                                  </span>
+                                                  <span className="tabular-nums font-semibold text-red-600 dark:text-red-400 whitespace-nowrap shrink-0 w-20 text-right">
+                                                    {formatCurrency(Number(t.valor_aberto))}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {/* Single parcel — show details inline */}
+                                          {!hasMultiple && (
+                                            <div className="flex items-center gap-2 px-3 pb-1.5 text-xs text-muted-foreground pl-8">
+                                              <span className="tabular-nums">{formatDate(nfGroup.parcelas[0].dtvencimento)}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
@@ -561,6 +630,7 @@ export function SalespersonCard({
   showMovimentacoesButton = true,
   showFinanceiroButton = false,
   financialSummary,
+  companyId,
 }: SalespersonCardProps) {
   const initials = salesperson.name.split(" ").map(n => n[0]).slice(0, 2).join("");
   const [showMovimentacoes, setShowMovimentacoes] = useState(false);
@@ -701,6 +771,7 @@ export function SalespersonCard({
         <MovimentacoesModal
           salesperson={salesperson}
           period={defaultPeriod}
+          companyId={companyId}
           open={showMovimentacoes}
           onClose={() => setShowMovimentacoes(false)}
         />
@@ -709,6 +780,7 @@ export function SalespersonCard({
       {showFinanceiro && (
         <FinancialSheet
           salesperson={salesperson}
+          companyId={companyId}
           open={showFinanceiro}
           onClose={() => setShowFinanceiro(false)}
         />

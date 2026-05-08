@@ -5,7 +5,7 @@
  *   - Connection timeout prevents hung startup in broken environments
  *   - Idle timeout releases unused connections promptly
  *   - Pool cap prevents runaway connection growth under load
- *   - SSL in production only (Replit dev doesn't use SSL)
+ *   - SSL controlled by PGSSLMODE/DATABASE_SSL, with safe local defaults
  *
  * Query helpers (pgGet, pgAll, pgRun) use ? placeholders for readability;
  * toNumbered() converts them to PostgreSQL-native $1, $2, … before execution.
@@ -17,9 +17,30 @@ if (!process.env.DATABASE_URL) {
   throw new Error("[pg-client] DATABASE_URL não definida — impossível iniciar.");
 }
 
+function isLocalDatabase(connectionString: string): boolean {
+  try {
+    const url = new URL(connectionString);
+    return ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function resolveSslConfig() {
+  const mode = String(process.env.PGSSLMODE ?? process.env.DATABASE_SSL ?? "").trim().toLowerCase();
+  if (["disable", "false", "0", "no"].includes(mode)) return false;
+  if (["require", "true", "1", "yes", "prefer", "no-verify"].includes(mode)) {
+    return { rejectUnauthorized: false };
+  }
+  if (process.env.NODE_ENV === "production" && !isLocalDatabase(process.env.DATABASE_URL!)) {
+    return { rejectUnauthorized: false };
+  }
+  return false;
+}
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  ssl: resolveSslConfig(),
 
   // Maximum simultaneous connections — keeps DB resource usage predictable
   max: 10,

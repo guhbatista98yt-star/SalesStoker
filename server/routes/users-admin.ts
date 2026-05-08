@@ -45,6 +45,20 @@ function onlyAdmin(req: AuthRequest, res: Response): boolean {
   return true;
 }
 
+async function resolveVendorGroupMembers(groupId: string | null | undefined): Promise<string | null> {
+  const normalized = String(groupId ?? "").trim();
+  if (!normalized) return null;
+  const rows = await pgAll<{ salesperson_id: string }>(
+    `SELECT DISTINCT TRIM(CAST(salesperson_id AS TEXT)) AS salesperson_id
+     FROM vendor_group_members
+     WHERE group_id = $1 AND TRIM(CAST(salesperson_id AS TEXT)) <> ''
+     ORDER BY salesperson_id`,
+    [normalized]
+  );
+  const members = rows.map(row => String(row.salesperson_id ?? "").trim()).filter(Boolean);
+  return members.length > 0 ? members.join(",") : null;
+}
+
 // ── USERS ───────────────────────────────────────────────────────────────────
 
 // List users
@@ -74,7 +88,7 @@ router.get("/users", isAuthenticated, isAdmin, async (req: AuthRequest, res: Res
       SELECT
         u.id, u.email, u.first_name, u.last_name, u.display_name,
         u.role, u.vendor_code, u.phone, u.cargo, u.company_id,
-        u.supervisor_id, u.team_members, u.module_permissions,
+        u.supervisor_id, u.supervisor_group_id, u.team_members, u.module_permissions,
         COALESCE(u.status, 'ativo') AS status,
         u.last_login_at, u.notes, u.created_by,
         u.created_at, u.updated_at,
@@ -98,7 +112,7 @@ router.get("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res:
     const user = await pgGet<any>(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.display_name,
               u.role, u.vendor_code, u.phone, u.cargo, u.company_id,
-              u.supervisor_id, u.team_members, u.module_permissions,
+              u.supervisor_id, u.supervisor_group_id, u.team_members, u.module_permissions,
               COALESCE(u.status, 'ativo') AS status,
               u.last_login_at, u.notes, u.created_by, u.created_at, u.updated_at,
               s.first_name AS supervisor_first_name, s.last_name AS supervisor_last_name
@@ -120,7 +134,7 @@ router.post("/users", isAuthenticated, isAdmin, async (req: AuthRequest, res: Re
     const {
       email, password, firstName, lastName, displayName,
       role = "vendedor", vendorCode, phone, cargo,
-      companyId, supervisorId, teamMembers, modulePermissions,
+      companyId, supervisorId, supervisorGroupId, teamMembers, modulePermissions,
       notes, status = "ativo",
     } = req.body;
 
@@ -131,19 +145,24 @@ router.post("/users", isAuthenticated, isAdmin, async (req: AuthRequest, res: Re
     if (existing) return res.status(400).json({ message: "Este login já está em uso" });
 
     const hashed = await bcrypt.hash(password, 10);
+    const normalizedSupervisorGroupId = role === "supervisor" ? String(supervisorGroupId ?? "").trim() || null : null;
+    const effectiveTeamMembers = normalizedSupervisorGroupId
+      ? await resolveVendorGroupMembers(normalizedSupervisorGroupId)
+      : (teamMembers || null);
 
     const newUser = await pgGet<any>(`
       INSERT INTO users (
         email, password, first_name, last_name, display_name,
         role, vendor_code, phone, cargo, company_id, supervisor_id,
-        team_members, module_permissions, notes, status, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        supervisor_group_id, team_members, module_permissions, notes, status, created_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
       RETURNING id, email, first_name, last_name, display_name, role, status, created_at
     `, [
       email, hashed, firstName || null, lastName || null, displayName || null,
       role, vendorCode || null, phone || null, cargo || null,
       companyId || null, supervisorId || null,
-      teamMembers || null,
+      normalizedSupervisorGroupId,
+      effectiveTeamMembers,
       modulePermissions ? JSON.stringify(modulePermissions) : null,
       notes || null, status, req.userId,
     ]);
@@ -173,7 +192,7 @@ router.put("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res:
     const {
       firstName, lastName, displayName, role,
       vendorCode, phone, cargo, companyId, supervisorId,
-      teamMembers, modulePermissions, notes,
+      supervisorGroupId, teamMembers, modulePermissions, notes,
     } = req.body;
 
     // Prevent admin from demoting themselves
@@ -181,24 +200,33 @@ router.put("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res:
       return res.status(400).json({ message: "Você não pode alterar seu próprio perfil de acesso" });
     }
 
+    const nextRole = role ?? before.role;
+    const normalizedSupervisorGroupId = nextRole === "supervisor"
+      ? String(supervisorGroupId ?? before.supervisor_group_id ?? "").trim() || null
+      : null;
+    const effectiveTeamMembers = normalizedSupervisorGroupId
+      ? await resolveVendorGroupMembers(normalizedSupervisorGroupId)
+      : (teamMembers ?? before.team_members);
+
     await pgRun(`
       UPDATE users SET
         first_name = $1, last_name = $2, display_name = $3, role = $4,
         vendor_code = $5, phone = $6, cargo = $7, company_id = $8,
-        supervisor_id = $9, team_members = $10, module_permissions = $11,
-        notes = $12, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+        supervisor_id = $9, supervisor_group_id = $10, team_members = $11, module_permissions = $12,
+        notes = $13, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $14
     `, [
       firstName ?? before.first_name,
       lastName ?? before.last_name,
       displayName ?? before.display_name,
-      role ?? before.role,
+      nextRole,
       vendorCode ?? before.vendor_code,
       phone ?? before.phone,
       cargo ?? before.cargo,
       companyId ?? before.company_id,
       supervisorId ?? before.supervisor_id,
-      teamMembers ?? before.team_members,
+      normalizedSupervisorGroupId,
+      effectiveTeamMembers,
       modulePermissions !== undefined ? JSON.stringify(modulePermissions) : before.module_permissions,
       notes ?? before.notes,
       uid,
@@ -215,7 +243,7 @@ router.put("/users/:id", isAuthenticated, isAdmin, async (req: AuthRequest, res:
 
     const updated = await pgGet<any>(
       `SELECT id, email, first_name, last_name, display_name, role, vendor_code, phone, cargo,
-              company_id, supervisor_id, team_members, module_permissions,
+              company_id, supervisor_id, supervisor_group_id, team_members, module_permissions,
               COALESCE(status, 'ativo') AS status, last_login_at, notes, created_by, created_at, updated_at
        FROM users WHERE id = $1`,
       [uid]

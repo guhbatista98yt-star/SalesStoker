@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthToken } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,10 +104,11 @@ function fmtDatetime(d: string | null | undefined) {
 
 // ── Print Report (ERP style — same as contas-receber) ────────────────────────
 
-function PrintReport({ filters, resumo, dupsData }: {
+function PrintReport({ filters, resumo, dupsData, companiesList }: {
   filters: Filters;
   resumo: any;
   dupsData: any;
+  companiesList: { id: string; name: string }[];
 }) {
   const now = new Date().toLocaleString("pt-BR");
   const allDups: any[] = dupsData?.data ?? [];
@@ -144,10 +146,10 @@ function PrintReport({ filters, resumo, dupsData }: {
     ...base, textAlign: align, padding: "0px 3px", verticalAlign: "top", ...extra,
   });
 
-  const W = ["13%","11%","5%","9%","9%","4%","8%","7%","9%","8%","8%","9%"] as const;
+  const W = ["10%","9%","20%","8%","8%","4%","7%","7%","8%","7%","7%","5%"] as const;
 
   const filterLines = [
-    `Informe a(s) empresa(s) = ( ${filters.empresa === "all" ? "Todas" : filters.empresa} )`,
+    `Informe a(s) empresa(s) = ( ${filters.empresa === "all" ? "Todas" : (companiesList.find(c => String(c.id) === filters.empresa)?.name ?? filters.empresa)} )`,
     `Informe o cliente ou branco para todos = ${filters.cod_cliente || ""}`,
     `Informe a(s) forma(s) de pagto ou branco p/ todas = ${filters.forma_recebimento || ""}`,
     filters.venc_de  ? `Data de vencimento inicial = '${fmtDate(filters.venc_de)}'` : null,
@@ -165,8 +167,7 @@ function PrintReport({ filters, resumo, dupsData }: {
           @page { size: A4 landscape; margin: 10mm 8mm; }
           .ec-thead { display: table-header-group; }
           .ec-tfoot { display: table-footer-group; }
-          .ec-tbody { page-break-inside: avoid; }
-          .ec-screen { display: none !important; }
+          .ec-tbody tr { page-break-inside: avoid; }
         }
       `}</style>
 
@@ -175,7 +176,7 @@ function PrintReport({ filters, resumo, dupsData }: {
         <div>{now}</div>
       </div>
       <div style={{ textAlign: "center", fontWeight: "bold", marginBottom: "2px", ...base }}>
-        150020-Extrato de Cobranças
+        Extrato de Cobranças
       </div>
       <div style={{ textAlign: "center", fontSize: "7pt", lineHeight: "1.7", ...base }}>
         {filterLines.map((line, i) => <div key={i}>{line}</div>)}
@@ -186,7 +187,7 @@ function PrintReport({ filters, resumo, dupsData }: {
         <span>V. 05</span>
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead className="ec-thead">
           <tr>
             <th style={{ ...th("left"),   width: W[0]  }}>Nota / Série</th>
@@ -263,16 +264,16 @@ function PrintReport({ filters, resumo, dupsData }: {
                   <tr key={row.id}>
                     <td style={td("left")}>{nota}{serie}</td>
                     <td style={td("left")}>{titulo}</td>
-                    <td style={td("center")}>{row.forma_recebimento ?? ""}</td>
-                    <td style={td("right")}>{fmtN(valVencido)}</td>
-                    <td style={td("right")}>{fmtN(valAVencer)}</td>
-                    <td style={td("center")}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
-                    <td style={td("right")}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
-                    <td style={td("right")}>{fmtN(Number(row.valor_pago) || 0)}</td>
-                    <td style={td("right")}>{fmtN(Number(row.valor_aberto) || 0)}</td>
-                    <td style={td("center")}>{fmtDate(row.dtmovimento)}</td>
-                    <td style={td("center")}>{fmtDate(row.dtvencimento)}</td>
-                    <td style={td("left", { fontSize: "6.5pt" })}>{row.numnota ?? ""}</td>
+                    <td style={td("left", { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 })}>{row.forma_recebimento ?? ""}</td>
+                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(valVencido)}</td>
+                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(valAVencer)}</td>
+                    <td style={td("center", { whiteSpace: "nowrap" })}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
+                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
+                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_pago) || 0)}</td>
+                    <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_aberto) || 0)}</td>
+                    <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtmovimento)}</td>
+                    <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtvencimento)}</td>
+                    <td style={td("left", { fontSize: "6.5pt", whiteSpace: "nowrap", overflow: "hidden" })}>{row.numnota ?? ""}</td>
                   </tr>
                 );
               })}
@@ -372,12 +373,28 @@ export default function ExtratoCobracas() {
     staleTime: 60_000,
   });
 
+  const companiesQ = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/companies"],
+    staleTime: 600_000,
+  });
+  const companiesList = companiesQ.data ?? [];
+
   const formasQ = useQuery({
-    queryKey: ["/api/financeiro/contas-receber/formas-recebimento"],
-    queryFn: () => apiFetch("/api/financeiro/contas-receber/formas-recebimento"),
+    queryKey: ["/api/financeiro/contas-receber/formas-recebimento", draft.empresa],
+    queryFn: () => {
+      const qs = draft.empresa && draft.empresa !== "all" ? `?empresa=${draft.empresa}` : "";
+      return apiFetch(`/api/financeiro/contas-receber/formas-recebimento${qs}`);
+    },
     staleTime: 300_000,
   });
   const formasList: string[] = formasQ.data?.formas ?? FORMAS_RECEBIMENTO;
+
+  // Clear forma_recebimento when empresa changes and selected form is no longer available
+  useEffect(() => {
+    if (draft.forma_recebimento && formasList.length > 0 && !formasList.includes(draft.forma_recebimento)) {
+      setDraft(f => ({ ...f, forma_recebimento: "" }));
+    }
+  }, [formasList]);
 
   // Auto-print when data arrives after user clicks "Gerar Extrato"
   useEffect(() => {
@@ -410,24 +427,33 @@ export default function ExtratoCobracas() {
   const isLoading  = printQ.isFetching || resumoQ.isFetching;
 
   return (
+    <>
+      {/* Portal: renderiza fora de qualquer container com overflow-hidden/h-full */}
+      <style>{`
+        .ec-print-portal { display: none; }
+        @media print {
+          body > *:not(.ec-print-portal) { display: none !important; }
+          .ec-print-portal { display: block !important; }
+        }
+      `}</style>
+      {hasResults && createPortal(
+        <div className="ec-print-portal">
+          <PrintReport filters={applied!} resumo={resumoQ.data} dupsData={printQ.data} companiesList={companiesList} />
+        </div>,
+        document.body
+      )}
+
     <div className="flex flex-col h-full overflow-hidden bg-background">
 
-      {/* Print-only area: only visible when printing */}
-      <div className="hidden print:block">
-        {hasResults && (
-          <PrintReport filters={applied!} resumo={resumoQ.data} dupsData={printQ.data} />
-        )}
-      </div>
-
-      {/* Screen content: hidden when printing */}
-      <div className="ec-screen flex flex-col h-full overflow-hidden print:hidden">
+      {/* Screen content */}
+      <div className="ec-screen flex flex-col h-full overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 shrink-0 border-b border-border">
           <div>
             <h1 className="text-lg font-bold tracking-tight">Extrato de Cobranças</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Relatório 150020 — Informe os parâmetros e clique em Gerar Extrato
+              Informe os parâmetros e clique em Gerar Extrato
             </p>
           </div>
         </div>
@@ -440,7 +466,7 @@ export default function ExtratoCobracas() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                Parâmetros do Relatório — 150020-Extrato de Cobranças
+                Parâmetros do Relatório — Extrato de Cobranças
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -455,8 +481,9 @@ export default function ExtratoCobracas() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="1">Empresa 1</SelectItem>
-                      <SelectItem value="2">Empresa 2</SelectItem>
+                      {companiesList.map(c => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -563,18 +590,6 @@ export default function ExtratoCobracas() {
                   />
                 </div>
 
-                {/* Somente vencidos */}
-                <div className="flex items-end pb-1">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm select-none">
-                    <input
-                      type="checkbox"
-                      checked={draft.somente_vencidos === "1"}
-                      onChange={e => setField("somente_vencidos", e.target.checked ? "1" : "0")}
-                      className="rounded"
-                    />
-                    Exibir somente vencidos
-                  </label>
-                </div>
 
               </div>
 
@@ -665,5 +680,6 @@ export default function ExtratoCobracas() {
         </div>
       </div>
     </div>
+    </>
   );
 }

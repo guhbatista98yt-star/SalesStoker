@@ -5,22 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { CalendarDays, TrendingUp, TrendingDown, Minus, Users } from "lucide-react";
+import { CalendarDays, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { formatCurrency, formatPercentage } from "@/lib/calendar-utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/lib/auth-context";
 import type { MonthlySalesperson } from "@shared/schema";
-
-interface VendorGroup {
-  id: string;
-  name: string;
-  members: string[];
-}
 
 function getTrendIcon(value: number | null) {
   if (value === null) return null;
@@ -154,7 +146,7 @@ export default function Mensal() {
   const monthLabel = format(today, "MMMM yyyy", { locale: ptBR });
 
   const [helpOpen, setHelpOpen] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const { data: monthlyData = [], isLoading: monthlyLoading } = useQuery<MonthlySalesperson[]>({
     queryKey: ["/api/monthly-view", "all", startDate, endDate],
@@ -165,13 +157,13 @@ export default function Mensal() {
     enabled: isAdmin || isSupervisor,
   });
 
-  const selectedGroup = groups.find(g => g.id === selectedGroupId);
+  const selectedGroup = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
 
   const filteredData = monthlyData.filter(({ salesperson }) =>
     !selectedGroup || selectedGroup.members.includes(String(salesperson.id))
   );
 
-  const showGroupFilter = (isAdmin || isSupervisor) && groups.length > 0;
+  const showGroupFilter = isAdmin || isSupervisor;
 
   return (
     <div className="h-full overflow-auto">
@@ -184,18 +176,11 @@ export default function Mensal() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {showGroupFilter && (
-              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                <SelectTrigger className="h-8 text-xs w-40 gap-1.5">
-                  <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Grupo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">Todos os grupos</SelectItem>
-                  {groups.map(g => (
-                    <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <GroupSelector
+                groups={groups}
+                selectedGroupId={selectedGroupId}
+                onChange={setSelectedGroupId}
+              />
             )}
             <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg capitalize" disabled>
               <CalendarDays className="h-3.5 w-3.5" />

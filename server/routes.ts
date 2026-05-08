@@ -1,8 +1,11 @@
 import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import { spawn } from "child_process";
+import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import type { RankingCriteria } from "@shared/schema";
-import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest } from "./auth";
+import { createAuthRouter, isAuthenticated, isAdmin, AuthRequest, seedAuthUsersIfNeeded } from "./auth";
 import campaignRoutes from "./campaigns/routes";
 import campaignAIRouter from "./campaigns/ai-assistant";
 import { initCampaignTables } from "./campaigns/init";
@@ -14,7 +17,7 @@ import comprasRouter from "./compras/routes";
 import financeiroRouter from "./routes/financeiro";
 import usersAdminRouter from "./routes/users-admin";
 import { db } from "./db";
-import { pgAll } from "./pg-client";
+import { pgAll, pgGet, pgRun, pool } from "./pg-client";
 import { users } from "@shared/models/auth";
 import { APP_MODULE_LABELS } from "@shared/module-catalog";
 import { eq } from "drizzle-orm";
@@ -40,32 +43,25 @@ async function resolveGroupTeamMembers(groupId: string, supervisorTeam?: string[
 
     const supervisorIdSet = new Set(normalizedSupervisorTeam);
     const directIdMatches = groupIds.filter(id => supervisorIdSet.has(id));
-    if (directIdMatches.length > 0) return directIdMatches;
-
-    const placeholders = groupIds.map(() => "?").join(",");
-    const nameRows = await pgAll<{ id: string; name: string }>(
-      `SELECT DISTINCT
-         TRIM(CAST("IDVENDEDOR" AS TEXT)) as id,
-         TRIM("NOME_VENDEDOR") as name
-       FROM cache_vendas
-       WHERE TRIM(CAST("IDVENDEDOR" AS TEXT)) IN (${placeholders})`,
-      groupIds
-    );
-
-    const supervisorNames = normalizedSupervisorTeam.map(member => member.toUpperCase());
-    const nameMatches = nameRows
-      .filter(row => supervisorNames.some(name => String(row.name ?? "").toUpperCase().includes(name)))
-      .map(row => String(row.id ?? "").trim())
-      .filter(Boolean);
-
-    if (nameMatches.length > 0) {
-      return Array.from(new Set(nameMatches));
-    }
-
-    return [NO_VENDOR_MATCH];
+    return directIdMatches.length > 0 ? directIdMatches : [NO_VENDOR_MATCH];
   } catch {
     return [NO_VENDOR_MATCH];
   }
+}
+
+function filterGroupsForUser(
+  groups: { id: string; name: string; members: string[] }[],
+  req: AuthRequest,
+): { id: string; name: string; members: string[] }[] {
+  if (req.userRole !== "supervisor") return groups;
+  const team = new Set((req.teamMembers ?? []).map(member => String(member ?? "").trim()).filter(Boolean));
+  if (team.size === 0) return [];
+  return groups
+    .map(group => ({
+      ...group,
+      members: (group.members ?? []).map(member => String(member ?? "").trim()).filter(member => team.has(member)),
+    }))
+    .filter(group => group.members.length > 0);
 }
 
 function parseCompanyParam(raw: string | undefined, res: Response): string | null {
@@ -135,6 +131,76 @@ export async function registerRoutes(
   app.use("/api/financeiro/contas-receber", financeiroRouter);
   app.use("/api/admin/financeiro", financeiroRouter);
 
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await pgGet<{ ok: number }>("SELECT 1 AS ok");
+      res.json({
+        success: true,
+        status: "ok",
+        database: "ok",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("[health] database check failed:", error);
+      res.status(503).json({
+        success: false,
+        status: "error",
+        database: "error",
+        message: "Banco de dados indisponível",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
+  app.get("/api/system/status", isAuthenticated, isAdmin, async (_req: AuthRequest, res) => {
+    try {
+      const countTable = async (table: string): Promise<number | null> => {
+        const exists = await pgGet<{ exists: boolean }>(
+          `SELECT to_regclass($1) IS NOT NULL AS exists`,
+          [`public.${table}`],
+        );
+        if (!exists?.exists) return null;
+        const row = await pgGet<{ count: string }>(`SELECT COUNT(*)::text AS count FROM ${table}`);
+        return Number(row?.count ?? 0);
+      };
+
+      const [vendas, contasReceber, campanhas, estoque, syncRows] = await Promise.all([
+        countTable("cache_vendas"),
+        countTable("cache_contas_receber"),
+        countTable("cache_campanhas"),
+        countTable("cache_estoque_sugestao"),
+        pgAll<{ routine_name: string; last_success_at: string | null; status: string | null; records_read: number | null; records_written: number | null }>(
+          `SELECT routine_name, last_success_at, status, records_read, records_written
+           FROM sync_state
+           ORDER BY routine_name`
+        ).catch(() => []),
+      ]);
+
+      res.json({
+        success: true,
+        status: "ok",
+        database: "ok",
+        timestamp: new Date().toISOString(),
+        counts: {
+          cache_vendas: vendas,
+          cache_contas_receber: contasReceber,
+          cache_campanhas: campanhas,
+          cache_estoque_sugestao: estoque,
+        },
+        sync: syncRows,
+      });
+    } catch (error) {
+      console.error("[system/status] failed:", error);
+      res.status(500).json({
+        success: false,
+        message: "Erro ao consultar status do sistema",
+        error_code: "SYSTEM_STATUS_ERROR",
+      });
+    }
+  });
+
+  await seedAuthUsersIfNeeded();
+
   app.use("/api/auth", createAuthRouter());
   app.use("/api/admin", usersAdminRouter);
 
@@ -197,7 +263,7 @@ export async function registerRoutes(
   app.get("/api/vendor-groups", isAuthenticated, async (req, res) => {
     try {
       const groups = await storage.getVendorGroups();
-      res.json(groups);
+      res.json(filterGroupsForUser(groups, req as AuthRequest));
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar grupos de vendedores" });
     }
@@ -956,6 +1022,114 @@ export async function registerRoutes(
     }
   });
 
+  // ── Sync / Bootstrap helpers ──────────────────────────────────────────────
+  // PID registry: logTag → pid (for cancel support)
+  const runningPids = new Map<string, number>();
+
+  function spawnPyBackground(scriptPath: string, args: string[], logTag: string): string {
+    const logDir = path.join(process.cwd(), "sync", "logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    const logFile = path.join(logDir, `${logTag}_${Date.now()}.log`);
+    const fd = fs.openSync(logFile, "w");
+    const trySpawn = (cmd: string) => {
+      const child = spawn(cmd, [scriptPath, ...args], {
+        cwd: process.cwd(), detached: true,
+        stdio: ["ignore", fd, fd], env: process.env, windowsHide: true,
+      });
+      child.on("spawn", () => { if (child.pid) runningPids.set(logTag, child.pid); });
+      child.on("exit", () => runningPids.delete(logTag));
+      child.on("error", () => {
+        if (cmd === "py") trySpawn("python");
+      });
+      child.unref();
+    };
+    trySpawn("py");
+    return logFile;
+  }
+
+  function killByLogTag(logTag: string): boolean {
+    const pid = runningPids.get(logTag);
+    if (!pid) return false;
+    try { process.kill(pid, "SIGTERM"); } catch { try { process.kill(pid, "SIGKILL"); } catch {} }
+    runningPids.delete(logTag);
+    return true;
+  }
+
+  // ── Sync Trigger ──────────────────────────────────────────────────────────
+  const VALID_SYNC_ROTINAS = new Set([
+    "vendas", "campanhas", "tubos", "pendentes",
+    "estoque_sugestao", "contas_receber", "sync_config", "all",
+  ]);
+
+  app.post("/api/sync/trigger", isAuthenticated, async (req: AuthRequest, res) => {
+    if (req.userRole !== "admin") return res.status(403).json({ error: "Apenas administradores podem disparar sync" });
+    const rotina = String(req.body?.rotina ?? "all").trim();
+    const force = req.body?.force !== false; // default true — libera locks travados
+    if (!VALID_SYNC_ROTINAS.has(rotina)) return res.status(400).json({ error: "Rotina inválida" });
+    const scriptPath = path.join(process.cwd(), "sync", "erp_sync.py");
+    const args = force ? [rotina, "--force"] : [rotina];
+    const logFile = spawnPyBackground(scriptPath, args, `sync_${rotina}`);
+    res.json({ success: true, rotina, force, logFile, message: `Sync '${rotina}' iniciado em background` });
+  });
+
+  // ── Bootstrap Trigger ─────────────────────────────────────────────────────
+  const VALID_BOOTSTRAP_ROTINAS = new Set(["vendas", "campanhas", "tubos", "all"]);
+
+  app.post("/api/sync/bootstrap", isAuthenticated, async (req: AuthRequest, res) => {
+    if (req.userRole !== "admin") return res.status(403).json({ error: "Apenas administradores podem disparar bootstrap" });
+    const rotina = String(req.body?.rotina ?? "all").trim();
+    if (!VALID_BOOTSTRAP_ROTINAS.has(rotina)) return res.status(400).json({ error: "Rotina inválida" });
+    const scriptPath = path.join(process.cwd(), "sync", "bootstrap_historico.py");
+    // Sempre limpa locks travados antes de spawnar — evita "Já em execução" na UI
+    const rotinasToUnlock = rotina === "all" ? ["vendas", "campanhas", "tubos"] : [rotina];
+    for (const r of rotinasToUnlock) {
+      await pool.query("DELETE FROM job_locks WHERE routine_name = $1", [`bootstrap_${r}`]);
+    }
+    const args = rotina === "all" ? ["--force"] : ["--rotina", rotina, "--force"];
+    const logFile = spawnPyBackground(scriptPath, args, `bootstrap_${rotina}`);
+    res.json({ success: true, rotina, logFile, message: `Bootstrap '${rotina}' iniciado em background` });
+  });
+
+  // ── Bootstrap Cancel ──────────────────────────────────────────────────────
+  app.post("/api/sync/bootstrap/cancel", isAuthenticated, async (req: AuthRequest, res) => {
+    if (req.userRole !== "admin") return res.status(403).json({ error: "Acesso negado" });
+    const rotina = String(req.body?.rotina ?? "").trim();
+    if (!VALID_BOOTSTRAP_ROTINAS.has(rotina) || rotina === "all") return res.status(400).json({ error: "Informe uma rotina válida" });
+    killByLogTag(`bootstrap_${rotina}`);
+    await pool.query("DELETE FROM job_locks WHERE routine_name = $1", [`bootstrap_${rotina}`]);
+    await pool.query("UPDATE bootstrap_status SET status = 'cancelado', finished_at = NOW() WHERE routine_name = $1", [rotina]);
+    res.json({ success: true, rotina, message: `Bootstrap '${rotina}' cancelado` });
+  });
+
+  // ── Bootstrap Reset ───────────────────────────────────────────────────────
+  const CACHE_TABLE: Record<string, string> = {
+    campanhas: "cache_campanhas",
+    vendas: "cache_vendas",
+    tubos: "cache_tubos_conexoes",
+  };
+  app.post("/api/sync/bootstrap/reset", isAuthenticated, async (req: AuthRequest, res) => {
+    if (req.userRole !== "admin") return res.status(403).json({ error: "Acesso negado" });
+    const rotina = String(req.body?.rotina ?? "").trim();
+    if (!VALID_BOOTSTRAP_ROTINAS.has(rotina) || rotina === "all") return res.status(400).json({ error: "Informe uma rotina válida" });
+    killByLogTag(`bootstrap_${rotina}`);
+    await pool.query("DELETE FROM job_locks WHERE routine_name = $1", [`bootstrap_${rotina}`]);
+    await pool.query("DELETE FROM bootstrap_status WHERE routine_name = $1", [rotina]);
+    await pool.query("DELETE FROM bootstrap_historico WHERE routine_name = $1", [rotina]);
+    const cacheTable = CACHE_TABLE[rotina];
+    if (cacheTable) await pool.query(`TRUNCATE TABLE ${cacheTable}`);
+    res.json({ success: true, rotina, message: `Bootstrap '${rotina}' resetado. Cache limpo.` });
+  });
+
+  // ── Sync Log Reader ────────────────────────────────────────────────────────
+  app.get("/api/sync/log/:filename", isAuthenticated, (req: AuthRequest, res) => {
+    if (req.userRole !== "admin") return res.status(403).json({ error: "Acesso negado" });
+    const filename = path.basename(String(req.params.filename)); // sanitize: no path traversal
+    const logPath = path.join(process.cwd(), "sync", "logs", filename);
+    if (!fs.existsSync(logPath)) return res.status(404).json({ error: "Log não encontrado" });
+    const content = fs.readFileSync(logPath, "utf-8");
+    res.json({ filename, content: content.slice(-8000) }); // last 8KB
+  });
+
   app.use("/api/campaigns", campaignRoutes);
   app.use("/api/campaigns-ai", campaignAIRouter);
 
@@ -975,7 +1149,8 @@ export async function registerRoutes(
         }
       }
 
-      const data = await storage.getMovimentacoesPorVendedor(vendedorId, startDate, endDate);
+      const empresa = req.query.empresa as string | undefined;
+      const data = await storage.getMovimentacoesPorVendedor(vendedorId, startDate, endDate, empresa);
       res.json(data);
     } catch (error) {
       console.error("Erro movimentacoes:", error);

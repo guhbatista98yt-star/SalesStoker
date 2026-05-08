@@ -11,6 +11,20 @@ if (!JWT_SECRET) {
   throw new Error("SESSION_SECRET environment variable is required");
 }
 const TOKEN_EXPIRY = process.env.TOKEN_EXPIRY ?? "30d";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const CAN_SEED_DEFAULT_USERS =
+  process.env.SEED_DEFAULT_USERS === "true" || (!IS_PRODUCTION && process.env.NODE_ENV === "development");
+
+function getSeedPassword(envName: string, developmentFallback: string): string {
+  const configured = process.env[envName];
+  if (IS_PRODUCTION) {
+    if (!configured || configured.length < 12) {
+      throw new Error(`${envName} must be set with at least 12 characters when SEED_DEFAULT_USERS=true in production`);
+    }
+    return configured;
+  }
+  return configured ?? developmentFallback;
+}
 
 export interface AuthRequest extends Request {
   userId?: number;
@@ -22,10 +36,15 @@ export interface AuthRequest extends Request {
 }
 
 async function seedDefaultUsers() {
+  if (!CAN_SEED_DEFAULT_USERS) {
+    console.warn("[auth] Seed automático de usuários padrão desativado. Configure usuários reais para produção.");
+    return;
+  }
+  const lojaPassword = getSeedPassword("DEFAULT_LOJA_PASSWORD", "loja2024");
   try {
     const existing = await pgGet<{ id: number }>("SELECT id FROM users WHERE email = $1", ["loja"]);
     if (!existing) {
-      const hashedPass = await bcrypt.hash("loja2024", 10);
+      const hashedPass = await bcrypt.hash(lojaPassword, 10);
       await pgRun(
         "INSERT INTO users (email, password, first_name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING",
         ["loja", hashedPass, "Loja", "loja"]
@@ -54,8 +73,12 @@ const VENDOR_MODULE_CODES: Record<string, string> = {
 };
 
 async function seedSalespersonUsers() {
+  if (!CAN_SEED_DEFAULT_USERS) {
+    return;
+  }
+  const vendorPassword = getSeedPassword("DEFAULT_VENDOR_PASSWORD", "1234");
   try {
-    const hashedPass = await bcrypt.hash("1234", 10);
+    const hashedPass = await bcrypt.hash(vendorPassword, 10);
     let addedCount = 0;
 
     // Only create users for vendors explicitly listed in VENDOR_MODULE_CODES.
@@ -82,9 +105,10 @@ async function seedSalespersonUsers() {
   }
 }
 
-seedDefaultUsers()
-  .then(() => seedSalespersonUsers())
-  .catch(console.error);
+export async function seedAuthUsersIfNeeded(): Promise<void> {
+  await seedDefaultUsers();
+  await seedSalespersonUsers();
+}
 
 // Reverse map: moduleCode (C4821) → vendorId (1014115)
 const REVERSE_MODULE_CODES: Record<string, string> = Object.fromEntries(
@@ -100,9 +124,23 @@ function buildUserResponse(user: any, modulePermissions: Record<string, boolean>
     lastName: user.lastName,
     role: user.role || "admin",
     teamMembers: user.teamMembers ? user.teamMembers.split(",").map((m: string) => m.trim()) : null,
+    supervisorGroupId: user.supervisorGroupId ?? user.supervisor_group_id ?? null,
     modulePermissions,
     vendorId,
   };
+}
+
+async function resolveSupervisorGroupMembers(groupId: string | null | undefined): Promise<string[]> {
+  const normalized = String(groupId ?? "").trim();
+  if (!normalized) return [];
+  const rows = await pgAll<{ salesperson_id: string }>(
+    `SELECT DISTINCT TRIM(CAST(salesperson_id AS TEXT)) AS salesperson_id
+     FROM vendor_group_members
+     WHERE group_id = $1 AND TRIM(CAST(salesperson_id AS TEXT)) <> ''
+     ORDER BY salesperson_id`,
+    [normalized]
+  );
+  return rows.map(row => String(row.salesperson_id ?? "").trim()).filter(Boolean);
 }
 
 function mergeModulePermissions(raw: string | null): Record<string, boolean> {
@@ -285,7 +323,10 @@ export async function isAuthenticated(req: AuthRequest, res: Response, next: Nex
     req.userEmail = user.email;
     req.userFirstName = user.firstName ?? undefined;
     req.userVendorCode = (user as any).vendorCode ?? undefined;
-    if (user.teamMembers) {
+    const supervisorGroupId = (user as any).supervisorGroupId ?? (user as any).supervisor_group_id;
+    if (user.role === "supervisor" && supervisorGroupId) {
+      req.teamMembers = await resolveSupervisorGroupMembers(supervisorGroupId);
+    } else if (user.teamMembers) {
       req.teamMembers = user.teamMembers.split(",").map(m => m.trim()).filter(Boolean);
     }
 

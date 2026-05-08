@@ -63,11 +63,14 @@ import {
   Eye,
   EyeOff,
   Store,
+  RefreshCw,
+  Database,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GoalSwitch } from "@/components/goal-switch";
 import { PurchaseAlertPreferences } from "@/components/purchase-alert-preferences";
 import { PurchaseAlertAdminSettings } from "@/components/purchase-alert-admin-settings";
+import { APP_MODULE_LABELS } from "@shared/module-catalog";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -101,19 +104,10 @@ const NAV_ITEMS = [
   { id: "alertas-compras", label: "Alertas de Compras", icon: Bell },
   { id: "tv", label: "Configuração de TV", icon: Tv },
   { id: "loja", label: "Visão em Loja", icon: Store },
+  { id: "sync", label: "Sincronização ERP", icon: Database },
 ];
 
-const ALL_MODULES = [
-  "Dashboard",
-  "Vendedores",
-  "Metas",
-  "Alertas",
-  "Visão Semanal",
-  "Visão Mensal",
-  "Visão em Loja",
-  "Campanhas",
-  "Comissões",
-] as const;
+const ALL_MODULES = APP_MODULE_LABELS;
 
 interface UserWithPermissions {
   id: number;
@@ -1167,10 +1161,12 @@ function PermissoesSection() {
   const [localPerms, setLocalPerms] = useState<Record<number, Record<string, boolean>>>({});
 
   const { data: settingMovimt } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showMovimentacoesButton"], staleTime: 0 });
+  const { data: settingFinanceiroPendencias } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/showFinanceiroPendenciasButton"], staleTime: 0 });
   const { data: settingSupervisorBell } = useQuery<{ key: string; value: string | null }>({ queryKey: ["/api/app-settings/supervisorPurchaseNotifications"], staleTime: 0 });
 
   const TAB_FLAGS = [
     { key: "showMovimentacoesButton", label: "Movimentações visíveis ao Supervisor", description: "Permite que o supervisor visualize as movimentações de vendas de cada vendedor.", defaultVisible: true, setting: settingMovimt },
+    { key: "showFinanceiroPendenciasButton", label: "Pendências visíveis ao Supervisor", description: "Permite que o supervisor visualize pendências financeiras dos vendedores da própria equipe.", defaultVisible: false, setting: settingFinanceiroPendencias },
     { key: "supervisorPurchaseNotifications", label: "Notificações de Compras para Supervisor", description: "Exibe o sino de alertas de compras no topo da tela para usuários com perfil Supervisor.", defaultVisible: false, setting: settingSupervisorBell },
   ] as const;
 
@@ -1344,6 +1340,343 @@ function PermissoesSection() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: Sincronização ERP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface SyncStateRow {
+  routine_name: string;
+  last_success_at: string | null;
+  last_dt_movimento: string | null;
+  status: string;
+  last_error: string | null;
+  records_read: number;
+  records_written: number;
+  updated_at: string | null;
+}
+
+interface BootstrapStatusRow {
+  routine_name: string;
+  status: string;
+  total_meses: number;
+  meses_ok: number;
+  total_records: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error_msg: string | null;
+  updated_at: string | null;
+}
+
+interface SyncStatusData {
+  syncState: SyncStateRow[];
+  bootstrapStatus: BootstrapStatusRow[];
+}
+
+const ROTINA_LABELS: Record<string, string> = {
+  cache_vendas: "Vendas",
+  cache_campanhas: "Campanhas",
+  cache_tubos_conexoes: "Tubos / Conexões",
+  cache_vendas_pendentes: "Pedidos Pendentes",
+  cache_estoque_sugestao: "Estoque / Sugestão",
+  contas_receber: "Contas a Receber",
+  sync_config: "Config. Fornecedores",
+  vendas: "Vendas",
+  campanhas: "Campanhas",
+  tubos: "Tubos / Conexões",
+};
+
+const BOOTSTRAP_ROTINAS = ["campanhas", "vendas", "tubos"] as const;
+
+function SyncSection() {
+  const { toast } = useToast();
+  const [lastLogFile, setLastLogFile] = useState<string | null>(null);
+  const [logContent, setLogContent] = useState<string | null>(null);
+  const [showLog, setShowLog] = useState(false);
+
+  const { data, isLoading, refetch, isFetching } = useQuery<SyncStatusData>({
+    queryKey: ["/api/sync/status"],
+    refetchInterval: 10_000,
+  });
+
+  async function fetchLog(logFile: string) {
+    const filename = logFile.split(/[\\/]/).pop() ?? logFile;
+    setLastLogFile(filename);
+    setLogContent("Carregando log...");
+    setShowLog(true);
+    try {
+      const res = await apiRequest("GET", `/api/sync/log/${filename}`);
+      const json = await res.json();
+      setLogContent(json.content || "(vazio)");
+    } catch {
+      setLogContent("Erro ao carregar log.");
+    }
+  }
+
+  const triggerMutation = useMutation({
+    mutationFn: async (rotina: string) => {
+      const res = await apiRequest("POST", "/api/sync/trigger", { rotina });
+      if (!res.ok) throw new Error("Falha ao iniciar sync");
+      return res.json();
+    },
+    onSuccess: (result, rotina) => {
+      if (result.logFile) setLastLogFile(result.logFile.split(/[\\/]/).pop() ?? result.logFile);
+      toast({ title: "Sync iniciado", description: `Rotina '${rotina}' disparada em background. Verifique o log se necessário.` });
+      setTimeout(() => refetch(), 8000);
+    },
+    onError: () => toast({ title: "Erro ao iniciar sync", variant: "destructive" }),
+  });
+
+  const [bootstrappingRotina, setBootstrappingRotina] = useState<string | null>(null);
+
+  const bootstrapMutation = useMutation({
+    mutationFn: async ({ rotina, force }: { rotina: string; force: boolean }) => {
+      const res = await apiRequest("POST", "/api/sync/bootstrap", { rotina, force });
+      if (!res.ok) throw new Error("Falha ao iniciar bootstrap");
+      return res.json();
+    },
+    onSuccess: (result, { rotina }) => {
+      setBootstrappingRotina(rotina);
+      if (result.logFile) setLastLogFile(result.logFile.split(/[\\/]/).pop() ?? result.logFile);
+      toast({ title: "Bootstrap iniciado", description: `Carregando histórico de '${ROTINA_LABELS[rotina] ?? rotina}' em background. Acompanhe o progresso abaixo.` });
+      const interval = setInterval(() => refetch(), 8000);
+      setTimeout(() => { clearInterval(interval); setBootstrappingRotina(null); }, 600_000);
+    },
+    onError: () => toast({ title: "Erro ao iniciar bootstrap", variant: "destructive" }),
+  });
+
+  const cancelBootstrapMutation = useMutation({
+    mutationFn: async (rotina: string) => {
+      const res = await apiRequest("POST", "/api/sync/bootstrap/cancel", { rotina });
+      if (!res.ok) throw new Error("Falha ao cancelar");
+      return res.json();
+    },
+    onSuccess: (_, rotina) => {
+      setBootstrappingRotina(null);
+      toast({ title: "Bootstrap cancelado", description: `Rotina '${ROTINA_LABELS[rotina] ?? rotina}' foi interrompida.` });
+      setTimeout(() => refetch(), 1000);
+    },
+    onError: () => toast({ title: "Erro ao cancelar bootstrap", variant: "destructive" }),
+  });
+
+  const resetBootstrapMutation = useMutation({
+    mutationFn: async (rotina: string) => {
+      const res = await apiRequest("POST", "/api/sync/bootstrap/reset", { rotina });
+      if (!res.ok) throw new Error("Falha ao resetar");
+      return res.json();
+    },
+    onSuccess: (_, rotina) => {
+      setBootstrappingRotina(null);
+      toast({ title: "Bootstrap resetado", description: `Histórico de '${ROTINA_LABELS[rotina] ?? rotina}' foi limpo. Clique em Carregar para reiniciar.` });
+      setTimeout(() => refetch(), 1000);
+    },
+    onError: () => toast({ title: "Erro ao resetar bootstrap", variant: "destructive" }),
+  });
+
+  const syncState = data?.syncState ?? [];
+  const bootstrapStatus = data?.bootstrapStatus ?? [];
+
+  const getBootstrapRow = (rotina: string) =>
+    bootstrapStatus.find(b => b.routine_name === rotina);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" />
+            Sincronização ERP
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Status da sincronização DB2 → PostgreSQL. Ciclo automático a cada 60 segundos.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {lastLogFile && (
+            <Button size="sm" variant="ghost" onClick={() => fetchLog(lastLogFile)}>
+              <span className="text-xs">Ver log</span>
+            </Button>
+          )}
+          <Button
+            size="sm" variant="outline"
+            onClick={() => triggerMutation.mutate("all")}
+            disabled={triggerMutation.isPending}
+          >
+            {triggerMutation.isPending || isFetching
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <RefreshCw className="h-3.5 w-3.5" />}
+            <span className="ml-1.5">Sincronizar Tudo</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Bootstrap histórico */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Bootstrap Histórico
+          </CardTitle>
+          <CardDescription>
+            Carga inicial do histórico completo. Necessário para calcular crescimento em campanhas.
+            Se estiver "Sem dados" nas campanhas, clique em Carregar para a rotina correspondente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {BOOTSTRAP_ROTINAS.map(rotina => {
+            const b = getBootstrapRow(rotina);
+            const pct = b && b.total_meses > 0 ? Math.round((b.meses_ok / b.total_meses) * 100) : 0;
+            const isRunning = bootstrappingRotina === rotina ||
+              (b?.status === "em_andamento");
+            const isDone = b?.status === "concluido";
+            const isError = b?.status === "erro";
+            const neverRan = !b;
+            return (
+              <div key={rotina} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium">{ROTINA_LABELS[rotina]}</span>
+                    {isDone && <Badge variant="default" className="text-xs">Concluído</Badge>}
+                    {isRunning && <Badge variant="secondary" className="text-xs">Em andamento...</Badge>}
+                    {isError && <Badge variant="destructive" className="text-xs">Erro</Badge>}
+                    {neverRan && <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">Não executado</Badge>}
+                  </div>
+                  {b && b.total_meses > 0 && (
+                    <>
+                      <Progress value={pct} className="h-1.5 mb-1" />
+                      <p className="text-xs text-muted-foreground">
+                        {b.meses_ok}/{b.total_meses} meses · {(b.total_records ?? 0).toLocaleString("pt-BR")} registros
+                        {b.finished_at && ` · Concluído ${new Date(b.finished_at).toLocaleDateString("pt-BR")}`}
+                      </p>
+                    </>
+                  )}
+                  {b?.error_msg && <p className="text-xs text-destructive mt-1">{b.error_msg}</p>}
+                  {neverRan && <p className="text-xs text-muted-foreground">Bootstrap nunca executado. Clique em Carregar para iniciar.</p>}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isRunning && (
+                    <Button
+                      size="sm" variant="destructive"
+                      onClick={() => cancelBootstrapMutation.mutate(rotina)}
+                      disabled={cancelBootstrapMutation.isPending}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                  {!neverRan && (
+                    <Button
+                      size="sm" variant="ghost"
+                      onClick={() => {
+                        if (confirm(`Resetar o histórico de "${ROTINA_LABELS[rotina] ?? rotina}"?\n\nIsso apagará todos os dados do cache e o progresso do bootstrap. Você precisará carregar novamente.`))
+                          resetBootstrapMutation.mutate(rotina);
+                      }}
+                      disabled={resetBootstrapMutation.isPending}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      Resetar
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={neverRan || isError ? "default" : "outline"}
+                    onClick={() => bootstrapMutation.mutate({ rotina, force: true })}
+                    disabled={bootstrapMutation.isPending || isRunning}
+                  >
+                    {isRunning
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Carregando</>
+                      : isDone
+                      ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Recarregar</>
+                      : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Carregar</>}
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Sincronização Incremental</CardTitle>
+          <CardDescription>
+            Atualização automática a cada 60s — detecta apenas registros novos/alterados
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : syncState.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground space-y-2">
+              <Database className="h-10 w-10 mx-auto text-muted-foreground/30" />
+              <p>Nenhuma sincronização incremental registrada ainda.</p>
+              <p className="text-xs">O sync inicia automaticamente com o open.bat (ciclo de 60s).</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {syncState.map(s => {
+                const hasError = !!s.last_error;
+                return (
+                  <div key={s.routine_name} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {hasError
+                        ? <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                        : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{ROTINA_LABELS[s.routine_name] ?? s.routine_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {s.last_success_at
+                            ? `Última sync: ${new Date(s.last_success_at).toLocaleString("pt-BR")}`
+                            : "Nunca sincronizado"}
+                          {s.records_written > 0 && ` · ${s.records_written.toLocaleString()} registros`}
+                        </p>
+                        {hasError && (
+                          <p className="text-xs text-destructive truncate">{s.last_error}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm" variant="ghost"
+                      onClick={() => triggerMutation.mutate(s.routine_name.replace("cache_", "").replace("_conexoes", "s"))}
+                      disabled={triggerMutation.isPending}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Log viewer */}
+      {showLog && (
+        <Card className="border-orange-200">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-mono">{lastLogFile}</CardTitle>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => lastLogFile && fetchLog(lastLogFile)}>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setShowLog(false)}>
+                  ✕
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-64 whitespace-pre-wrap font-mono">
+              {logContent}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN: Configurações Hub
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1406,7 +1739,7 @@ export default function Configuracoes() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left nav */}
-        <nav className="w-52 shrink-0 border-r bg-muted/20 p-3 flex flex-col gap-1">
+        <nav className="w-52 shrink-0 border-r bg-muted/20 p-3 flex flex-col gap-1 overflow-y-auto">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             return (
@@ -1462,6 +1795,9 @@ export default function Configuracoes() {
             )}
             {activeSection === "loja" && (
               <LojaSection />
+            )}
+            {activeSection === "sync" && (
+              <SyncSection />
             )}
           </div>
         </main>

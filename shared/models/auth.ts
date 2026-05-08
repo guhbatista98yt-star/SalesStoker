@@ -20,6 +20,7 @@ export const users = pgTable("users", {
   cargo: text("cargo"),
   companyId: text("company_id"),
   supervisorId: integer("supervisor_id"),
+  supervisorGroupId: text("supervisor_group_id"),
   status: text("status").default("ativo"),
   lastLoginAt: text("last_login_at"),
   notes: text("notes"),

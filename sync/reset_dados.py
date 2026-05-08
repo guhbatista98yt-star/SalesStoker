@@ -20,7 +20,7 @@ TABELAS LIMPAS (dados/cache):
 
 USO:
   python reset_dados.py              -- exibe o plano e pede confirmação
-  python reset_dados.py --confirmar  -- executa sem perguntar
+  ALLOW_DATA_RESET=true python reset_dados.py --confirmar
 """
 
 from __future__ import annotations
@@ -35,11 +35,10 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv()
 
-# Conexão PostgreSQL
-PG_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:1234@127.0.0.1:5435/database"
-)
+# Conexão PostgreSQL: nunca usa fallback para evitar resetar o banco errado.
+PG_URL = os.environ.get("DATABASE_URL", "")
+if not PG_URL:
+    raise SystemExit("DATABASE_URL não configurado. Reset cancelado.")
 
 # ---------------------------------------------------------------------------
 # Tabelas que serão LIMPAS (TRUNCATE CASCADE)
@@ -127,7 +126,7 @@ def main() -> None:
     parser.add_argument(
         "--confirmar",
         action="store_true",
-        help="Executa o reset sem pedir confirmação interativa",
+        help="Executa o reset sem perguntar, somente com ALLOW_DATA_RESET=true",
     )
     args = parser.parse_args()
 
@@ -166,11 +165,21 @@ def main() -> None:
 
     print()
 
+    if args.confirmar and os.environ.get("ALLOW_DATA_RESET", "").lower() not in {"1", "true", "yes", "sim"}:
+        print("\n[ERRO] --confirmar exige ALLOW_DATA_RESET=true para evitar limpeza acidental.")
+        conn.close()
+        sys.exit(1)
+
+    if os.environ.get("NODE_ENV") == "production" and os.environ.get("ALLOW_PRODUCTION_DATA_RESET", "").lower() not in {"1", "true", "yes", "sim"}:
+        print("\n[ERRO] Reset bloqueado em produção. Defina ALLOW_PRODUCTION_DATA_RESET=true apenas com autorização explícita.")
+        conn.close()
+        sys.exit(1)
+
     if not args.confirmar:
         resposta = input(
-            "Confirma o reset? Digite  SIM  para continuar: "
+            "Confirma o reset? Digite  RESETAR DADOS  para continuar: "
         ).strip().upper()
-        if resposta != "SIM":
+        if resposta != "RESETAR DADOS":
             print("Operação cancelada.")
             conn.close()
             sys.exit(0)

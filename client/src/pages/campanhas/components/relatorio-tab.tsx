@@ -17,6 +17,7 @@ import {
   Medal, Star, LayoutGrid, List,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/csv-export";
 import { GaugeMeter } from "@/components/campanhas/gauge-meter";
 import type { MetricStatus } from "@/components/campanhas/metric-card";
 
@@ -173,9 +174,8 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
     });
   }, [data, search, showOnly]);
 
-  async function exportXLSX() {
+  function exportCSV() {
     if (!data) return;
-    const XLSX = await import("xlsx");
     const headers = ["#", "ID", "Vendedor", "Gatilho (R$)", "Vendas (R$)", "Atingimento (%)", "Elegível"];
     const rows = data.results.map((r, i) => [
       i + 1,
@@ -186,11 +186,7 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
       r.percentAchieved !== null ? Number(r.percentAchieved.toFixed(1)) : "S/G",
       r.isEligible ? "SIM" : "NÃO",
     ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws["!cols"] = [{ wch: 4 }, { wch: 8 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 8 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Relatório");
-    XLSX.writeFile(wb, `relatorio-${data.campaign.code}-${year}${quarter !== "all" ? `-Q${quarter}` : ""}.xlsx`);
+    downloadCsv(`relatorio-${data.campaign.code}-${year}${quarter !== "all" ? `-Q${quarter}` : ""}.csv`, [headers, ...rows]);
   }
 
   if (isLoading) {
@@ -229,9 +225,9 @@ export function RelatorioTab({ campaignId }: RelatorioTabProps) {
             Acompanhe o atingimento dos gatilhos por vendedor no período selecionado.
           </p>
         </div>
-        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={exportXLSX} disabled={!data}>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={exportCSV} disabled={!data}>
           <Download className="h-3.5 w-3.5" />
-          Exportar XLSX
+          Exportar CSV
         </Button>
       </div>
 

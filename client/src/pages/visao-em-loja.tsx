@@ -347,14 +347,6 @@ export default function VisaoEmLoja() {
                             {new Date(dataUpdatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                     ) : null}
-                    <button
-                        onClick={() => { logout(); window.location.href = '/'; }}
-                        style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', background: 'none', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', padding: '3px 8px', borderRadius: 12, transition: 'all 0.2s' }}
-                        onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
-                    >
-                        Sair
-                    </button>
                 </div>
             </div>
 

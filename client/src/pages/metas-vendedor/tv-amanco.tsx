@@ -30,7 +30,8 @@ type TvData = {
     gatilho_atingido: boolean;
   };
   crescimento_vendedor: {
-    crescimento_percentual: number;
+    crescimento_percentual: number | null;
+    sem_dados?: boolean;
     meta_percentual: number;
     status_ok: boolean;
   };
@@ -40,7 +41,8 @@ type TvData = {
     status_ok: boolean;
   };
   crescimento_loja: {
-    crescimento_percentual: number;
+    crescimento_percentual: number | null;
+    sem_dados?: boolean;
     meta_percentual: number;
     status_ok: boolean;
   };
@@ -110,24 +112,24 @@ export default function TvAmancoTab() {
           />
 
           <KpiCard
-            accentColor={cv.status_ok ? GREEN : ORANGE}
+            accentColor={cv.sem_dados ? ORANGE : (cv.status_ok ? GREEN : ORANGE)}
             icon={<TrendingUp size={18} />}
             label="Crescimento Vendedor"
-            value={signedPct(cv.crescimento_percentual, 1)}
-            subtitle={`Meta individual: +${cv.meta_percentual}%`}
-            progressValue={safeDiv(cv.crescimento_percentual, cv.meta_percentual) * 100}
-            progressLeft={`${Math.max(0, cv.crescimento_percentual).toFixed(1)}%`}
+            value={cv.sem_dados || cv.crescimento_percentual === null ? "Sem dados" : signedPct(cv.crescimento_percentual, 1)}
+            subtitle={cv.sem_dados ? "Sem dados do ano anterior para comparar" : `Meta individual: +${cv.meta_percentual}%`}
+            progressValue={cv.crescimento_percentual !== null ? safeDiv(cv.crescimento_percentual, cv.meta_percentual) * 100 : 0}
+            progressLeft={cv.crescimento_percentual !== null ? `${Math.max(0, cv.crescimento_percentual).toFixed(1)}%` : "—"}
             progressRight={`Meta ${cv.meta_percentual}%`}
           />
 
           <KpiCard
-            accentColor={cl.status_ok ? GREEN : ORANGE}
+            accentColor={cl.sem_dados ? ORANGE : (cl.status_ok ? GREEN : ORANGE)}
             icon={<Store size={18} />}
             label="Crescimento Loja"
-            value={signedPct(cl.crescimento_percentual, 2)}
-            subtitle={`Trava da loja: +${cl.meta_percentual}%`}
-            progressValue={safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100}
-            progressLeft={`${Math.max(0, cl.crescimento_percentual).toFixed(1)}%`}
+            value={cl.sem_dados || cl.crescimento_percentual === null ? "Sem dados" : signedPct(cl.crescimento_percentual, 2)}
+            subtitle={cl.sem_dados ? "Sem dados do ano anterior para comparar" : `Trava da loja: +${cl.meta_percentual}%`}
+            progressValue={cl.crescimento_percentual !== null ? safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100 : 0}
+            progressLeft={cl.crescimento_percentual !== null ? `${Math.max(0, cl.crescimento_percentual).toFixed(1)}%` : "—"}
             progressRight={`Meta ${cl.meta_percentual}%`}
           />
 

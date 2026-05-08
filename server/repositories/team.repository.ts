@@ -15,13 +15,10 @@ export class TeamRepository extends BaseRepository {
     if (!teamMembers || teamMembers.length === 0) return true;
 
     const salespersonId = this.normalizeVendorId(salesperson.id);
-    const salespersonName = this.normalizeVendorName(salesperson.name).toUpperCase();
-
     return teamMembers.some(member => {
       const normalizedMember = this.normalizeVendorId(member);
       if (!normalizedMember) return false;
-      if (normalizedMember === salespersonId) return true;
-      return salespersonName.includes(normalizedMember.toUpperCase());
+      return normalizedMember === salespersonId;
     });
   }
 

@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Calendar, LayoutDashboard, PaintBucket, TrendingUp } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertCircle, LayoutDashboard } from "lucide-react";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth-context";
 
 import AcompanhamentoTab from "./acompanhamento";
@@ -11,10 +11,10 @@ import TvAmancoTab from "./tv-amanco";
 import TintasElitTab from "./tintas-elit";
 
 const ALL_TABS = [
-  { value: "acompanhamento", label: "Acompanhamento", short: "Geral", icon: LayoutDashboard, flagKey: "showAcompanhamentoTab", defaultVisible: false },
-  { value: "dtr-amanco", label: "DTR Amanco", short: "DTR", icon: TrendingUp, flagKey: "showDtrAmancoTab", defaultVisible: true },
-  { value: "tv-amanco", label: "TV Amanco", short: "TV", icon: Calendar, flagKey: "showTvAmancoTab", defaultVisible: true },
-  { value: "tintas-elit", label: "Tintas Elit", short: "Elit", icon: PaintBucket, flagKey: "showTintasElitTab", defaultVisible: true },
+  { value: "acompanhamento", flagKey: "showAcompanhamentoTab", defaultVisible: false },
+  { value: "dtr-amanco", flagKey: "showDtrAmancoTab", defaultVisible: true },
+  { value: "tv-amanco", flagKey: "showTvAmancoTab", defaultVisible: true },
+  { value: "tintas-elit", flagKey: "showTintasElitTab", defaultVisible: true },
 ] as const;
 
 type TabValue = typeof ALL_TABS[number]["value"];
@@ -94,60 +94,28 @@ export default function MetasVendedor() {
 
   return (
     <div className="h-full overflow-auto" style={{ backgroundColor: "#EBF7FB" }}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 space-y-5">
-        <div className="flex flex-col gap-0.5">
-          <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Minhas Metas e Campanhas
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Acompanhe seus resultados e performance em tempo real
-          </p>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <div className="overflow-x-auto pb-0.5 -mx-1 px-1">
-            <TabsList className="inline-flex w-max sm:w-full h-auto bg-card border border-border shadow-sm rounded-xl p-1 gap-0.5">
-              {visibleTabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className="flex items-center gap-2 h-9 px-3 text-sm font-medium rounded-lg transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground whitespace-nowrap flex-shrink-0 sm:flex-1 sm:justify-center"
-                  >
-                    <Icon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                    <span className="sm:hidden">{tab.short}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </div>
-
-          <div className="mt-4">
-            {isVisible(ALL_TABS[0]) && (
-              <TabsContent value="acompanhamento" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                <AcompanhamentoTab />
-              </TabsContent>
-            )}
-            {isVisible(ALL_TABS[1]) && (
-              <TabsContent value="dtr-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                <DtrAmancoTab />
-              </TabsContent>
-            )}
-            {isVisible(ALL_TABS[2]) && (
-              <TabsContent value="tv-amanco" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                <TvAmancoTab />
-              </TabsContent>
-            )}
-            {isVisible(ALL_TABS[3]) && (
-              <TabsContent value="tintas-elit" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                <TintasElitTab />
-              </TabsContent>
-            )}
-          </div>
-        </Tabs>
-      </div>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full">
+        {isVisible(ALL_TABS[0]) && (
+          <TabsContent value="acompanhamento" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+            <AcompanhamentoTab />
+          </TabsContent>
+        )}
+        {isVisible(ALL_TABS[1]) && (
+          <TabsContent value="dtr-amanco" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+            <DtrAmancoTab />
+          </TabsContent>
+        )}
+        {isVisible(ALL_TABS[2]) && (
+          <TabsContent value="tv-amanco" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+            <TvAmancoTab />
+          </TabsContent>
+        )}
+        {isVisible(ALL_TABS[3]) && (
+          <TabsContent value="tintas-elit" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+            <TintasElitTab />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

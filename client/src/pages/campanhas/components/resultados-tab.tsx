@@ -12,6 +12,7 @@ import {
   TrendingUp, DollarSign, Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/csv-export";
 import type { ApuracaoResult, VendedorApuracao } from "../types";
 import { GaugeMeter } from "@/components/campanhas/gauge-meter";
 import type { MetricStatus } from "@/components/campanhas/metric-card";
@@ -291,9 +292,8 @@ export function ResultadosTab({ campaignId }: ResultadosTabProps) {
     onError: (e: any) => toast({ title: "Erro na apuração", description: e.message, variant: "destructive" }),
   });
 
-  async function exportCSV() {
+  function exportCSV() {
     if (!result) return;
-    const XLSX = await import("xlsx");
     const headers = ["Posição", "Vendedor", "Valor Apurado", "Premiado", "% Atingimento"];
     const rows = result.detalhes.map((d: any) => [
       d.posicao ?? "—",
@@ -302,11 +302,7 @@ export function ResultadosTab({ campaignId }: ResultadosTabProps) {
       d.premiado ? "SIM" : "NÃO",
       d.percentual != null ? Number(d.percentual.toFixed(1)) : "—",
     ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws["!cols"] = [{ wch: 8 }, { wch: 28 }, { wch: 16 }, { wch: 10 }, { wch: 14 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Resultados");
-    XLSX.writeFile(wb, `resultados-${campaignId}.xlsx`);
+    downloadCsv(`resultados-${campaignId}.csv`, [headers, ...rows]);
   }
 
   if (isLoading) {
@@ -351,7 +347,7 @@ export function ResultadosTab({ campaignId }: ResultadosTabProps) {
         <div className="flex items-center gap-2">
           {result && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={exportCSV}>
-              <Download className="h-3 w-3" /> Exportar XLSX
+              <Download className="h-3 w-3" /> Exportar CSV
             </Button>
           )}
           <Button

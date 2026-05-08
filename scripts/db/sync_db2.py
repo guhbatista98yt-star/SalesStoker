@@ -37,24 +37,24 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 DATABASE_PATH = os.path.join(PROJECT_ROOT, "database.db")
 LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")
 
-# Credenciais DB2 - lidas de variáveis de ambiente com fallback hardcoded
-_DB2_DSN_DEFAULT = "CISSODBC"
-_DB2_UID_DEFAULT = "CONSULTA"
-_DB2_PWD_DEFAULT = "qazwsx@123"
-_DB2_HOST_DEFAULT = "192.168.1.200"
-
 DB2_DSN = os.environ.get("DB2_DSN", "")
 DB2_UID = os.environ.get("DB2_UID", "")
 DB2_PWD = os.environ.get("DB2_PWD", "")
 DB2_HOST = os.environ.get("DB2_HOST", "")
 
-_usando_fallback = not all([DB2_DSN, DB2_UID, DB2_PWD, DB2_HOST])
+_missing_db2_env = [name for name, value in {
+    "DB2_DSN": DB2_DSN,
+    "DB2_UID": DB2_UID,
+    "DB2_PWD": DB2_PWD,
+    "DB2_HOST": DB2_HOST,
+}.items() if not value]
 
-if _usando_fallback:
-    DB2_DSN = DB2_DSN or _DB2_DSN_DEFAULT
-    DB2_UID = DB2_UID or _DB2_UID_DEFAULT
-    DB2_PWD = DB2_PWD or _DB2_PWD_DEFAULT
-    DB2_HOST = DB2_HOST or _DB2_HOST_DEFAULT
+if _missing_db2_env:
+    raise SystemExit(
+        "Credenciais DB2 ausentes: "
+        + ", ".join(_missing_db2_env)
+        + ". Configure variáveis de ambiente; este script legado não usa fallback hardcoded."
+    )
 
 STRING_CONEXAO_DB2 = (
     f"DSN={DB2_DSN};UID={DB2_UID};PWD={DB2_PWD};"
@@ -88,11 +88,6 @@ _logger.addHandler(_file_handler)
 def log(msg: str):
     """Log com timestamp — escreve no stdout e no arquivo rotativo."""
     _logger.info(msg)
-
-
-# Aviso de fallback após o logger estar configurado
-if _usando_fallback:
-    log("AVISO: Credenciais DB2 não encontradas em variáveis de ambiente — usando valores padrão hardcoded. Configure DB2_DSN, DB2_UID, DB2_PWD e DB2_HOST para eliminar este aviso.")
 
 
 # === HELPERS DE CONEXÃO ===

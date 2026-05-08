@@ -223,6 +223,15 @@ export default function Dashboard() {
     refetchInterval: LIVE_REFETCH_INTERVAL_MS,
   });
 
+  // Reset selectedGroupId if the saved group no longer exists (prevents zeroed dashboard)
+  useEffect(() => {
+    if (selectedGroupId && groups.length > 0) {
+      const exists = groups.some((g: any) => String(g.id) === String(selectedGroupId));
+      if (!exists) setSelectedGroupId(null);
+    }
+    if (selectedGroupId && groups.length === 0) setSelectedGroupId(null);
+  }, [groups]);
+
   const { data: kpis, isLoading: kpisLoading, isError: kpisError, error: kpisErrorObj } = useQuery<KPISummary>({
     queryKey: [gUrl(`/api/kpis/${companyId}/${period.startDate}/${period.endDate}`)],
     refetchInterval: LIVE_REFETCH_INTERVAL_MS,

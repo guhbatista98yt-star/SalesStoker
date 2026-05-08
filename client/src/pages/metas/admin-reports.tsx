@@ -15,6 +15,7 @@ import {
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth-context";
 import { apiRequest } from "@/lib/queryClient";
+import { downloadCsv } from "@/lib/csv-export";
 
 import {
     Card,
@@ -92,9 +93,8 @@ export default function AdminReports() {
         [reportData]
     );
 
-    const exportToXLSX = async () => {
+    const exportToCSV = () => {
         if (!reportData.length) return;
-        const XLSX = await import("xlsx");
         const headers = ["ID", "Nome", "Gatilho (R$)", "Vendas (R$)", "% Atingido", "Elegível"];
         const rows = reportData.map(r => [
             r.salespersonId,
@@ -104,11 +104,7 @@ export default function AdminReports() {
             Number((r.percentAchieved ?? 0).toFixed(2)),
             r.isEligible ? "SIM" : "NÃO",
         ]);
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        ws["!cols"] = [{ wch: 8 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 8 }];
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Relatório");
-        XLSX.writeFile(wb, `relatorio_${selectedCampaign}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+        downloadCsv(`relatorio_${selectedCampaign}_${format(new Date(), "yyyy-MM-dd")}.csv`, [headers, ...rows]);
     };
 
     if (!isAdmin) {
@@ -195,14 +191,14 @@ export default function AdminReports() {
                                     </SelectContent>
                                 </Select>
                                 <Button
-                                    onClick={exportToXLSX}
+                                    onClick={exportToCSV}
                                     variant="secondary"
                                     size="sm"
                                     className="gap-2"
                                     disabled={!reportData.length}
                                 >
                                     <Download className="w-4 h-4" />
-                                    Exportar XLSX
+                                    Exportar CSV
                                 </Button>
                             </div>
                         </div>

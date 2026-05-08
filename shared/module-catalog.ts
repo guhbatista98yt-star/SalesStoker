@@ -9,6 +9,7 @@ export const APP_MODULE_LABELS = [
   "Campanhas",
   "Comissões",
   "Compras",
+  "Financeiro",
   "Configurações",
   "Usuários",
 ] as const;
@@ -17,4 +18,3 @@ export type AppModuleLabel = (typeof APP_MODULE_LABELS)[number];
 
 export const DEFAULT_MODULE_PERMISSIONS: Record<AppModuleLabel, boolean> =
   Object.fromEntries(APP_MODULE_LABELS.map((moduleName) => [moduleName, true])) as Record<AppModuleLabel, boolean>;
-
