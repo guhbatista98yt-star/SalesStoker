@@ -186,12 +186,12 @@ export default function DtrAmancoTab() {
               cv.sem_dados
                 ? "Sem dados do ano anterior para comparar"
                 : cv.valor_ano_anterior != null && cv.valor_atual != null
-                  ? `${formatCurrency(cv.valor_atual)} (${data.periodo.inicio.slice(5)} → ${data.periodo.fim.slice(5)}) vs ${formatCurrency(cv.valor_ano_anterior)} (${cv.periodo_descricao ?? `mesmo período ${cv.ano_anterior}`})`
-                  : `vs. mesmo periodo acumulado de ${cv.ano_anterior ?? "ano anterior"}`
+                  ? `Acum. ${data.periodo.inicio.slice(0,7).replace("-","/")} → ${data.periodo.fim.slice(0,7).replace("-","/")} · ${cv.ano_anterior}: ${formatCurrency(cv.valor_ano_anterior)} (trimestre completo)`
+                  : `vs. trimestre completo de ${cv.ano_anterior ?? "ano anterior"}`
             }
-            progressValue={cv.crescimento_percentual !== null ? (cv.crescimento_percentual + 100) / 2 : 0}
-            progressLeft={cv.valor_ano_anterior != null ? formatCurrency(cv.valor_ano_anterior) : (cv.ano_anterior ? `Acum. ${cv.ano_anterior}` : "Ano anterior")}
-            progressRight={cv.valor_atual != null ? formatCurrency(cv.valor_atual) : "Ano atual"}
+            progressValue={cv.crescimento_percentual !== null ? Math.min(100, Math.max(0, cv.crescimento_percentual + 100) / 2) : 0}
+            progressLeft={cv.valor_ano_anterior != null ? `${cv.ano_anterior}: ${formatCurrency(cv.valor_ano_anterior)}` : (cv.ano_anterior ? `${cv.ano_anterior}` : "Ano anterior")}
+            progressRight={cv.valor_atual != null ? `${(cv.ano_anterior ?? 0) + 1}: ${formatCurrency(cv.valor_atual)}` : "Ano atual"}
           />
 
           <KpiCard
@@ -203,12 +203,12 @@ export default function DtrAmancoTab() {
               cl.sem_dados
                 ? "Sem dados do ano anterior para comparar"
                 : cl.loja_valor_ano_anterior != null && cl.loja_valor_atual != null
-                  ? `Trava: +${cl.meta_percentual}% — Loja ${cl.ano_anterior}: ${formatCurrency(cl.loja_valor_ano_anterior)} → ${cl.ano_anterior != null ? cl.ano_anterior + 1 : "atual"}: ${formatCurrency(cl.loja_valor_atual)}`
-                  : `Trava da loja: +${cl.meta_percentual}% — vs. ${cl.ano_anterior ?? "ano anterior"}`
+                  ? `Trava: +${cl.meta_percentual}% · ${cl.ano_anterior}: ${formatCurrency(cl.loja_valor_ano_anterior)} (trim. completo) → ${(cl.ano_anterior ?? 0) + 1}: ${formatCurrency(cl.loja_valor_atual)}`
+                  : `Trava da loja: +${cl.meta_percentual}% — vs. trimestre completo de ${cl.ano_anterior ?? "ano anterior"}`
             }
             progressValue={cl.crescimento_percentual !== null ? safeDiv(cl.crescimento_percentual, cl.meta_percentual) * 100 : 0}
-            progressLeft={cl.loja_valor_ano_anterior != null ? formatCurrency(cl.loja_valor_ano_anterior) : (cl.crescimento_percentual !== null ? `${Math.max(0, cl.crescimento_percentual).toFixed(1)}%` : "—")}
-            progressRight={cl.loja_valor_atual != null ? formatCurrency(cl.loja_valor_atual) : `Meta ${cl.meta_percentual}%`}
+            progressLeft={cl.loja_valor_ano_anterior != null ? `${cl.ano_anterior}: ${formatCurrency(cl.loja_valor_ano_anterior)}` : (cl.crescimento_percentual !== null ? `${Math.max(0, cl.crescimento_percentual).toFixed(1)}%` : "—")}
+            progressRight={cl.loja_valor_atual != null ? `${(cl.ano_anterior ?? 0) + 1}: ${formatCurrency(cl.loja_valor_atual)}` : `Meta ${cl.meta_percentual}%`}
           />
 
           <GaugeCard

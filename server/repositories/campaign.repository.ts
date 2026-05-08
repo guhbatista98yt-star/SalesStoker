@@ -126,12 +126,10 @@ export class CampaignRepository extends BaseRepository {
 
     const lastYear = year - 1;
     const inicioLyStr = this.formatLocalDate(new Date(lastYear, quarterStartMonth, 1));
-    const quarterEndDate = new Date(year, quarterEndMonth + 1, 0);
-    // Compare same elapsed days: if quarter is still running, cap prior year at equivalent date
-    const referenceDate = now < quarterEndDate ? now : quarterEndDate;
-    const lyEquivalentDate = new Date(lastYear, referenceDate.getMonth(), referenceDate.getDate());
-    const lyQuarterEnd = new Date(lastYear, quarterEndMonth + 1, 0);
-    const fimLyStr = this.formatLocalDate(lyEquivalentDate < lyQuarterEnd ? lyEquivalentDate : lyQuarterEnd);
+    // Compara trimestre completo: 01/04–30/06 de ambos os anos.
+    // A query do ano atual retorna apenas os dados existentes até hoje;
+    // a do ano anterior retorna o trimestre todo (base justa de comparação).
+    const fimLyStr = this.formatLocalDate(new Date(lastYear, quarterEndMonth + 1, 0));
 
     const resultLy = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
