@@ -14,6 +14,7 @@ import { Loader2, Printer, FileText, XCircle, CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 
 // ── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -208,7 +209,7 @@ function PrintReport({ filters, resumo, dupsData, companiesList, orientation }: 
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead className="ec-thead">
           <tr>
-            <th style={{ ...th("left"),   width: W[0]  }}>Nota / Série</th>
+            <th style={{ ...th("left"),   width: W[0]  }}>Cupom / Série</th>
             <th style={{ ...th("left"),   width: W[1]  }}>Titulo / Dígito</th>
             <th style={{ ...th("center"), width: W[2]  }}>Pgto.</th>
             <th style={{ ...th("right"),  width: W[3]  }}>Valor Vencido</th>
@@ -219,7 +220,7 @@ function PrintReport({ filters, resumo, dupsData, companiesList, orientation }: 
             <th style={{ ...th("right"),  width: W[8]  }}>Saldo a Pagar</th>
             <th style={{ ...th("center"), width: W[9]  }}>Emissão</th>
             <th style={{ ...th("center"), width: W[10] }}>Vencimento</th>
-            <th style={{ ...th("left"),   width: W[11] }}>Cupom</th>
+            <th style={{ ...th("left"),   width: W[11] }}>Obs. duplicata</th>
           </tr>
         </thead>
 
@@ -304,13 +305,13 @@ function PrintReport({ filters, resumo, dupsData, companiesList, orientation }: 
                       <td style={td("right", { whiteSpace: "nowrap" })}>{fmtN(Number(row.valor_aberto) || 0)}</td>
                       <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtmovimento)}</td>
                       <td style={td("center", { whiteSpace: "nowrap" })}>{fmtDate(row.dtvencimento)}</td>
-                      <td style={td("left", { fontSize: "6.5pt", whiteSpace: "nowrap", overflow: "hidden" })}>{row.numnota ?? ""}</td>
+                      <td style={td("left", { fontSize: "6.5pt", whiteSpace: "nowrap", overflow: "hidden" })}>{obs}</td>
                     </tr>
                     {obs && (
                       <tr>
-                        <td colSpan={12} style={{ ...td("left"), fontSize: "6.5pt", fontStyle: "italic", color: "#444", paddingLeft: "6px", paddingBottom: "1px" }}>
-                          Obs.: {obs}
-                        </td>
+                      <td colSpan={12} style={{ ...td("left"), fontSize: "6.5pt", fontStyle: "italic", color: "#444", paddingLeft: "6px", paddingBottom: "1px" }}>
+                          Obs. duplicata: {obs}
+                      </td>
                       </tr>
                     )}
                   </React.Fragment>
@@ -501,6 +502,7 @@ export default function ExtratoCobracas() {
               Informe os parâmetros e clique em Gerar Extrato
             </p>
           </div>
+          <SyncStatusBar routine="contas_receber" label="Cobranças" />
         </div>
 
         {/* Scrollable body */}
@@ -624,11 +626,11 @@ export default function ExtratoCobracas() {
                   />
                 </div>
 
-                {/* Nota Fiscal */}
+                {/* Cupom */}
                 <div>
-                  <Label className="text-xs">Nota Fiscal</Label>
+                  <Label className="text-xs">Cupom</Label>
                   <Input
-                    placeholder="Nº da nota"
+                    placeholder="Nº do cupom"
                     className="h-8 text-sm mt-1"
                     value={draft.numnota}
                     onChange={e => setField("numnota", e.target.value)}

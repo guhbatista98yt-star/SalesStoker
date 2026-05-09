@@ -260,6 +260,7 @@ export interface VendedorApuracao {
   premioCalculado: number;
   premioFinal: number;
   crescimentoPerc?: number;
+  conexoesPerc?: number;
   motivosNaoParticipacao: string[];
   memoriaCalculo: MemoriaCalculo;
 }

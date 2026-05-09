@@ -113,6 +113,7 @@ export default function TintasElitTab() {
           updatedAt={updatedAt}
           onRefresh={() => refetch()}
           label="Campanha Tintas Elit"
+          syncRoutine="campanhas"
         />
       </div>
     </CampaignPage>

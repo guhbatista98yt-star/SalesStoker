@@ -222,6 +222,7 @@ export default function DtrAmancoTab() {
           updatedAt={updatedAt}
           onRefresh={() => refetch()}
           label="Amanco Campanha DTR"
+          syncRoutine="campanhas"
         />
       </div>
     </CampaignPage>

@@ -695,6 +695,9 @@ async function applyRuntimeMigrations(added: string[]): Promise<void> {
     ["users", "created_by",     "INTEGER"],
     // Vendor visibility — per-role restriction
     ["vendor_display_settings", "allowed_roles", "TEXT NOT NULL DEFAULT ''"],
+    // sync_state — status column (added after initial deployment)
+    ["sync_state", "status",     "TEXT NOT NULL DEFAULT 'idle'"],
+    ["sync_state", "updated_at", "TIMESTAMPTZ NOT NULL DEFAULT NOW()"],
     // cache_estoque_sugestao — product description from ERP
     ["cache_estoque_sugestao", "DESCRICAO", "TEXT NOT NULL DEFAULT ''"],
     // cache_campanhas — company ID from ERP (enables per-company filtering)
@@ -1117,6 +1120,25 @@ async function bootstrapFinanceiro(): Promise<void> {
     )
   `);
   await exec(`CREATE INDEX IF NOT EXISTS idx_fci_idclifor ON financeiro_clientes_ignorados (idclifor)`).catch(() => {});
+
+  // Títulos ocultos por ajuste operacional. Usado para remover cobranças indevidas
+  // de Contas a Receber e Extrato sem apagar o cache vindo do ERP.
+  await exec(`
+    CREATE TABLE IF NOT EXISTS financeiro_titulos_ocultos (
+      chave_titulo TEXT PRIMARY KEY,
+      idclifor     INTEGER,
+      nomecliente  TEXT,
+      idtitulo     INTEGER,
+      digitotitulo TEXT,
+      serienota    TEXT,
+      numnota      TEXT,
+      motivo       TEXT,
+      criado_em    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      criado_por   TEXT
+    )
+  `);
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fto_idclifor ON financeiro_titulos_ocultos (idclifor)`).catch(() => {});
+  await exec(`CREATE INDEX IF NOT EXISTS idx_fto_criado_em ON financeiro_titulos_ocultos (criado_em)`).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -1138,7 +1160,7 @@ const REQUIRED_TABLES = [
   "user_alert_preferences", "alert_delivery_state",
   "compras_fornecedores_config", "compras_produtos_config",
   "cache_contas_receber", "financeiro_cobrancas", "financeiro_cobrancas_historico",
-  "financeiro_clientes_ignorados",
+  "financeiro_clientes_ignorados", "financeiro_titulos_ocultos",
 ];
 
 async function validateSchema(): Promise<void> {
@@ -1220,27 +1242,7 @@ async function seedDefaultCampaigns(): Promise<void> {
       natural_language: "Vendedor elegível se: (1) faturamento Amanco ≥ gatilho individual (padrão R$120k), (2) conexões/tubos Amanco ≥ 40%, (3) crescimento Amanco da loja ≥ 25% vs mesmo trimestre 2025.",
       created_by: "sistema",
     },
-    {
-      id: "camp-tv-amanco-2026-q2",
-      code: "tv_amanco_2026_q2",
-      name: "TV Amanco",
-      description: "Campanha trimestral TV Amanco — Q2 2026 (ABR/MAI/JUN). Critérios: gatilho de faturamento, crescimento individual ≥ 20%, mix de conexões ≥ 45% e crescimento global da loja ≥ 25%.",
-      objective: "Premiar vendedores TV com alto crescimento e mix de conexões",
-      supplier_name: "Amanco Wavin",
-      logo_url: "",
-      brand_color: "#00AA44",
-      campaign_type: "padrao",
-      campaign_mode: "atingimento",
-      status: "ativa",
-      priority: 85,
-      is_exclusive: 0,
-      starts_at: "2026-04-01",
-      ends_at: "2026-06-30",
-      targets: JSON.stringify({ gatilho_padrao: 60000, meta_mix: 45, meta_crescimento_vendedor: 20, meta_crescimento_loja: 25 }),
-      bases: JSON.stringify({ elegibilidade: { gatilho: true, crescimento_vendedor: 20, mix_minimo: 45, crescimento_loja: 25 }, fonte_dados: "cache_campanhas+cache_tubos_conexoes", filtro_fabricante: "AMANCO%" }),
-      natural_language: "Vendedor elegível se: (1) faturamento Amanco ≥ gatilho individual (padrão R$60k), (2) crescimento individual ≥ 20% vs 2025, (3) conexões/tubos Amanco ≥ 45%, (4) crescimento Amanco da loja ≥ 25% vs 2025.",
-      created_by: "sistema",
-    },
+
     {
       id: "camp-elit-tintas-semanal",
       code: "elit_tintas_semanal",

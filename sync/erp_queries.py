@@ -34,6 +34,21 @@ a planilha has multiple NF records (complement notes, partials, etc.).
 
 # ─── Vendas (sales movements) ─────────────────────────────────────────────────
 # Columns: IDVENDEDOR, NOME_VENDEDOR, IDEMPRESA, IDPLANILHA, DT_MOVIMENTO, TOTALVENDA_LINHA, IDCLIENTE, NOME_CLIENTE
+#
+# DATE FIELD: Uses NES_H.DTMOVIMENTO (stock movement date — close approximation).
+#
+# DB2 SQL0206N ROOT CAUSE: Both DBA.ESTOQUE_ANALITICO and DBA.NOTAS are views
+# that internally expose DTEMISSAO from multiple joined tables. DB2 cannot resolve
+# ANY reference to DTEMISSAO (even fully qualified) inside a derived-table
+# subquery (FROM clause) when these views appear in the statement context.
+# The EXISTS pattern proved safe for SQL_TUBOS: it never selects DTEMISSAO.
+#
+# IDCLIFOR / NOME_CLIENTE: obtained via correlated scalar subqueries in SELECT
+# (not derived-table subqueries in FROM). Scalar SELECT subqueries are in a
+# different resolution context and do NOT trigger SQL0206N.
+#
+# Parameters: (watermark, date_to)
+#   Both slots → NES_H DTMOVIMENTO range pre-filter only.
 SQL_VENDAS = """
 SELECT
     CAST(CASE WHEN COALESCE(EA.IDVENDEDOR, 0) = 0 THEN '0'
@@ -43,11 +58,36 @@ SELECT
     CAST(EA.IDEMPRESA AS INTEGER)                                       AS IDEMPRESA,
     CAST(EA.IDPLANILHA AS VARCHAR(50))                                  AS IDPLANILHA,
     DATE(NES_H.DTMOVIMENTO)                                             AS DT_MOVIMENTO,
-    COALESCE(CASE WHEN OI.TIPOMOVIMENTO = 'E'
-                  THEN EA.VALTOTLIQUIDO * -1E0
-                  ELSE EA.VALTOTLIQUIDO * 1E0 END, 0E0)                AS TOTALVENDA_LINHA,
-    CAST(COALESCE(N.IDCLIFOR, 0) AS VARCHAR(50))                        AS IDCLIENTE,
-    CAST(COALESCE(CLI.NOME, '') AS VARCHAR(120))                        AS NOME_CLIENTE
+    COALESCE(CASE
+        WHEN OI.TIPOMOVIMENTO = 'E'
+             AND EA.IDOPERACAO = 31
+             AND EXISTS (
+                 SELECT 1
+                 FROM DBA.VW_GEA_DEVOLUCOES_DIARIAS VW
+                 WHERE VW.IDEMPRESA = EA.IDEMPRESA
+                   AND VW.IDSUBPRODUTO = EA.IDSUBPRODUTO
+                   AND VW.DTMOVIMENTO = DATE(NES_H.DTMOVIMENTO)
+                   AND DECIMAL(VW.VALTOTLIQUIDO, 15, 2) = DECIMAL(EA.VALTOTLIQUIDO * 1E0, 15, 2)
+             )
+            THEN EA.VALTOTLIQUIDO * -1E0
+        WHEN OI.TIPOMOVIMENTO = 'E' AND EA.IDOPERACAO = 31
+            THEN 0E0
+        WHEN OI.TIPOMOVIMENTO = 'E' AND EA.IDOPERACAO <> 31
+            THEN EA.VALTOTLIQUIDO * -1E0
+        ELSE EA.VALTOTLIQUIDO * 1E0
+    END, 0E0)                                                          AS TOTALVENDA_LINHA,
+    CAST(COALESCE(
+        (SELECT MIN(NTS.IDCLIFOR) FROM DBA.NOTAS NTS
+         WHERE NTS.IDEMPRESA = EA.IDEMPRESA AND NTS.IDPLANILHA = EA.IDPLANILHA
+           AND NTS.FLAGNOTACANCEL = 'F'),
+        0) AS VARCHAR(50))                                              AS IDCLIENTE,
+    COALESCE(
+        (SELECT MIN(CLI2.NOME)
+         FROM DBA.NOTAS NTS2
+         JOIN DBA.CLIENTE_FORNECEDOR CLI2 ON CLI2.IDCLIFOR = NTS2.IDCLIFOR
+         WHERE NTS2.IDEMPRESA = EA.IDEMPRESA AND NTS2.IDPLANILHA = EA.IDPLANILHA
+           AND NTS2.FLAGNOTACANCEL = 'F'),
+        '')                                                             AS NOME_CLIENTE
 FROM DBA.ESTOQUE_ANALITICO EA
 LEFT JOIN DBA.CLIENTE_FORNECEDOR VEN ON VEN.IDCLIFOR = EA.IDVENDEDOR
 INNER JOIN (
@@ -58,27 +98,36 @@ INNER JOIN (
       AND  DTMOVIMENTO <= ?
       AND  TIPOITEMCATEGORIA NOT IN ('D5', 'D8')
     GROUP BY IDEMPRESA, IDPLANILHA, IDOPERACAO
-) NES_H
-    ON  NES_H.IDEMPRESA  = EA.IDEMPRESA
-    AND NES_H.IDPLANILHA = EA.IDPLANILHA
-    AND NES_H.IDOPERACAO = EA.IDOPERACAO
+) NES_H ON NES_H.IDEMPRESA  = EA.IDEMPRESA
+       AND NES_H.IDPLANILHA = EA.IDPLANILHA
+       AND NES_H.IDOPERACAO = EA.IDOPERACAO
 INNER JOIN DBA.OPERACAO_INTERNA OI
     ON  OI.IDOPERACAO      = NES_H.IDOPERACAO
     AND OI.FLAGMOVPRODUTOS = 'T'
     AND OI.TIPOMOVIMENTO   IN ('V', 'E')
-INNER JOIN DBA.NOTAS N
-    ON  N.IDEMPRESA      = EA.IDEMPRESA
-    AND N.IDPLANILHA     = EA.IDPLANILHA
-    AND N.FLAGNOTACANCEL = 'F'
-LEFT JOIN DBA.CLIENTE_FORNECEDOR CLI ON CLI.IDCLIFOR = N.IDCLIFOR
 WHERE EA.IDEMPRESA IN (1, 2, 3)
   AND EA.IDOPERACAO <> 1301
   AND (EA.NUMSEQUENCIAKIT IS NULL OR EA.NUMSEQUENCIAKIT <= 0)
+  AND EXISTS (
+      SELECT 1 FROM DBA.NOTAS N
+      WHERE  N.IDEMPRESA      = EA.IDEMPRESA
+        AND  N.IDPLANILHA     = EA.IDPLANILHA
+        AND  N.FLAGNOTACANCEL = 'F'
+  )
 WITH UR
 """
 
 # ─── Campanhas (product-level sales for campaign calculations) ────────────────
 # Columns: IDVENDEDOR, NOMEVENDEDOR, IDPRODUTO, FABRICANTE, VALOR_LIQUIDO, QTD, DTMOVIMENTO, IDEMPRESA
+#
+# DATE FIELD: Uses NES_H.DTMOVIMENTO (stock movement date).
+# NOTAS validated via EXISTS to avoid DB2 SQL0206N: DBA.PRODUTO is in the outer
+# FROM clause and has a DTEMISSAO column; DB2 cannot resolve DTEMISSAO inside
+# any derived-table subquery of the same statement when PRODUTO is present.
+# EXISTS sidesteps this by never referencing DTEMISSAO in a subquery FROM.
+#
+# Parameters: (watermark, date_to)
+#   Both slots → NES_H DTMOVIMENTO range pre-filter only.
 SQL_CAMPANHAS = """
 SELECT
     CAST(CASE WHEN COALESCE(EA.IDVENDEDOR, 0) = 0 THEN '0'
@@ -229,12 +278,32 @@ GROUP BY PG.IDPRODUTO, PRD.FABRICANTE, PRD.DESCRCOMPRODUTO
 WITH UR
 """
 
-# ─── Tubos & Conexões (filtered subset of vendas by product description) ──────
-# Columns: IDVENDEDOR, NOME_VENDEDOR, IDEMPRESA, DT_MOVIMENTO, TOTALVENDA_LINHA, TIPO_PRODUTO
+# ─── Tubos & Conexões — vendas de tubos e conexões por fabricante ─────────────
+# Columns: IDVENDEDOR, NOME_VENDEDOR, IDEMPRESA, DT_MOVIMENTO, TOTALVENDA_LINHA,
+#          TIPO_PRODUTO, FABRICANTE
 #
-# TIPO_PRODUTO classification matches the legacy sync_db2.py logic:
-#   - "Tubo"    = product description starts with 'TUBO' (excluding extensions)
-#   - "Conexao" = everything else that isn't a tube/accessory
+# FABRICANTES incluídos: AMANCO, PLASTUBOS, KRONA, PRECON
+# TIPO_PRODUTO classification (from tubos_conexoes.sql reference):
+#   - "Tubo"    = description starts with 'TUBO' AND NOT LIKE '%EXTENS.%'
+#   - "Conexao" = does NOT start with 'TUBO' AND excludes known non-connection items
+#   - "Outros"  = anything else (excluded from cache via outer WHERE)
+#
+# Classification uses DESCRCOMPRODUTO + SUBDESCRICAO from PRODUTO_GRADE for accuracy.
+# FABRICANTE column in cache allows downstream filtering (e.g. AMANCO-only for campaigns).
+#
+# Parameters: (watermark, date_to)
+#   Both slots → NES_H DTMOVIMENTO range pre-filter.
+#
+# DATE FIELD: Uses NES_H.DTMOVIMENTO (stock movement date — same as original).
+# NOTAS is validated via EXISTS (no derived-table join) to avoid SQL0206N:
+# DB2 rejects DTEMISSAO references inside a derived-table subquery whenever
+# DBA.PRODUTO is also in the outer FROM clause (column-name scoping quirk).
+#
+# FABRICANTE filter ('AMANCO','PLASTUBOS','KRONA','PRECON') replaces the old
+# description-based LIKE '%TUBO%' OR '%CONEX%' approach.
+# Classification uses PRD.DESCRCOMPRODUTO with 20+ exclusion patterns.
+# Conexao rows that match any exclusion pattern are excluded (→ 'Outros'
+# logic expressed directly as OR predicate in WHERE).
 SQL_TUBOS = """
 SELECT
     CAST(CASE WHEN COALESCE(EA.IDVENDEDOR, 0) = 0 THEN '0'
@@ -246,13 +315,13 @@ SELECT
     COALESCE(CASE WHEN OI.TIPOMOVIMENTO = 'E'
                   THEN EA.VALTOTLIQUIDO * -1E0
                   ELSE EA.VALTOTLIQUIDO * 1E0 END, 0E0)                AS TOTALVENDA_LINHA,
+    CAST(COALESCE(PRD.FABRICANTE, '') AS VARCHAR(120))                  AS FABRICANTE,
     CAST(CASE
-        WHEN UPPER(COALESCE(PRD.DESCRCOMPRODUTO, '')) LIKE 'TUBO%'
-             AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO, '')) NOT LIKE '%EXTENS.%'
+        WHEN UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) LIKE 'TUBO%'
+             AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%EXTENS.%'
         THEN 'Tubo'
         ELSE 'Conexao'
-    END AS VARCHAR(20))                                                 AS TIPO_PRODUTO,
-    CAST(COALESCE(PRD.FABRICANTE, '') AS VARCHAR(120))                  AS FABRICANTE
+    END AS VARCHAR(20))                                                 AS TIPO_PRODUTO
 FROM DBA.ESTOQUE_ANALITICO EA
 LEFT JOIN DBA.CLIENTE_FORNECEDOR VEN ON VEN.IDCLIFOR = EA.IDVENDEDOR
 LEFT JOIN DBA.PRODUTO            PRD ON PRD.IDPRODUTO = EA.IDPRODUTO
@@ -275,15 +344,40 @@ INNER JOIN DBA.OPERACAO_INTERNA OI
 WHERE EA.IDEMPRESA IN (1, 2, 3)
   AND EA.IDOPERACAO <> 1301
   AND (EA.NUMSEQUENCIAKIT IS NULL OR EA.NUMSEQUENCIAKIT <= 0)
-  AND (
-        UPPER(COALESCE(PRD.DESCRCOMPRODUTO, '')) LIKE '%TUBO%'
-     OR UPPER(COALESCE(PRD.DESCRCOMPRODUTO, '')) LIKE '%CONEX%'
-  )
+  AND UPPER(COALESCE(PRD.FABRICANTE, '')) IN ('AMANCO', 'PLASTUBOS', 'KRONA', 'PRECON')
   AND EXISTS (
       SELECT 1 FROM DBA.NOTAS N
       WHERE  N.IDEMPRESA      = EA.IDEMPRESA
         AND  N.IDPLANILHA     = EA.IDPLANILHA
         AND  N.FLAGNOTACANCEL = 'F'
+  )
+  AND (
+      -- Tubo: starts with 'TUBO' (no 'EXTENS.')
+      (UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) LIKE 'TUBO%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%EXTENS.%')
+      OR
+      -- Conexao: does NOT start with 'TUBO' AND none of the exclusion patterns
+      (UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE 'TUBO%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%ADESIVO%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%BOIA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%FITA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%4X2%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%VEDACAO%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%CAIXA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%ESFE%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%LAVAT.%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%ELETROD.%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%QUADRO%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%VALVULA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%ENGATE%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%TAMPA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%TORN.%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%FIXACAO%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%RALO%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%GRELHA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%TELHA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%CUMEEIRA%'
+       AND UPPER(COALESCE(PRD.DESCRCOMPRODUTO,'')) NOT LIKE '%EXTENS.%')
   )
 WITH UR
 """
@@ -373,8 +467,17 @@ WITH UR
 
 # ─── Pendentes (open orders — full-replace strategy, aggregated per vendor+empresa) ───
 # Columns: IDVENDEDOR[0], NOME_VENDEDOR[1], IDEMPRESA[2], QTD_PEDIDOS[3], VALOR_TOTAL[4]
+#
 # Queries ORCAMENTO for orders with pre-nota generated but not yet paid and still valid.
-# No date parameters — uses DTVALIDADE >= CURRENT DATE to find all active pending orders.
+# No date parameters — uses DTVALIDADE >= CURRENT DATE + DTMOVIMENTO >= 2 days ago.
+#
+# Business rules (from reference SQL vendas_pendentes.sql):
+#   - FLAGPRENOTA = 'T'    : pre-nota was generated (formally committed order)
+#   - FLAGPRENOTAPAGA = 'F': not yet paid/converted to NF
+#   - FLAGCANCELADO = 'F'  : not cancelled
+#   - DTMOVIMENTO >= TODAY - 2 DAYS: only recently created (prevents stale orders)
+#   - DTVALIDADE >= TODAY  : still within validity window
+#   - IDPLANILHAPRENOTA = 0: pre-nota not yet turned into actual nota
 SQL_PENDENTES = """
 WITH OrcamentosPendentes AS (
     SELECT
@@ -388,6 +491,7 @@ WITH OrcamentosPendentes AS (
         O.FLAGPRENOTA      = 'T'
         AND O.FLAGPRENOTAPAGA = 'F'
         AND O.FLAGCANCELADO  = 'F'
+        AND O.DTMOVIMENTO   >= (CURRENT DATE - 2 DAYS)
         AND DATE(COALESCE(O.DTVALIDADE, CURRENT DATE)) >= CURRENT DATE
         AND O.IDEMPRESA IN (1, 3)
         AND COALESCE(OPN.IDPLANILHAPRENOTA, 0) = 0
@@ -397,7 +501,7 @@ SELECT
     CAST(COALESCE(CF.NOME, '<SEM VENDEDOR>') AS VARCHAR(120))          AS NOME_VENDEDOR,
     CAST(OPend.IDEMPRESA AS INTEGER)                                    AS IDEMPRESA,
     CAST(COUNT(DISTINCT OP.IDORCAMENTO) AS INTEGER)                    AS QTD_PEDIDOS,
-    CAST(COALESCE(SUM(OP.VALTOTLIQUIDO), 0E0) AS DECIMAL(18,2))       AS VALOR_TOTAL
+    COALESCE(SUM(OP.VALTOTLIQUIDO) * 1E0, 0E0)                        AS VALOR_TOTAL
 FROM DBA.ORCAMENTO_PROD OP
 INNER JOIN OrcamentosPendentes OPend
     ON  OP.IDORCAMENTO = OPend.IDORCAMENTO

@@ -66,11 +66,10 @@ export class CampaignRepository extends BaseRepository {
 
     const mixResult = await pgGet<{ conexoes: number; tubos: number }>(`
       SELECT
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes,
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos
+        COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Conexao' OR "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes,
+        COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Tubo' OR "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos
       FROM cache_tubos_conexoes
       WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-        AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicio, fim]);
 
     const valor_conexoes = mixResult?.conexoes || 0;
@@ -113,11 +112,10 @@ export class CampaignRepository extends BaseRepository {
 
     const resultMix = await pgGet<{ tubos: number; conexoes: number }>(`
       SELECT
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos,
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes
+        COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Tubo' OR "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos,
+        COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Conexao' OR "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes
       FROM cache_tubos_conexoes
       WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-        AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioStr, fimStr]);
 
     const tubos = resultMix?.tubos || 0;
@@ -152,14 +150,14 @@ export class CampaignRepository extends BaseRepository {
     const resultLoja = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
     `, [inicioStr, fimStr]);
     const loja_valor_atual = resultLoja?.total || 0;
 
     const resultLojaLy = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
     `, [inicioLyStr, fimLyStr]);
     const loja_valor_ano_anterior = resultLojaLy?.total || 0;
     const loja_crescimento_percentual: number | null = loja_valor_ano_anterior > 0
@@ -240,11 +238,10 @@ export class CampaignRepository extends BaseRepository {
 
     const resultMix = await pgGet<{ tubos: number; conexoes: number }>(`
       SELECT
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos,
-        COALESCE(SUM(CASE WHEN "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes
+        COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Tubo' OR "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos,
+        COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Conexao' OR "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes
       FROM cache_tubos_conexoes
       WHERE ${this.vendorIdPredicate('"IDVENDEDOR"')} AND "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
-        AND UPPER("FABRICANTE") LIKE 'AMANCO%'
     `, [normalizedVendorId, inicioStr, fimStr]);
 
     const tubos = resultMix?.tubos || 0;
@@ -276,14 +273,14 @@ export class CampaignRepository extends BaseRepository {
     const resultLoja = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
     `, [inicioStr, fimStr]);
     const loja_valor_atual = resultLoja?.total || 0;
 
     const resultLojaLy = await pgGet<{ total: number }>(`
       SELECT COALESCE(SUM("VALOR_LIQUIDO"), 0) as total
       FROM cache_campanhas
-      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ? AND UPPER("FABRICANTE") LIKE 'AMANCO%'
+      WHERE "DTMOVIMENTO" >= ? AND "DTMOVIMENTO" <= ?
     `, [inicioLyStr, fimLyStr]);
     const loja_valor_ano_anterior = resultLojaLy?.total || 0;
     const loja_crescimento_percentual: number | null = loja_valor_ano_anterior > 0

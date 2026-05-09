@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Target, PieChart, Clock, CheckCircle2, TrendingUp, RefreshCw } from "lucide-react";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 import { formatCurrency, formatDateBR } from "@/lib/calendar-utils";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -262,6 +263,7 @@ export default function AcompanhamentoTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <SyncStatusBar routine="vendas" label="Vendas" />
           <Badge variant="outline" className="gap-1.5 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
             <RefreshCw className="h-3 w-3" />
             Tempo real

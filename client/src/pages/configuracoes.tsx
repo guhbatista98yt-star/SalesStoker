@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { HelpButton, HelpDrawer, HELP_CONTENT } from "@/components/help";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -108,6 +108,7 @@ const NAV_ITEMS = [
 ];
 
 const ALL_MODULES = APP_MODULE_LABELS;
+const ALL_VENDOR_GROUPS_VALUE = "__all_vendor_groups__";
 
 interface UserWithPermissions {
   id: number;
@@ -991,12 +992,15 @@ function MetasSection({ salespersons, serverConfig, isLoading, isAdmin }: {
                     onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm w-40" />
                 </div>
                 {vendorGroupsMeta.length > 0 && (
-                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                  <Select
+                    value={selectedGroup || ALL_VENDOR_GROUPS_VALUE}
+                    onValueChange={value => setSelectedGroup(value === ALL_VENDOR_GROUPS_VALUE ? "" : value)}
+                  >
                     <SelectTrigger className="h-8 text-xs w-44">
                       <SelectValue placeholder="Filtrar por equipe..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os vendedores</SelectItem>
+                      <SelectItem value={ALL_VENDOR_GROUPS_VALUE}>Todos os vendedores</SelectItem>
                       {vendorGroupsMeta.map(g => (
                         <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
                       ))}
@@ -1366,9 +1370,16 @@ interface BootstrapStatusRow {
   updated_at: string | null;
 }
 
+interface AvgDurationRow {
+  routine_name: string;
+  avg_ms: number;
+  sample_count: number;
+}
+
 interface SyncStatusData {
   syncState: SyncStateRow[];
   bootstrapStatus: BootstrapStatusRow[];
+  avgDurations?: AvgDurationRow[];
 }
 
 const ROTINA_LABELS: Record<string, string> = {
@@ -1384,18 +1395,138 @@ const ROTINA_LABELS: Record<string, string> = {
   tubos: "Tubos / Conexões",
 };
 
+// Mapeia routine_name do sync_state → chave usada no endpoint /api/sync/trigger
+const ROUTINE_TRIGGER_KEY: Record<string, string> = {
+  cache_vendas:           "vendas",
+  cache_campanhas:        "campanhas",
+  cache_tubos_conexoes:   "tubos",
+  cache_vendas_pendentes: "pendentes",
+  cache_estoque_sugestao: "estoque_sugestao",
+  contas_receber:         "contas_receber",
+  sync_config:            "sync_config",
+};
+
+const ROUTINE_CLEAR_KEY: Record<string, string> = {
+  cache_vendas: "cache_vendas",
+  cache_campanhas: "cache_campanhas",
+  cache_tubos_conexoes: "cache_tubos_conexoes",
+  cache_vendas_pendentes: "cache_vendas_pendentes",
+  cache_estoque_sugestao: "cache_estoque_sugestao",
+  contas_receber: "contas_receber",
+  sync_config: "sync_config",
+  vendas: "cache_vendas",
+  campanhas: "cache_campanhas",
+  tubos: "cache_tubos_conexoes",
+  pendentes: "cache_vendas_pendentes",
+  estoque_sugestao: "cache_estoque_sugestao",
+};
+
 const BOOTSTRAP_ROTINAS = ["campanhas", "vendas", "tubos"] as const;
+
+// ── Fases baseadas na FRAÇÃO do tempo estimado (igual ao SyncStatusBar) ──────
+const PHASES_CFG = [
+  { upTo: 0.08, msg: "Conectando ao ERP" },
+  { upTo: 0.30, msg: "Lendo dados"       },
+  { upTo: 0.65, msg: "Processando"       },
+  { upTo: 0.88, msg: "Gravando cache"    },
+  { upTo: 1.00, msg: "Finalizando"       },
+  { upTo: Infinity, msg: "Aguarde…"      },
+];
+const FALLBACK_ETA_CFG: Record<string, number> = {
+  cache_vendas: 300, cache_campanhas: 180, cache_tubos_conexoes: 180,
+  contas_receber: 60, cache_vendas_pendentes: 30, cache_estoque_sugestao: 90,
+};
+
+interface SyncRunningRowProps {
+  s: SyncStateRow;
+  avgMs?: number;
+  sampleCount?: number;
+}
+
+function SyncRunningRow({ s, avgMs, sampleCount }: SyncRunningRowProps) {
+  const [elapsedSec, setElapsedSec] = useState(() => {
+    if (!s.updated_at) return 0;
+    return Math.max(0, Math.floor((Date.now() - new Date(s.updated_at).getTime()) / 1000));
+  });
+  useEffect(() => {
+    const id = setInterval(() => setElapsedSec(prev => prev + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const etaSec     = avgMs && avgMs > 0 ? Math.round(avgMs / 1000) : (FALLBACK_ETA_CFG[s.routine_name] ?? 300);
+  const fraction   = Math.min(elapsedSec / etaSec, 0.95);
+  const pct        = Math.round(fraction * 100);
+  const phase      = PHASES_CFG.find(p => fraction < p.upTo)?.msg ?? "Aguarde…";
+  const remainSec  = Math.max(0, etaSec - elapsedSec);
+  const hasHistory = !!avgMs && (sampleCount ?? 0) >= 2;
+  const m   = Math.floor(elapsedSec / 60);
+  const sec = elapsedSec % 60;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs gap-2">
+        <span className="text-primary font-medium truncate">{phase}…</span>
+        <span className="shrink-0 flex items-center gap-1 text-muted-foreground font-mono">
+          {m}:{sec.toString().padStart(2, "0")}
+          {hasHistory && remainSec > 5 && (
+            <span className="font-sans text-muted-foreground/70">
+              · {remainSec < 60 ? `~${remainSec}s` : `~${Math.ceil(remainSec / 60)} min`} restantes
+            </span>
+          )}
+          {!hasHistory && (
+            <span className="font-sans text-muted-foreground/60 text-[10px]">· calculando…</span>
+          )}
+        </span>
+      </div>
+      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all duration-1000 ease-linear"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 function SyncSection() {
   const { toast } = useToast();
   const [lastLogFile, setLastLogFile] = useState<string | null>(null);
   const [logContent, setLogContent] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
+  const prevStatusRef = useRef<Record<string, string>>({});
 
   const { data, isLoading, refetch, isFetching } = useQuery<SyncStatusData>({
     queryKey: ["/api/sync/status"],
-    refetchInterval: 10_000,
+    // Polling rápido se alguma rotina estiver em execução
+    refetchInterval: (query) => {
+      const d = query.state.data as SyncStatusData | undefined;
+      const anyRunning = d?.syncState?.some(s => s.status === "running");
+      return anyRunning ? 4_000 : 10_000;
+    },
   });
+
+  // Detecta transição running → idle e invalida todos os dados do app
+  useEffect(() => {
+    if (!data?.syncState) return;
+    const prev = prevStatusRef.current;
+    let anyJustFinished = false;
+    for (const s of data.syncState) {
+      if (prev[s.routine_name] === "running" && s.status !== "running") {
+        anyJustFinished = true;
+        toast({
+          title: `${ROTINA_LABELS[s.routine_name] ?? s.routine_name} sincronizado`,
+          description: s.status === "error"
+            ? `Erro: ${s.last_error ?? "desconhecido"}`
+            : "Dados atualizados com sucesso.",
+          variant: s.status === "error" ? "destructive" : "default",
+        });
+      }
+      prev[s.routine_name] = s.status;
+    }
+    if (anyJustFinished) {
+      queryClient.invalidateQueries({});
+    }
+  }, [data?.syncState]);
 
   async function fetchLog(logFile: string) {
     const filename = logFile.split(/[\\/]/).pop() ?? logFile;
@@ -1414,15 +1545,18 @@ function SyncSection() {
   const triggerMutation = useMutation({
     mutationFn: async (rotina: string) => {
       const res = await apiRequest("POST", "/api/sync/trigger", { rotina });
-      if (!res.ok) throw new Error("Falha ao iniciar sync");
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error((j as any).error ?? "Falha ao iniciar sync");
+      }
       return res.json();
     },
     onSuccess: (result, rotina) => {
       if (result.logFile) setLastLogFile(result.logFile.split(/[\\/]/).pop() ?? result.logFile);
-      toast({ title: "Sync iniciado", description: `Rotina '${rotina}' disparada em background. Verifique o log se necessário.` });
-      setTimeout(() => refetch(), 8000);
+      toast({ title: "Sync iniciado", description: `Rotina '${rotina === "all" ? "todas as rotinas" : rotina}' disparada. Acompanhe o progresso abaixo ou o log no terminal.` });
+      setTimeout(() => refetch(), 5_000);
     },
-    onError: () => toast({ title: "Erro ao iniciar sync", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Erro ao iniciar sync", description: err.message, variant: "destructive" }),
   });
 
   const [bootstrappingRotina, setBootstrappingRotina] = useState<string | null>(null);
@@ -1474,19 +1608,44 @@ function SyncSection() {
   const reloadMutation = useMutation({
     mutationFn: async (rotina: string) => {
       const res = await apiRequest("POST", "/api/sync/reload", { rotina });
-      if (!res.ok) throw new Error("Falha ao iniciar reload");
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error((j as any).error ?? "Falha ao iniciar reload");
+      }
       return res.json();
     },
     onSuccess: (result, rotina) => {
       if (result.logFile) setLastLogFile(result.logFile.split(/[\\/]/).pop() ?? result.logFile);
-      toast({ title: "Recarregamento iniciado", description: `Dados do último ano de '${ROTINA_LABELS[rotina] ?? rotina}' serão re-sincronizados com fabricante. Aguarde alguns minutos.` });
+      toast({ title: "Recarregamento iniciado", description: `Dados do último ano de '${ROTINA_LABELS[rotina] ?? rotina}' serão re-sincronizados. Aguarde alguns minutos.` });
       setTimeout(() => refetch(), 15_000);
     },
-    onError: () => toast({ title: "Erro ao recarregar dados", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Erro ao recarregar dados", description: err.message, variant: "destructive" }),
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async (routineName: string) => {
+      const clearRoutineName = ROUTINE_CLEAR_KEY[routineName] ?? routineName;
+      const res = await apiRequest("POST", "/api/sync/clear", { routine_name: clearRoutineName });
+      return res.json();
+    },
+    onSuccess: (_, routineName) => {
+      toast({ title: "Cache limpo", description: `Dados de '${ROTINA_LABELS[routineName] ?? routineName}' removidos. A próxima sincronização fará carga completa.` });
+      setTimeout(() => refetch(), 1_000);
+    },
+    onError: (err: Error) => toast({ title: "Erro ao limpar cache", description: err.message, variant: "destructive" }),
   });
 
   const syncState = data?.syncState ?? [];
   const bootstrapStatus = data?.bootstrapStatus ?? [];
+
+  // ── Trava global: apenas UMA operação de sync por vez ────────────────────────
+  const anyRunningInState = syncState.some(s => s.status === "running");
+  const globalSyncing =
+    anyRunningInState ||
+    triggerMutation.isPending ||
+    reloadMutation.isPending ||
+    clearMutation.isPending ||
+    bootstrapMutation.isPending;
 
   const getBootstrapRow = (rotina: string) =>
     bootstrapStatus.find(b => b.routine_name === rotina);
@@ -1512,12 +1671,13 @@ function SyncSection() {
           <Button
             size="sm" variant="outline"
             onClick={() => triggerMutation.mutate("all")}
-            disabled={triggerMutation.isPending}
+            disabled={globalSyncing}
+            title={globalSyncing ? "Sincronização em andamento — aguarde concluir" : "Disparar todas as rotinas agora"}
           >
-            {triggerMutation.isPending || isFetching
+            {globalSyncing
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
               : <RefreshCw className="h-3.5 w-3.5" />}
-            <span className="ml-1.5">Sincronizar Tudo</span>
+            <span className="ml-1.5">{anyRunningInState ? "Sincronizando…" : "Sincronizar Tudo"}</span>
           </Button>
         </div>
       </div>
@@ -1575,14 +1735,14 @@ function SyncSection() {
                       Cancelar
                     </Button>
                   )}
-                  {!neverRan && (
+                  {!neverRan && !isRunning && (
                     <Button
                       size="sm" variant="ghost"
                       onClick={() => {
                         if (confirm(`Resetar o histórico de "${ROTINA_LABELS[rotina] ?? rotina}"?\n\nIsso apagará todos os dados do cache e o progresso do bootstrap. Você precisará carregar novamente.`))
                           resetBootstrapMutation.mutate(rotina);
                       }}
-                      disabled={resetBootstrapMutation.isPending}
+                      disabled={resetBootstrapMutation.isPending || globalSyncing}
                       className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
                       Resetar
@@ -1592,7 +1752,8 @@ function SyncSection() {
                     size="sm"
                     variant={neverRan || isError ? "default" : "outline"}
                     onClick={() => bootstrapMutation.mutate({ rotina, force: true })}
-                    disabled={bootstrapMutation.isPending || isRunning}
+                    disabled={globalSyncing || isRunning}
+                    title={globalSyncing && !isRunning ? "Aguarde a sincronização atual concluir" : undefined}
                   >
                     {isRunning
                       ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Carregando</>
@@ -1628,52 +1789,96 @@ function SyncSection() {
           ) : (
             <div className="space-y-2">
               {syncState.map(s => {
-                const hasError = !!s.last_error;
-                const routineKey = s.routine_name.replace("cache_", "").replace("_conexoes", "s");
-                const reloadKey = s.routine_name === "cache_tubos_conexoes" ? "tubos"
-                  : s.routine_name === "cache_vendas" ? "vendas"
+                const isRunning = s.status === "running";
+                const hasError  = !isRunning && !!s.last_error;
+                // Chave correta para /api/sync/trigger (era bug: "tuboss" em vez de "tubos")
+                const routineKey = ROUTINE_TRIGGER_KEY[s.routine_name] ?? s.routine_name;
+                const reloadKey  = s.routine_name === "cache_tubos_conexoes" ? "tubos"
+                  : s.routine_name === "cache_vendas"    ? "vendas"
                   : s.routine_name === "cache_campanhas" ? "campanhas"
                   : null;
                 return (
-                  <div key={s.routine_name} className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {hasError
-                        ? <XCircle className="h-4 w-4 text-destructive shrink-0" />
-                        : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{ROTINA_LABELS[s.routine_name] ?? s.routine_name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {s.last_success_at
-                            ? `Última sync: ${new Date(s.last_success_at).toLocaleString("pt-BR")}`
-                            : "Nunca sincronizado"}
-                          {s.records_written > 0 && ` · ${s.records_written.toLocaleString()} registros`}
-                        </p>
-                        {hasError && (
-                          <p className="text-xs text-destructive truncate">{s.last_error}</p>
+                  <div
+                    key={s.routine_name}
+                    className={cn(
+                      "p-3 rounded-lg border bg-card transition-colors",
+                      isRunning && "border-primary/30 bg-primary/5"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      {/* Ícone + info */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        {isRunning
+                          ? <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
+                          : hasError
+                          ? <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                          : <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{ROTINA_LABELS[s.routine_name] ?? s.routine_name}</p>
+                          {!isRunning && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {s.last_success_at
+                                ? `Última sync: ${new Date(s.last_success_at).toLocaleString("pt-BR")}`
+                                : "Nunca sincronizado"}
+                              {s.records_written > 0 && ` · ${s.records_written.toLocaleString()} registros`}
+                            </p>
+                          )}
+                          {hasError && (
+                            <p className="text-xs text-destructive truncate">{s.last_error}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Botões — desabilitados enquanto qualquer sync estiver rodando */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Limpar dados do cache desta rotina */}
+                        {!isRunning && (
+                          <Button
+                            size="sm" variant="ghost"
+                            className="text-xs h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              if (confirm(`Limpar todos os dados de "${ROTINA_LABELS[s.routine_name] ?? s.routine_name}"?\n\nO cache será esvaziado e a próxima sincronização fará carga completa do ERP.`))
+                                clearMutation.mutate(s.routine_name);
+                            }}
+                            disabled={globalSyncing}
+                            title="Apaga todos os dados do cache desta tabela"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Limpar
+                          </Button>
                         )}
+                        {reloadKey && (
+                          <Button
+                            size="sm" variant="outline"
+                            className="text-xs h-7 px-2"
+                            onClick={() => reloadMutation.mutate(reloadKey)}
+                            disabled={globalSyncing}
+                            title="Apaga dados do último ano e re-sincroniza"
+                          >
+                            <Database className="h-3 w-3 mr-1" />
+                            Recarregar
+                          </Button>
+                        )}
+                        <Button
+                          size="sm" variant="ghost"
+                          onClick={() => triggerMutation.mutate(routineKey)}
+                          disabled={globalSyncing}
+                          title={isRunning ? "Sincronização em andamento…" : "Sincronizar agora"}
+                        >
+                          <RefreshCw className={cn("h-3.5 w-3.5", isRunning && "animate-spin")} />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {reloadKey && (
-                        <Button
-                          size="sm" variant="outline"
-                          className="text-xs h-7 px-2"
-                          onClick={() => reloadMutation.mutate(reloadKey)}
-                          disabled={reloadMutation.isPending}
-                          title="Apaga dados do último ano e re-sincroniza com fabricante preenchido"
-                        >
-                          <Database className="h-3 w-3 mr-1" />
-                          Recarregar
-                        </Button>
-                      )}
-                      <Button
-                        size="sm" variant="ghost"
-                        onClick={() => triggerMutation.mutate(routineKey)}
-                        disabled={triggerMutation.isPending}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+
+                    {/* Barra de progresso — aparece só quando em execução */}
+                    {isRunning && (() => {
+                      const avg = data?.avgDurations?.find(d => d.routine_name === s.routine_name);
+                      return (
+                        <div className="mt-2">
+                          <SyncRunningRow s={s} avgMs={avg?.avg_ms} sampleCount={avg?.sample_count} />
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

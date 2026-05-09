@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Calendar, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 import { formatCurrency, formatPercentage, getCurrentWeekPeriod, formatDateBR } from "@/lib/calendar-utils";
 import { useAuth } from "@/lib/auth-context";
 import type { WeeklySalesperson } from "@shared/schema";
@@ -160,6 +161,7 @@ export default function Semanal() {
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium">Desempenho por vendedor</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <SyncStatusBar routine="vendas" label="Vendas" className="hidden sm:flex mr-1" />
             {showGroupFilter && (
               <GroupSelector
                 groups={groups}

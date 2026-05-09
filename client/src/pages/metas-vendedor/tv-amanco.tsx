@@ -163,6 +163,7 @@ export default function TvAmancoTab() {
           updatedAt={updatedAt}
           onRefresh={() => refetch()}
           label="Amanco Campanha TV"
+          syncRoutine="campanhas"
         />
       </div>
     </CampaignPage>

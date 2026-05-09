@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { CalendarDays, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 import { formatCurrency, formatPercentage } from "@/lib/calendar-utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -175,6 +176,7 @@ export default function Mensal() {
             <span className="hidden sm:inline text-xs text-muted-foreground font-medium capitalize">{monthLabel}</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <SyncStatusBar routine="vendas" label="Vendas" className="hidden sm:flex mr-1" />
             {showGroupFilter && (
               <GroupSelector
                 groups={groups}

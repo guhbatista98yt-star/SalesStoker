@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
@@ -27,8 +31,9 @@ import {
   Search, Filter, Download, RefreshCw, ChevronRight, ChevronLeft,
   ChevronDown, MoreVertical, Eye, MessageSquare, CalendarIcon,
   Printer, Building2, MapPin, User, List, ArrowUpDown,
-  CheckCircle2, XCircle, AlertCircle, Trash2, Settings,
+  CheckCircle2, XCircle, AlertCircle, Trash2, Settings, EyeOff,
 } from "lucide-react";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,12 +50,24 @@ async function apiFetch(path: string, opts?: RequestInit) {
     ...opts,
     headers: { ...authHeaders(), ...(opts?.headers ?? {}) },
   });
+  const contentType = res.headers.get("content-type") ?? "";
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.message ?? err.error ?? "Erro desconhecido");
+    if (contentType.includes("application/json")) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.message ?? err.error ?? `Erro ${res.status}`);
+    }
+    // Non-JSON error (HTML page, etc.)
+    throw new Error(`Erro ${res.status}: ${res.statusText || "Falha na requisição"}`);
+  }
+  if (!contentType.includes("application/json")) {
+    // Server returned 200 but not JSON — likely a missing route served HTML by Vite
+    const text = await res.text().catch(() => "");
+    console.error("[apiFetch] Resposta não-JSON para", path, ":", text.slice(0, 200));
+    throw new Error(`Rota não encontrada ou resposta inválida do servidor (${path})`);
   }
   return res.json();
 }
+
 
 async function apiBlob(path: string, opts?: RequestInit): Promise<Blob> {
   const res = await fetch(path, {
@@ -294,19 +311,6 @@ export default function ContasReceber() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"clientes" | "duplicatas" | "vendedores">("clientes");
 
-  // ── Delinquency simulation (draft → applied pattern) ──────────────────────
-  const [delinquencyDays, setDelinquencyDays] = useState<number>(() => {
-    const saved = localStorage.getItem("cr_delinquency_days");
-    return saved != null ? Number(saved) : 10;
-  });
-  const [delinquencyEnabled, setDelinquencyEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem("cr_delinquency_enabled");
-    return saved != null ? saved === "true" : true;
-  });
-  const [draftDelDays, setDraftDelDays] = useState<number>(delinquencyDays);
-  const [draftDelEnabled, setDraftDelEnabled] = useState<boolean>(delinquencyEnabled);
-  const [showDelinquency, setShowDelinquency] = useState<boolean>(false);
-
   // ── Filters: draft (form) → applied (queries) ─────────────────────────────
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS);
   const [applied, setApplied] = useState<Filters>(DEFAULT_FILTERS);
@@ -319,16 +323,9 @@ export default function ContasReceber() {
   const [showFiltros, setShowFiltros] = useState(false);
   const [showIgnorados, setShowIgnorados] = useState(false);
   const [ignoradoInput, setIgnoradoInput] = useState("");
+  const [expandedClientesOcultos, setExpandedClientesOcultos] = useState<Set<number>>(new Set());
   const [sortClientes, setSortClientes] = useState<{ sort: string; dir: string }>({ sort: "total_vencido", dir: "desc" });
   const [sortDuplicatas, setSortDuplicatas] = useState<{ sort: string; dir: string }>({ sort: "dtvencimento", dir: "asc" });
-
-  useEffect(() => {
-    localStorage.setItem("cr_delinquency_days", String(delinquencyDays));
-  }, [delinquencyDays]);
-
-  useEffect(() => {
-    localStorage.setItem("cr_delinquency_enabled", String(delinquencyEnabled));
-  }, [delinquencyEnabled]);
 
   const setDraftField = useCallback((key: keyof Filters, value: string) => {
     setDraft(f => ({ ...f, [key]: value }));
@@ -345,11 +342,6 @@ export default function ContasReceber() {
     setApplied(DEFAULT_FILTERS);
     setClientePage(1);
     setDuplicataPage(1);
-  }
-
-  function handleAplicarDelinquency() {
-    setDelinquencyDays(draftDelDays);
-    setDelinquencyEnabled(draftDelEnabled);
   }
 
   // Keep alias for filter chips removing applied filters
@@ -435,6 +427,11 @@ export default function ContasReceber() {
     queryFn: () => apiFetch("/api/financeiro/contas-receber/clientes-ignorados"),
     staleTime: 30_000,
   });
+  const titulosOcultosQ = useQuery({
+    queryKey: ["/api/financeiro/contas-receber/titulos-ocultos"],
+    queryFn: () => apiFetch("/api/financeiro/contas-receber/titulos-ocultos"),
+    staleTime: 30_000,
+  });
   const addIgnoradoMut = useMutation({
     mutationFn: (payload: { idclifor_raw: string }) =>
       apiFetch("/api/financeiro/contas-receber/clientes-ignorados", {
@@ -460,6 +457,73 @@ export default function ContasReceber() {
       qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/clientes"] });
     },
     onError: (err: Error) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+
+  const invalidateFinanceiro = useCallback(() => {
+    qc.invalidateQueries({
+      predicate: query => String(query.queryKey[0] ?? "").startsWith("/api/financeiro/contas-receber")
+        || String(query.queryKey[0] ?? "").startsWith("/api/financeiro/extrato-cobrancas"),
+    });
+  }, [qc]);
+
+  // ── Estado do dialog de ocultar título ────────────────────────────────────
+  const [ocultarDialog, setOcultarDialog] = useState<{
+    open: boolean;
+    chave_titulo: string;
+    motivo: string;
+  }>({ open: false, chave_titulo: "", motivo: "Cobrança indevida por pendência interna de expedição" });
+
+  const ocultarTituloMut = useMutation({
+    mutationFn: (payload: { chave_titulo: string; motivo?: string }) =>
+      apiFetch("/api/financeiro/contas-receber/titulos-ocultos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Título ocultado",
+        description: "Ele saiu de Contas a Receber e também do Extrato de Cobranças.",
+      });
+      setOcultarDialog({ open: false, chave_titulo: "", motivo: "Cobrança indevida por pendência interna de expedição" });
+      invalidateFinanceiro();
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/titulos-ocultos"] });
+      if (clienteDetalhe) {
+        qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/cliente", clienteDetalhe] });
+      }
+    },
+    onError: (err: Error) => toast({ title: "Erro ao ocultar título", description: err.message, variant: "destructive" }),
+  });
+
+  const handleOcultarTitulo = useCallback((titulo: any) => {
+    const chave = String(titulo?.chave_titulo ?? "").trim();
+    if (!chave) {
+      toast({ title: "Não foi possível ocultar", description: "Título sem chave de controle. Verifique se os dados do ERP estão sincronizados.", variant: "destructive" });
+      return;
+    }
+    setOcultarDialog({
+      open: true,
+      chave_titulo: chave,
+      motivo: "Cobrança indevida por pendência interna de expedição",
+    });
+  }, [toast]);
+
+  function handleConfirmarOcultar() {
+    ocultarTituloMut.mutate({
+      chave_titulo: ocultarDialog.chave_titulo,
+      motivo: ocultarDialog.motivo.trim(),
+    });
+  }
+
+  const reexibirTituloMut = useMutation({
+    mutationFn: (chaveTitulo: string) =>
+      apiFetch(`/api/financeiro/contas-receber/titulos-ocultos/${encodeURIComponent(chaveTitulo)}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Título reexibido", description: "Ele voltou para os relatórios financeiros." });
+      invalidateFinanceiro();
+      qc.invalidateQueries({ queryKey: ["/api/financeiro/contas-receber/titulos-ocultos"] });
+    },
+    onError: (err: Error) => toast({ title: "Erro ao reexibir título", description: err.message, variant: "destructive" }),
   });
 
   const clienteDetalheQ = useQuery({
@@ -562,6 +626,70 @@ export default function ContasReceber() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background print:bg-white print:h-auto print:overflow-visible">
 
+      {/* ── Dialog: Ocultar Título ──────────────────────────────────────── */}
+      <Dialog
+        open={ocultarDialog.open}
+        onOpenChange={open => {
+          if (!open && !ocultarTituloMut.isPending) {
+            setOcultarDialog(d => ({ ...d, open: false }));
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <EyeOff className="h-4 w-4 text-red-500" />
+              Ocultar título dos relatórios
+            </DialogTitle>
+            <DialogDescription>
+              Este título será removido das listas de Contas a Receber e Extrato de Cobranças.
+              O registro no ERP não é alterado. Você pode reexibi-lo a qualquer momento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            <Label htmlFor="motivo-ocultar" className="text-sm font-medium">
+              Motivo (opcional)
+            </Label>
+            <Textarea
+              id="motivo-ocultar"
+              rows={3}
+              className="resize-none text-sm"
+              placeholder="Descreva o motivo para ocultar este título..."
+              value={ocultarDialog.motivo}
+              onChange={e => setOcultarDialog(d => ({ ...d, motivo: e.target.value }))}
+              disabled={ocultarTituloMut.isPending}
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setOcultarDialog(d => ({ ...d, open: false }))}
+              disabled={ocultarTituloMut.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmarOcultar}
+              disabled={ocultarTituloMut.isPending}
+            >
+              {ocultarTituloMut.isPending ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-3.5 w-3.5 mr-1.5" />
+                  Confirmar e ocultar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       {/* ── Professional Print Layout ─────────────────────────────────── */}
       <PrintReport filters={applied} resumo={r} clientesData={clientesQ.data} dupsData={printDupsQ.data} tab={tab} />
 
@@ -576,6 +704,7 @@ export default function ContasReceber() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <SyncStatusBar routine="contas_receber" label="Cobranças" className="hidden sm:flex mr-1" />
           {/* Seletor de empresa — aplica imediatamente */}
           <Select
             value={applied.empresa}
@@ -676,116 +805,162 @@ export default function ContasReceber() {
             />
           </div>
 
-          {/* ── Delinquency threshold (simulation) ──────────────────────── */}
+          {/* ── Ignorados / Ocultos ───────────────────────────────────────── */}
           <div className="print:hidden space-y-1.5">
             <div className="flex items-center gap-3">
-              <button
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => setShowDelinquency(v => !v)}
-              >
-                <AlertTriangle className="h-3 w-3 text-amber-500" />
-                Simulação de inadimplência
-                <ChevronDown className={cn("h-3 w-3 transition-transform", showDelinquency && "rotate-180")} />
-              </button>
               <button
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 onClick={() => setShowIgnorados(v => !v)}
               >
                 <Settings className="h-3 w-3 text-muted-foreground" />
-                Clientes ignorados
-                {(ignoradosQ.data?.data?.length ?? 0) > 0 && (
+                Ignorados/ocultos
+                {((ignoradosQ.data?.data?.length ?? 0) + (titulosOcultosQ.data?.data?.length ?? 0)) > 0 && (
                   <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white px-1">
-                    {ignoradosQ.data.data.length}
+                    {(ignoradosQ.data?.data?.length ?? 0) + (titulosOcultosQ.data?.data?.length ?? 0)}
                   </span>
                 )}
                 <ChevronDown className={cn("h-3 w-3 transition-transform", showIgnorados && "rotate-180")} />
               </button>
             </div>
 
-            {showDelinquency && (
-              <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-800 dark:text-amber-300">
-                  <input
-                    type="checkbox"
-                    checked={draftDelEnabled}
-                    onChange={e => setDraftDelEnabled(e.target.checked)}
-                    className="rounded"
-                  />
-                  Ativar
-                </label>
-                {draftDelEnabled && (
-                  <>
-                    <span className="text-xs text-amber-700 dark:text-amber-400">Considerar inadimplente após</span>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={365}
-                      value={draftDelDays}
-                      onChange={e => setDraftDelDays(Math.max(0, Number(e.target.value) || 0))}
-                      className="h-7 w-16 text-xs text-center px-1"
-                    />
-                    <span className="text-xs text-amber-700 dark:text-amber-400">dias em atraso</span>
-                  </>
-                )}
-                <Button
-                  size="sm"
-                  className="ml-auto h-6 text-xs px-3"
-                  onClick={handleAplicarDelinquency}
-                >
-                  Aplicar
-                </Button>
-                <span className="text-[10px] text-amber-600 dark:text-amber-500 italic">Apenas visualização</span>
-              </div>
-            )}
-
             {showIgnorados && (
-              <div className="px-3 py-3 rounded-lg border border-border bg-muted/20 space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  Clientes ignorados não aparecem nos relatórios (Contas a Receber e Extrato de Cobranças).
-                  Informe os códigos separados por vírgula.
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ex: 12345, 67890"
-                    className="h-8 text-sm flex-1"
-                    value={ignoradoInput}
-                    onChange={e => setIgnoradoInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && ignoradoInput.trim()) {
-                        addIgnoradoMut.mutate({ idclifor_raw: ignoradoInput });
-                      }
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    className="h-8"
-                    disabled={!ignoradoInput.trim() || addIgnoradoMut.isPending}
-                    onClick={() => addIgnoradoMut.mutate({ idclifor_raw: ignoradoInput })}
-                  >
-                    {addIgnoradoMut.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Adicionar"}
-                  </Button>
+              <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                {/* ── Clientes Ignorados ── */}
+                <div className="px-3 py-2.5 border-b border-border bg-muted/30">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    Clientes Ignorados
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Clientes inteiros excluídos dos relatórios financeiros.
+                  </p>
                 </div>
-                {ignoradosQ.isLoading ? (
-                  <div className="text-xs text-muted-foreground">Carregando...</div>
-                ) : (ignoradosQ.data?.data ?? []).length === 0 ? (
-                  <div className="text-xs text-muted-foreground italic">Nenhum cliente ignorado.</div>
-                ) : (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {(ignoradosQ.data?.data ?? []).map((ig: any) => (
-                      <div key={ig.id} className="flex items-center justify-between gap-2 text-xs px-2 py-1 rounded bg-background border border-border">
-                        <span className="font-mono text-muted-foreground">{ig.idclifor}</span>
-                        <span className="flex-1 truncate">{ig.nomecliente ?? "—"}</span>
-                        <button
-                          className="text-destructive/60 hover:text-destructive transition-colors shrink-0"
-                          onClick={() => removeIgnoradoMut.mutate(ig.id)}
-                          disabled={removeIgnoradoMut.isPending}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                <div className="px-3 py-2.5 space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Cód. cliente — Ex: 12345, 67890"
+                      className="h-8 text-sm flex-1"
+                      value={ignoradoInput}
+                      onChange={e => setIgnoradoInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && ignoradoInput.trim()) {
+                          addIgnoradoMut.mutate({ idclifor_raw: ignoradoInput });
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8 shrink-0"
+                      disabled={!ignoradoInput.trim() || addIgnoradoMut.isPending}
+                      onClick={() => addIgnoradoMut.mutate({ idclifor_raw: ignoradoInput })}
+                    >
+                      {addIgnoradoMut.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Adicionar"}
+                    </Button>
                   </div>
-                )}
+                  {ignoradosQ.isLoading ? (
+                    <div className="text-xs text-muted-foreground py-1">Carregando...</div>
+                  ) : (ignoradosQ.data?.data ?? []).length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic py-1">Nenhum cliente ignorado.</div>
+                  ) : (
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {(ignoradosQ.data?.data ?? []).map((ig: any) => (
+                        <div key={ig.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded bg-background border border-border">
+                          <span className="font-mono text-[10px] text-muted-foreground shrink-0 w-12">{ig.idclifor}</span>
+                          <span className="flex-1 truncate font-medium">{ig.nomecliente ?? "—"}</span>
+                          {ig.motivo && <span className="hidden md:inline text-[10px] text-muted-foreground truncate max-w-[140px]">{ig.motivo}</span>}
+                          <button
+                            className="text-destructive/60 hover:text-destructive transition-colors shrink-0"
+                            onClick={() => removeIgnoradoMut.mutate(ig.id)}
+                            disabled={removeIgnoradoMut.isPending}
+                            title="Remover exclusão"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Títulos Ocultos (agrupados por cliente) ── */}
+                <div className="border-t border-border">
+                  <div className="px-3 py-2.5 bg-muted/30">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      Títulos Ocultos
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Títulos pontuais excluídos. O registro no ERP não é alterado.
+                    </p>
+                  </div>
+                  {titulosOcultosQ.isLoading ? (
+                    <div className="text-xs text-muted-foreground px-3 py-2">Carregando...</div>
+                  ) : (titulosOcultosQ.data?.data ?? []).length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic px-3 py-2">Nenhum título oculto.</div>
+                  ) : (() => {
+                    // Agrupar por cliente
+                    const byCliente = new Map<number, { idclifor: number; nomecliente: string; titulos: any[] }>();
+                    for (const t of (titulosOcultosQ.data?.data ?? [])) {
+                      if (!byCliente.has(t.idclifor)) {
+                        byCliente.set(t.idclifor, { idclifor: t.idclifor, nomecliente: t.nomecliente ?? "—", titulos: [] });
+                      }
+                      byCliente.get(t.idclifor)!.titulos.push(t);
+                    }
+                    return (
+                      <div className="divide-y divide-border/60 max-h-72 overflow-y-auto">
+                        {Array.from(byCliente.values()).map(grupo => {
+                          const isExpanded = expandedClientesOcultos.has(grupo.idclifor);
+                          return (
+                            <div key={grupo.idclifor}>
+                              {/* Linha do cliente */}
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+                                onClick={() => setExpandedClientesOcultos(prev => {
+                                  const next = new Set(prev);
+                                  next.has(grupo.idclifor) ? next.delete(grupo.idclifor) : next.add(grupo.idclifor);
+                                  return next;
+                                })}
+                              >
+                                <ChevronRight className={cn("h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150", isExpanded && "rotate-90")} />
+                                <span className="flex-1 text-xs font-semibold truncate">{grupo.nomecliente}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {grupo.titulos.length} {grupo.titulos.length === 1 ? "título" : "títulos"}
+                                </span>
+                              </button>
+                              {/* Sub-lista de títulos */}
+                              {isExpanded && (
+                                <div className="bg-muted/20 border-t border-border/40 divide-y divide-border/30">
+                                  {grupo.titulos.map((t: any) => (
+                                    <div key={t.chave_titulo} className="flex items-center gap-2 pl-7 pr-3 py-1.5 text-xs">
+                                      <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                                        Tít. {t.idtitulo}/{t.digitotitulo}{t.serienota ? `-${t.serienota}` : ""}
+                                      </span>
+                                      {t.numnota && (
+                                        <span className="text-[10px] text-muted-foreground shrink-0">Cupom {t.numnota}</span>
+                                      )}
+                                      {t.motivo && (
+                                        <span className="flex-1 truncate text-[10px] text-muted-foreground italic" title={t.motivo}>
+                                          {t.motivo}
+                                        </span>
+                                      )}
+                                      {!t.motivo && <span className="flex-1" />}
+                                      <button
+                                        className="text-primary/70 hover:text-primary transition-colors shrink-0"
+                                        onClick={() => reexibirTituloMut.mutate(t.chave_titulo)}
+                                        disabled={reexibirTituloMut.isPending}
+                                        title="Reexibir título"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             )}
           </div>
@@ -795,7 +970,7 @@ export default function ContasReceber() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Buscar cliente, vendedor, cidade, nº título..."
+                placeholder="Buscar cliente, vendedor, cidade, nº título ou observação..."
                 value={draft.busca}
                 onChange={e => setDraftField("busca", e.target.value)}
                 className="pl-9 h-9 text-sm"
@@ -900,7 +1075,7 @@ export default function ContasReceber() {
               )}
               {applied.numnota && (
                 <FilterChip
-                  label={`NF: ${applied.numnota}`}
+                  label={`Cupom: ${applied.numnota}`}
                   onRemove={() => setAppliedField("numnota", "")}
                 />
               )}
@@ -959,10 +1134,10 @@ export default function ContasReceber() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Nota Fiscal</Label>
+                    <Label className="text-xs">Cupom</Label>
                     <Input
                       className="h-8 text-sm mt-1"
-                      placeholder="Nº da nota"
+                      placeholder="Nº do cupom"
                       value={draft.numnota}
                       onChange={e => setDraftField("numnota", e.target.value)}
                     />
@@ -1075,6 +1250,7 @@ export default function ContasReceber() {
               sort={sortDuplicatas}
               onSort={setSortDuplicatas}
               onSelectCliente={setClienteDetalhe}
+              onOcultarTitulo={handleOcultarTitulo}
             />
           )}
 
@@ -1110,6 +1286,7 @@ export default function ContasReceber() {
               info={clienteDetalheQ.data.data}
               duplicatas={clienteDetalheQ.data.duplicatas}
               cobrancas={clienteDetalheQ.data.cobrancas}
+              onOcultarTitulo={handleOcultarTitulo}
             />
           ) : (
             <div className="mt-8 text-center text-muted-foreground">
@@ -1294,6 +1471,43 @@ function ClientesTab({
 
 const NF_STATUS_PRIORITY: Record<string, number> = { VENCIDO: 3, VENCE_HOJE: 2, A_VENCER: 1 };
 
+function parseObsDuplicata(value: unknown): { pedido: string | null; nota: string | null; raw: string } {
+  const raw = String(value ?? "").trim();
+  if (!raw) return { pedido: null, nota: null, raw: "" };
+  const pedido = raw.match(/pedido\s*:?\s*([0-9]+)/i)?.[1] ?? null;
+  const nota = raw.match(/nota\s*:?\s*([0-9]+)/i)?.[1] ?? null;
+  return { pedido, nota, raw };
+}
+
+function tituloFiscalLabel(row: any): string {
+  const obs = parseObsDuplicata(row?.observacao_titulo);
+  const parts = [
+    obs.pedido ? `Pedido ${obs.pedido}` : null,
+    obs.nota ? `Nota fiscal ${obs.nota}` : null,
+  ].filter(Boolean);
+  if (parts.length > 0) return parts.join(" / ");
+  if (row?.numnota) return `Cupom ${row.numnota}`;
+  return `Tít. ${row?.idtitulo ?? ""}${row?.digitotitulo ? `/${row.digitotitulo}` : ""}`;
+}
+
+function tituloFiscalMeta(row: any): string {
+  const parts = [
+    row?.numnota ? `Cupom ${row.numnota}` : null,
+    row?.idtitulo ? `Tít. ${row.idtitulo}${row?.digitotitulo ? `/${row.digitotitulo}` : ""}` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function ObsDuplicataLine({ row, className = "text-[11px] text-muted-foreground" }: { row: any; className?: string }) {
+  const obs = parseObsDuplicata(row?.observacao_titulo);
+  if (!obs.raw) return null;
+  return (
+    <p className={cn(className, "line-clamp-2")}>
+      Obs. duplicata: {obs.raw}
+    </p>
+  );
+}
+
 function groupByNF(rows: any[]) {
   const map = new Map<string, any[]>();
   for (const row of rows) {
@@ -1310,18 +1524,19 @@ function groupByNF(rows: any[]) {
       (NF_STATUS_PRIORITY[r.status] ?? 0) > (NF_STATUS_PRIORITY[w] ?? 0) ? r.status : w, "A_VENCER");
     const maxAtraso = parcelas.reduce((m: number, r: any) => Math.max(m, r.dias_atraso ?? 0), 0);
     const formaSet = new Set(parcelas.map((r: any) => r.forma_recebimento).filter(Boolean));
-    const forma = formaSet.size === 1 ? [...formaSet][0] as string : formaSet.size > 1 ? "Misto" : "—";
+    const forma = formaSet.size === 1 ? Array.from(formaSet)[0] as string : formaSet.size > 1 ? "Misto" : "—";
     return { key, numnota: first.numnota as string | null, parcelas, totalAberto, totalOriginal, worstStatus, maxAtraso, forma, first };
   });
 }
 
 function DuplicatasTab({
-  data, loading, page, onPage, perPage, onPerPage, sort, onSort, onSelectCliente,
+  data, loading, page, onPage, perPage, onPerPage, sort, onSort, onSelectCliente, onOcultarTitulo,
 }: {
   data: any; loading: boolean; page: number; onPage: (p: number) => void;
   perPage: number; onPerPage: (n: number) => void;
   sort: { sort: string; dir: string }; onSort: (s: { sort: string; dir: string }) => void;
   onSelectCliente: (id: number) => void;
+  onOcultarTitulo: (titulo: any) => void;
 }) {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
@@ -1372,7 +1587,7 @@ function DuplicatasTab({
           <thead className="bg-muted/50">
             <tr>
               <th className="text-left px-4 py-2.5"><SortBtn field="nomecliente" label="Cliente" /></th>
-              <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">NF</th>
+              <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">Cupom</th>
               <th className="text-left px-4 py-2.5 text-xs text-muted-foreground">Parcelas</th>
               <th className="text-left px-4 py-2.5"><SortBtn field="dias_atraso" label="Atraso" /></th>
               <th className="text-right px-4 py-2.5 text-xs text-muted-foreground">V. Original</th>
@@ -1394,7 +1609,7 @@ function DuplicatasTab({
               );
               return (
                 <React.Fragment key={group.key}>
-                  {/* NF group header row */}
+                  {/* Cupom group header row */}
                   <tr
                     className={groupRowClass}
                     onClick={hasMany ? () => toggleGroup(group.key) : () => onSelectCliente(group.first.idclifor)}
@@ -1409,9 +1624,13 @@ function DuplicatasTab({
                       </p>
                     </td>
                     <td className="px-4 py-3">
-                      {group.numnota
-                        ? <span className="font-mono font-semibold text-sm">{group.numnota}</span>
-                        : <span className="text-muted-foreground text-xs">—</span>}
+                      <span className="font-semibold text-sm">{tituloFiscalLabel(group.first)}</span>
+                      {tituloFiscalMeta(group.first) && (
+                        <p className="mt-0.5 max-w-[180px] truncate text-[10px] text-muted-foreground" title={tituloFiscalMeta(group.first)}>
+                          {tituloFiscalMeta(group.first)}
+                        </p>
+                      )}
+                      <ObsDuplicataLine row={group.first} className="mt-0.5 max-w-[180px] truncate text-[10px] text-muted-foreground" />
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {group.parcelas.length} parc.
@@ -1438,7 +1657,12 @@ function DuplicatasTab({
                     <td className="px-2 py-3 text-center">
                       {hasMany
                         ? <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
-                        : <button onClick={e => { e.stopPropagation(); onSelectCliente(group.first.idclifor); }}><Eye className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                        : (
+                          <div className="flex items-center justify-center gap-1">
+                            <button title="Ver cliente" onClick={e => { e.stopPropagation(); onSelectCliente(group.first.idclifor); }}><Eye className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                            <button title="Ocultar título dos relatórios" onClick={e => { e.stopPropagation(); onOcultarTitulo(group.first); }}><EyeOff className="h-3.5 w-3.5 text-red-500" /></button>
+                          </div>
+                        )
                       }
                     </td>
                   </tr>
@@ -1456,9 +1680,14 @@ function DuplicatasTab({
                           Parcela
                         </span>
                       </td>
-                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground" colSpan={2}>
-                        Tít.&nbsp;{parc.idtitulo}/{parc.digitotitulo}{parc.serienota ? `-${parc.serienota}` : ""}
-                        &nbsp;·&nbsp;Vence&nbsp;{fmtDate(parc.dtvencimento)}
+                      <td className="px-4 py-2 text-xs text-muted-foreground" colSpan={2}>
+                        <p className="font-mono">
+                          Tít.&nbsp;{parc.idtitulo}/{parc.digitotitulo}{parc.serienota ? `-${parc.serienota}` : ""}
+                          &nbsp;·&nbsp;Vence&nbsp;{fmtDate(parc.dtvencimento)}
+                        </p>
+                        {parc.observacao_titulo && (
+                          <p className="mt-0.5 truncate" title={parc.observacao_titulo}>Obs. duplicata: {parc.observacao_titulo}</p>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         {parc.dias_atraso > 0 ? (
@@ -1478,7 +1707,9 @@ function DuplicatasTab({
                       </td>
                       <td className="px-4 py-2"><StatusBadge status={parc.status} /></td>
                       <td className="px-2 py-2 text-center">
-                        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                        <button title="Ocultar título dos relatórios" onClick={e => { e.stopPropagation(); onOcultarTitulo(parc); }}>
+                          <EyeOff className="h-3.5 w-3.5 text-red-500" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1516,15 +1747,27 @@ function DuplicatasTab({
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       <span className="font-mono">#{group.first.idvendedor}</span> {group.first.nomevendedor}
-                      {group.numnota ? ` · NF ${group.numnota}` : ""}
+                      {` · ${tituloFiscalLabel(group.first)}`}
                       {` · ${group.parcelas.length} parc.`}
                       {group.maxAtraso > 0 ? ` · ${group.maxAtraso}d atraso` : ""}
                     </p>
+                    <ObsDuplicataLine row={group.first} className="text-[10px] text-muted-foreground mt-0.5" />
                   </div>
                   <div className="text-right shrink-0 flex items-center gap-1.5">
                     <div>
                       <p className="font-bold text-sm">{fmtBRL(group.totalAberto)}</p>
                       <StatusBadge status={group.worstStatus} />
+                      {!hasMany && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-1 h-7 px-2 text-[10px] text-red-600"
+                          onClick={e => { e.stopPropagation(); onOcultarTitulo(group.first); }}
+                        >
+                          <EyeOff className="h-3 w-3 mr-1" />
+                          Ocultar
+                        </Button>
+                      )}
                     </div>
                     {hasMany && <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0", isOpen && "rotate-180")} />}
                   </div>
@@ -1545,6 +1788,9 @@ function DuplicatasTab({
                           Tít.&nbsp;{parc.idtitulo}/{parc.digitotitulo} · Vence {fmtDate(parc.dtvencimento)}
                           {parc.dias_atraso > 0 ? ` · ${parc.dias_atraso}d` : ""}
                         </p>
+                        {parc.observacao_titulo && (
+                          <p className="text-[10px] text-muted-foreground line-clamp-2">Obs. duplicata: {parc.observacao_titulo}</p>
+                        )}
                         {parc.forma_recebimento && (
                           <p className="text-[10px] text-muted-foreground truncate">{parc.forma_recebimento}</p>
                         )}
@@ -1552,6 +1798,15 @@ function DuplicatasTab({
                       <div className="text-right shrink-0">
                         <p className="font-semibold text-sm">{fmtBRL(parc.valor_aberto)}</p>
                         <StatusBadge status={parc.status} />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-1 h-7 px-2 text-[10px] text-red-600"
+                          onClick={e => { e.stopPropagation(); onOcultarTitulo(parc); }}
+                        >
+                          <EyeOff className="h-3 w-3 mr-1" />
+                          Ocultar
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -1755,9 +2010,10 @@ function FilaCobrancaTab({
 // ============================================================================
 
 function ClienteDetalheContent({
-  info, duplicatas, cobrancas,
+  info, duplicatas, cobrancas, onOcultarTitulo,
 }: {
   info: any; duplicatas: any[]; cobrancas: any[];
+  onOcultarTitulo: (titulo: any) => void;
 }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   function toggleGroup(key: string) {
@@ -1808,10 +2064,10 @@ function ClienteDetalheContent({
       </div>
 
 
-      {/* Duplicatas agrupadas por NF */}
+      {/* Duplicatas agrupadas por cupom */}
       <div>
         <h3 className="text-sm font-semibold mb-2">
-          Duplicatas em Aberto ({duplicatas.length} tít. · {grouped.length} NF{grouped.length !== 1 ? "s" : ""})
+          Duplicatas em Aberto ({duplicatas.length} tít. · {grouped.length} cupom{grouped.length !== 1 ? "s" : ""})
         </h3>
         <div className="space-y-2">
           {grouped.length === 0 && (
@@ -1830,7 +2086,7 @@ function ClienteDetalheContent({
                   "border-border"
                 )}
               >
-                {/* NF header */}
+                {/* Cupom header */}
                 <div
                   className={cn(
                     "flex items-center justify-between gap-2 p-3 text-sm",
@@ -1843,10 +2099,7 @@ function ClienteDetalheContent({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {group.numnota
-                        ? <span className="font-mono font-semibold text-sm">NF {group.numnota}</span>
-                        : <span className="font-mono text-xs text-muted-foreground">Tít. {group.first.idtitulo}/{group.first.digitotitulo}</span>
-                      }
+                      <span className="font-semibold text-sm">{tituloFiscalLabel(group.first)}</span>
                       {hasMany && (
                         <span className="text-[10px] text-muted-foreground bg-background/60 px-1.5 py-0.5 rounded-full border">
                           {group.parcelas.length} parcelas
@@ -1855,9 +2108,12 @@ function ClienteDetalheContent({
                       <StatusBadge status={group.worstStatus} />
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {tituloFiscalMeta(group.first)}
+                      {tituloFiscalMeta(group.first) ? " · " : ""}
                       {group.forma}
                       {group.maxAtraso > 0 ? ` · ${group.maxAtraso}d em atraso` : ""}
                     </p>
+                    <ObsDuplicataLine row={group.first} className="text-[11px] text-muted-foreground mt-0.5" />
                   </div>
                   <div className="text-right shrink-0 flex items-center gap-1.5">
                     <div>
@@ -1886,10 +2142,20 @@ function ClienteDetalheContent({
                             {d.dias_atraso > 0 ? ` · ${d.dias_atraso}d em atraso` : ""}
                             {d.forma_recebimento && group.parcelas.length > 1 ? ` · ${d.forma_recebimento}` : ""}
                           </p>
+                          <ObsDuplicataLine row={d} />
                         </div>
                         <div className="text-right shrink-0">
                           <p className="font-semibold">{fmtBRL(d.valor_aberto)}</p>
                           {hasMany && <StatusBadge status={d.status} />}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-1 h-7 px-2 text-[10px] text-red-600"
+                            onClick={() => onOcultarTitulo(d)}
+                          >
+                            <EyeOff className="h-3 w-3 mr-1" />
+                            Ocultar
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -1935,6 +2201,50 @@ function VendedorDetalheContent({
   resumo: any; clientes: any[]; topTitulos: any[];
   onSelectCliente: (id: number) => void;
 }) {
+  const [openClientes, setOpenClientes] = useState<Set<number>>(new Set());
+
+  const clientesComTitulos = useMemo(() => {
+    const byCliente = new Map<number, any[]>();
+    for (const titulo of topTitulos) {
+      const id = Number(titulo.idclifor);
+      if (!byCliente.has(id)) byCliente.set(id, []);
+      byCliente.get(id)!.push(titulo);
+    }
+
+    const conhecidos = clientes.map(cliente => ({
+      ...cliente,
+      titulos: byCliente.get(Number(cliente.idclifor)) ?? [],
+    })).filter(cliente => cliente.titulos.length > 0);
+
+    const idsConhecidos = new Set(conhecidos.map(cliente => Number(cliente.idclifor)));
+    const faltantes = Array.from(byCliente.entries())
+      .filter(([id]) => !idsConhecidos.has(id))
+      .map(([id, titulos]) => {
+        const first = titulos[0] ?? {};
+        return {
+          idclifor: id,
+          nomecliente: first.nomecliente,
+          cidade_cobranca: first.cidade_cobranca,
+          uf_cobranca: first.uf_cobranca,
+          qtd_titulos: titulos.length,
+          total_vencido: titulos.reduce((sum, titulo) => sum + Number(titulo.valor_aberto ?? 0), 0),
+          maior_atraso: titulos.reduce((max, titulo) => Math.max(max, Number(titulo.dias_atraso ?? 0)), 0),
+          status_cliente: "ATRASADO",
+          titulos,
+        };
+      });
+
+    return [...conhecidos, ...faltantes];
+  }, [clientes, topTitulos]);
+
+  function toggleCliente(id: number) {
+    setOpenClientes(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   if (!resumo) return (
     <div className="mt-8 text-center text-muted-foreground">
       <p>Nenhuma pendência encontrada.</p>
@@ -1962,47 +2272,61 @@ function VendedorDetalheContent({
         </CardContent></Card>
       </div>
 
-      {topTitulos.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold mb-2">Títulos mais antigos vencidos</h3>
-          <div className="space-y-1.5">
-            {topTitulos.map((t: any, i: number) => (
-              <div key={i} className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20 text-sm cursor-pointer hover:bg-red-100/50" onClick={() => onSelectCliente(t.idclifor)}>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[10px] text-muted-foreground bg-background/60 px-1 rounded">#{t.idclifor}</span>
-                    <p className="font-medium text-xs">{t.nomecliente}</p>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    {t.numnota ? `NF ${t.numnota} · ` : ""}Tít. {t.idtitulo} · Venc. {fmtDate(t.dtvencimento)} · {t.dias_atraso}d
-                  </p>
-                </div>
-                <p className="font-bold text-red-600 dark:text-red-400 shrink-0">{fmtBRL(t.valor_aberto)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div>
-        <h3 className="text-sm font-semibold mb-2">Clientes com pendência ({clientes.length})</h3>
+        <h3 className="text-sm font-semibold mb-2">Clientes com pend�ncia ({clientesComTitulos.length})</h3>
         <div className="space-y-2">
-          {clientes.map((c: any) => (
-            <div
-              key={c.idclifor}
-              className="flex items-center justify-between gap-2 p-3 rounded-xl border cursor-pointer hover:bg-muted/50 text-sm"
-              onClick={() => onSelectCliente(c.idclifor)}
-            >
-              <div className="min-w-0">
-                <p className="font-medium truncate">{c.nomecliente}</p>
-                <p className="text-[11px] text-muted-foreground">{c.cidade_cobranca}/{c.uf_cobranca} · {c.qtd_titulos} tít.</p>
+          {clientesComTitulos.map((c: any) => {
+            const isOpen = openClientes.has(Number(c.idclifor));
+            return (
+              <div key={c.idclifor} className="rounded-xl border overflow-hidden text-sm">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-muted/50"
+                  onClick={() => toggleCliente(Number(c.idclifor))}
+                >
+                  <div className="min-w-0 flex items-start gap-2">
+                    <ChevronRight className={cn("mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} />
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{c.nomecliente}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        #{c.idclifor}
+                        {(c.cidade_cobranca || c.uf_cobranca) ? ` � ${[c.cidade_cobranca, c.uf_cobranca].filter(Boolean).join("/")}` : ""}
+                        {` � ${c.titulos.length} t�t.`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-red-600 dark:text-red-400">{fmtBRL(c.total_vencido)}</p>
+                    <RiscoBadge risco={c.status_cliente} />
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-border divide-y divide-border/60 bg-muted/20">
+                    {c.titulos.map((t: any, i: number) => (
+                      <div
+                        key={`${t.chave_titulo ?? t.idtitulo}-${i}`}
+                        className="flex items-start justify-between gap-2 px-4 py-2.5 bg-background/60 hover:bg-muted/30 cursor-pointer"
+                        onClick={() => onSelectCliente(t.idclifor)}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-foreground">{tituloFiscalLabel(t)}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {tituloFiscalMeta(t)}
+                            {tituloFiscalMeta(t) ? " � " : ""}
+                            Venc. {fmtDate(t.dtvencimento)}
+                            {t.dias_atraso > 0 ? ` � ${t.dias_atraso}d` : ""}
+                          </p>
+                          <ObsDuplicataLine row={t} className="text-[11px] text-muted-foreground" />
+                        </div>
+                        <p className="font-bold text-red-600 dark:text-red-400 shrink-0">{fmtBRL(t.valor_aberto)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="text-right shrink-0">
-                <p className="font-bold text-red-600 dark:text-red-400">{fmtBRL(c.total_vencido)}</p>
-                <RiscoBadge risco={c.status_cliente} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -2122,7 +2446,7 @@ function PrintReport({
         {/* thead repeats on every printed page automatically */}
         <thead className="pr-thead">
           <tr>
-            <th style={{ ...th("left"),   width: W[0]  }}>Nota / Série</th>
+            <th style={{ ...th("left"),   width: W[0]  }}>Cupom / Série</th>
             <th style={{ ...th("left"),   width: W[1]  }}>Titulo / Dígito</th>
             <th style={{ ...th("center"), width: W[2]  }}>Pgto.</th>
             <th style={{ ...th("right"),  width: W[3]  }}>Valor Vencido</th>
@@ -2133,7 +2457,7 @@ function PrintReport({
             <th style={{ ...th("right"),  width: W[8]  }}>Saldo a Pagar</th>
             <th style={{ ...th("center"), width: W[9]  }}>Emissão</th>
             <th style={{ ...th("center"), width: W[10] }}>Vencimento</th>
-            <th style={{ ...th("left"),   width: W[11] }}>Nota</th>
+            <th style={{ ...th("left"),   width: W[11] }}>Obs. duplicata</th>
           </tr>
         </thead>
 
@@ -2200,22 +2524,32 @@ function PrintReport({
                 const nota  = row.numnota ?? "PRE";
                 const serie = row.serienota ? ` - ${row.serienota}` : "";
                 const titulo = `${row.idtitulo} - ${String(row.digitotitulo ?? "01").padStart(2, "0")}`;
+                const obs = (row.observacao_titulo ?? "").trim();
 
                 return (
-                  <tr key={row.id}>
-                    <td style={td("left")}>{nota}{serie}</td>
-                    <td style={td("left")}>{titulo}</td>
-                    <td style={td("center")}>{row.forma_recebimento ?? ""}</td>
-                    <td style={td("right")}>{fmtN(valVencido)}</td>
-                    <td style={td("right")}>{fmtN(valAVencer)}</td>
-                    <td style={td("center")}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
-                    <td style={td("right")}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
-                    <td style={td("right")}>{fmtN(Number(row.valor_pago) || 0)}</td>
-                    <td style={td("right")}>{fmtN(Number(row.valor_aberto) || 0)}</td>
-                    <td style={td("center")}>{fmtDate(row.dtmovimento)}</td>
-                    <td style={td("center")}>{fmtDate(row.dtvencimento)}</td>
-                    <td style={td("left", { fontSize: "6.5pt" })}>{row.numnota ?? ""}</td>
-                  </tr>
+                  <React.Fragment key={row.id}>
+                    <tr>
+                      <td style={td("left")}>{nota}{serie}</td>
+                      <td style={td("left")}>{titulo}</td>
+                      <td style={td("center")}>{row.forma_recebimento ?? ""}</td>
+                      <td style={td("right")}>{fmtN(valVencido)}</td>
+                      <td style={td("right")}>{fmtN(valAVencer)}</td>
+                      <td style={td("center")}>{row.dias_atraso > 0 ? row.dias_atraso : ""}</td>
+                      <td style={td("right")}>{fmtN(Number(row.valor_juros_pendente) || 0)}</td>
+                      <td style={td("right")}>{fmtN(Number(row.valor_pago) || 0)}</td>
+                      <td style={td("right")}>{fmtN(Number(row.valor_aberto) || 0)}</td>
+                      <td style={td("center")}>{fmtDate(row.dtmovimento)}</td>
+                      <td style={td("center")}>{fmtDate(row.dtvencimento)}</td>
+                      <td style={td("left", { fontSize: "6.5pt", whiteSpace: "nowrap", overflow: "hidden" })}>{obs}</td>
+                    </tr>
+                    {obs && (
+                      <tr>
+                        <td colSpan={12} style={{ ...td("left"), fontSize: "6.5pt", fontStyle: "italic", color: "#444", paddingLeft: "6px", paddingBottom: "1px" }}>
+                          Obs. duplicata: {obs}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
 

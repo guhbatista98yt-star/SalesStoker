@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle, Package, ShoppingCart, Clock, TrendingDown, TrendingUp,
-  DollarSign, FileText, Building2, ChevronRight, Eye, BellOff, RefreshCw,
+  DollarSign, FileText, Building2, ChevronRight, Eye, BellOff,
   BarChart3, Filter, ArrowUpDown, HelpCircle, CheckCircle2, Info, Download,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv-export";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 /* ── KPI Card ─────────────────────────────────────────────────────── */
 function KPICard({
   title, value, icon: Icon, color, subtitle, loading,
@@ -267,16 +268,6 @@ export default function ComprasDashboard() {
     }
   }
 
-  async function handleRefreshCompras() {
-    await Promise.all([
-      refetchDash(),
-      refetchAlertas(),
-      refetchFornecedores(),
-      refetchProdutos(),
-      refetchSugestoes(),
-    ]);
-  }
-
   async function handleExportCompras() {
     if (produtosFiltrados.length === 0) {
       toast({ title: "Nenhum produto para exportar" });
@@ -367,6 +358,7 @@ export default function ComprasDashboard() {
             <p className="text-sm text-muted-foreground">Visão em tempo real do estoque crítico e sugestões de compra</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <SyncStatusBar routine="estoque_sugestao" label="Estoque" />
             <CompanySelector
               companies={companies}
               selectedId={companyId}
@@ -375,9 +367,6 @@ export default function ComprasDashboard() {
             />
             <Button size="sm" variant="outline" onClick={() => setShowInstrucoes(true)} className="gap-2">
               <HelpCircle className="h-3.5 w-3.5" /> Instruções
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleRefreshCompras} className="gap-2">
-              <RefreshCw className="h-3.5 w-3.5" /> Atualizar
             </Button>
             <Button size="sm" onClick={() => setSimulacaoOpen(true)} disabled={produtos.length === 0} className="gap-2">
               <BarChart3 className="h-3.5 w-3.5" /> Simular Compra

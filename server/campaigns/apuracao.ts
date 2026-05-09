@@ -305,8 +305,23 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   `, [campaignId, goalsYear]);
   const goalsMap = new Map(goalRows.map(g => [g.salespersonId, g.triggerValue]));
 
+  // ── Load Conexões/Tubos ─────────────────────────────────────────────────
+  const tubosConexoesSales = await pgAll<{ IDVENDEDOR: string; tubos: number; conexoes: number }>(`
+    SELECT "IDVENDEDOR",
+      COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Tubo' OR "TIPO_PRODUTO" = 'Tubo' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as tubos,
+      COALESCE(SUM(CASE WHEN "FABRICANTE" = 'Conexao' OR "TIPO_PRODUTO" = 'Conexao' THEN "TOTALVENDA_LINHA" ELSE 0 END), 0) as conexoes
+    FROM cache_tubos_conexoes
+    WHERE "DT_MOVIMENTO" >= ? AND "DT_MOVIMENTO" <= ?
+    GROUP BY "IDVENDEDOR"
+  `, [periodoInicio, periodoFim]);
+
+  const conexoesMap = new Map(tubosConexoesSales.map(r => [
+    r.IDVENDEDOR, 
+    { tubos: Number(r.tubos), conexoes: Number(r.conexoes) }
+  ]));
+
   // ── Process each vendedor ───────────────────────────────────────────────
-  const detalhes: (VendedorApuracao & { crescimentoPerc?: number })[] = [];
+  const detalhes: (VendedorApuracao & { crescimentoPerc?: number; conexoesPerc?: number })[] = [];
 
   for (const vid of Array.from(allVendedorIds)) {
     if (excluded.has(vid)) continue;
@@ -385,8 +400,10 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
         passos.push(`Sem venda no período anterior (crescimento base: ${crescimentoPerc.toFixed(1)}%)`);
       }
     }
+    const tData = conexoesMap.get(vid) || { tubos: 0, conexoes: 0 };
+    const conexoesPerc = tData.tubos > 0 ? (tData.conexoes / tData.tubos) * 100 : 0;
 
-    const detRow: VendedorApuracao & { crescimentoPerc?: number } = {
+    const detRow: VendedorApuracao & { crescimentoPerc?: number; conexoesPerc?: number } = {
       vendedorId: vid,
       vendedorNome: nome,
       elegivel: true,
@@ -406,6 +423,7 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
       premioFinal: 0,
       motivosNaoParticipacao,
       crescimentoPerc,
+      conexoesPerc,
       memoriaCalculo: {
         passos,
         baseApuracao: describeBase(baseApuracao),
@@ -423,7 +441,7 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   const isRankingMode = mode === "ranking_volume" || mode === "ranking_crescimento" || mode === "ranking";
 
   function assignRanking(
-    rows: (VendedorApuracao & { crescimentoPerc?: number })[],
+    rows: (VendedorApuracao & { crescimentoPerc?: number; conexoesPerc?: number })[],
     tipo: string,
     field: "posicao" | "posicaoCrescimento",
   ) {
@@ -514,17 +532,18 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
   // ── Crescimento da Loja (YoY, mesma janela de dias) ───────────────────────
   let crescimentoLojaPerc: number | null = null;
   if (periodoComparativo) {
-    const curStart = new Date(periodoInicio).getTime();
-    const curEnd   = new Date(periodoFim).getTime();
-    const daysDuration = Math.ceil((curEnd - curStart) / 86_400_000);
     const compStart = periodoComparativo.starts_at.slice(0, 10);
-    const compEndDate = new Date(new Date(compStart).getTime() + daysDuration * 86_400_000);
-    const compEnd = compEndDate.toISOString().slice(0, 10);
-    const compSalesLoja = await querySalesByVendedor(compStart, compEnd, baseApuracao);
+    const compEnd = periodoComparativo.ends_at.slice(0, 10);
+    
+    const curSalesLoja = await querySalesByVendedor(periodoInicio, periodoFim, undefined);
+    const compSalesLoja = await querySalesByVendedor(compStart, compEnd, undefined);
+    
+    const totalCur = Array.from(curSalesLoja.values()).reduce((s, v) => s + v.valor, 0);
     const totalComp = Array.from(compSalesLoja.values()).reduce((s, v) => s + v.valor, 0);
+    
     if (totalComp > 0) {
-      crescimentoLojaPerc = ((valorTotalApuracao - totalComp) / totalComp) * 100;
-    } else if (valorTotalApuracao > 0) {
+      crescimentoLojaPerc = ((totalCur - totalComp) / totalComp) * 100;
+    } else if (totalCur > 0) {
       crescimentoLojaPerc = 100;
     }
   }
@@ -622,6 +641,7 @@ export async function apurarCampanha(campaignId: string, actor: string): Promise
       motivosNaoParticipacao: d.motivosNaoParticipacao,
       memoriaCalculo: d.memoriaCalculo,
       crescimentoPerc: (d as any).crescimentoPerc,
+      conexoesPerc: (d as any).conexoesPerc,
     })),
   };
 }

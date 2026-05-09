@@ -182,9 +182,18 @@ async function getIgnoredClientIds(): Promise<number[]> {
   }
 }
 
+function hiddenTitlesClause(alias?: string): string {
+  // IMPORTANTE: sempre qualificar com alias ou nome da tabela externa.
+  // Sem qualificador, PostgreSQL resolve 'chave_titulo' para a tabela interna (fto),
+  // tornando a subquery NÃO-correlacionada e filtrando TODOS os registros quando
+  // a tabela financeiro_titulos_ocultos tiver qualquer linha.
+  const outerCol = alias ? `${alias}.chave_titulo` : `cache_contas_receber.chave_titulo`;
+  return `NOT EXISTS (SELECT 1 FROM financeiro_titulos_ocultos fto WHERE fto.chave_titulo = ${outerCol})`;
+}
+
 function buildWhereClause(
   q: Record<string, unknown>,
-  opts: { tableAlias?: string; paramOffset?: number; ignoredIds?: number[] } = {}
+  opts: { tableAlias?: string; paramOffset?: number; ignoredIds?: number[]; includeHiddenTitles?: boolean } = {}
 ): { where: string; params: unknown[] } {
   const t = opts.tableAlias ? `${opts.tableAlias}.` : "";
   const conditions: string[] = [`${t}valor_aberto > 0`];
@@ -277,6 +286,9 @@ function buildWhereClause(
     const placeholders = opts.ignoredIds.map(() => `$${n++}`).join(", ");
     conditions.push(`${t}idclifor NOT IN (${placeholders})`);
     params.push(...opts.ignoredIds);
+  }
+  if (!opts.includeHiddenTitles) {
+    conditions.push(hiddenTitlesClause(opts.tableAlias));
   }
 
   // Exclusão global de formas de pagamento (independente de empresa).
@@ -498,14 +510,14 @@ router.get("/cliente/:idclifor", isAuthenticated, async (req: AuthRequest, res: 
           MIN(CASE WHEN status IN ('A_VENCER','VENCE_HOJE') THEN dtvencimento END) AS proximo_vencimento,
           MAX(dtultimopagamento) AS ultimo_pagamento
         FROM cache_contas_receber
-        WHERE idclifor = $1 AND valor_aberto > 0 AND ${formasEx.sql}
+        WHERE idclifor = $1 AND valor_aberto > 0 AND ${hiddenTitlesClause()} AND ${formasEx.sql}
         GROUP BY idclifor, nomecliente, idvendedor, nomevendedor,
                  cidade_cobranca, uf_cobranca, endereco_cobranca, bairro_cobranca
       `, baseParams),
 
       pgAll(`
         SELECT * FROM cache_contas_receber
-        WHERE idclifor = $1 AND valor_aberto > 0 AND ${formasEx.sql}
+        WHERE idclifor = $1 AND valor_aberto > 0 AND ${hiddenTitlesClause()} AND ${formasEx.sql}
         ORDER BY dtvencimento ASC, idtitulo ASC
       `, baseParams),
 
@@ -624,28 +636,27 @@ router.get("/vendedores", isAuthenticated, async (req: AuthRequest, res: Respons
     const q = req.query as Record<string, unknown>;
     const ignoredIds = await getIgnoredClientIds();
     const { where, params } = buildWhereClause(q, { ignoredIds });
+    const overdueWhere = `${where} AND status = 'VENCIDO'`;
 
     const rows = await pgAll(`
       SELECT
         idvendedor, nomevendedor,
         COUNT(DISTINCT idclifor) AS clientes_pendencia,
-        COUNT(DISTINCT CASE WHEN status='VENCIDO' THEN idclifor END) AS clientes_vencidos,
+        COUNT(DISTINCT idclifor) AS clientes_vencidos,
         COUNT(*) AS qtd_titulos,
-        COUNT(CASE WHEN status='VENCIDO' THEN 1 END) AS qtd_titulos_vencidos,
+        COUNT(*) AS qtd_titulos_vencidos,
         SUM(valor_aberto) AS total_aberto,
-        SUM(CASE WHEN status='VENCIDO' THEN valor_aberto ELSE 0 END) AS total_vencido,
+        SUM(valor_aberto) AS total_vencido,
         SUM(valor_juros_pendente) AS juros_pendente,
         MAX(dias_atraso) AS maior_atraso,
         CASE
-          WHEN MAX(dias_atraso) > 30
-               OR SUM(CASE WHEN status='VENCIDO' THEN valor_aberto ELSE 0 END) >
-                  SUM(valor_aberto) * 0.5 THEN 'CRITICO'
+          WHEN MAX(dias_atraso) > 30 OR SUM(valor_aberto) > 5000 THEN 'CRITICO'
           WHEN MAX(dias_atraso) BETWEEN 8 AND 30 THEN 'ATRASADO'
           WHEN MAX(dias_atraso) BETWEEN 1 AND 7 THEN 'ATENCAO'
           ELSE 'EM_DIA'
         END AS status_risco
       FROM cache_contas_receber
-      WHERE ${where}
+      WHERE ${overdueWhere}
       GROUP BY idvendedor, nomevendedor
       ORDER BY total_vencido DESC
     `, params);
@@ -676,17 +687,17 @@ router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, re
         SELECT
           idvendedor, nomevendedor,
           COUNT(DISTINCT idclifor) AS clientes_pendencia,
-          COUNT(DISTINCT CASE WHEN status='VENCIDO' THEN idclifor END) AS clientes_vencidos,
+          COUNT(DISTINCT idclifor) AS clientes_vencidos,
           COUNT(*) AS qtd_titulos,
-          COUNT(CASE WHEN status='VENCIDO' THEN 1 END) AS qtd_titulos_vencidos,
+          COUNT(*) AS qtd_titulos_vencidos,
           SUM(valor_aberto) AS total_aberto,
-          SUM(CASE WHEN status='VENCIDO' THEN valor_aberto ELSE 0 END) AS total_vencido,
-          SUM(CASE WHEN status='VENCE_HOJE' THEN valor_aberto ELSE 0 END) AS vence_hoje,
-          SUM(CASE WHEN status='A_VENCER' THEN valor_aberto ELSE 0 END) AS a_vencer,
+          SUM(valor_aberto) AS total_vencido,
+          0 AS vence_hoje,
+          0 AS a_vencer,
           SUM(valor_juros_pendente) AS juros_pendente,
           MAX(dias_atraso) AS maior_atraso
         FROM cache_contas_receber
-        WHERE idvendedor = $1${empresaSql} AND valor_aberto > 0 AND ${excl.sql}
+        WHERE idvendedor = $1${empresaSql} AND valor_aberto > 0 AND status = 'VENCIDO' AND ${hiddenTitlesClause()} AND ${excl.sql}
         GROUP BY idvendedor, nomevendedor
       `, baseParams),
 
@@ -695,25 +706,24 @@ router.get("/vendedor/:idvendedor", isAuthenticated, async (req: AuthRequest, re
           idclifor, nomecliente, cidade_cobranca, uf_cobranca,
           COUNT(*) AS qtd_titulos,
           SUM(valor_aberto) AS total_aberto,
-          SUM(CASE WHEN status='VENCIDO' THEN valor_aberto ELSE 0 END) AS total_vencido,
+          SUM(valor_aberto) AS total_vencido,
           MAX(dias_atraso) AS maior_atraso,
           CASE WHEN MAX(dias_atraso) > 30 THEN 'CRITICO'
                WHEN MAX(dias_atraso) BETWEEN 8 AND 30 THEN 'ATRASADO'
                WHEN MAX(dias_atraso) BETWEEN 1 AND 7 THEN 'ATENCAO'
                ELSE 'EM_DIA' END AS status_cliente
         FROM cache_contas_receber
-        WHERE idvendedor = $1${empresaSql} AND valor_aberto > 0 AND ${excl.sql}
+        WHERE idvendedor = $1${empresaSql} AND valor_aberto > 0 AND status = 'VENCIDO' AND ${hiddenTitlesClause()} AND ${excl.sql}
         GROUP BY idclifor, nomecliente, cidade_cobranca, uf_cobranca
-        HAVING SUM(CASE WHEN status='VENCIDO' THEN valor_aberto ELSE 0 END) >= 0.01
         ORDER BY total_vencido DESC
         LIMIT 50
       `, baseParams),
 
       pgAll(`
-        SELECT idtitulo, digitotitulo, numnota, nomecliente, idclifor,
+        SELECT chave_titulo, idtitulo, digitotitulo, numnota, observacao_titulo, nomecliente, idclifor,
                dtvencimento, dias_atraso, valor_aberto, status, forma_recebimento
         FROM cache_contas_receber
-        WHERE idvendedor = $1${empresaSql} AND status = 'VENCIDO' AND ${excl.sql}
+        WHERE idvendedor = $1${empresaSql} AND status = 'VENCIDO' AND ${hiddenTitlesClause()} AND ${excl.sql}
         ORDER BY nomecliente ASC, numnota ASC, dias_atraso DESC
       `, baseParams),
     ]);
@@ -758,7 +768,7 @@ router.get("/aging", isAuthenticated, async (req: AuthRequest, res: Response) =>
         COUNT(DISTINCT idclifor) AS qtd_clientes,
         SUM(valor_aberto) AS valor_total
       FROM cache_contas_receber
-      WHERE valor_aberto > 0 AND ${exclAging.sql}
+      WHERE valor_aberto > 0 AND ${hiddenTitlesClause()} AND ${exclAging.sql}
       GROUP BY faixa, ordem
       ORDER BY ordem
     `, exclAging.params);
@@ -996,7 +1006,7 @@ router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response)
     const csvRows = [
       [
         "Vendedor", "Cliente", "Cód.Cliente", "Cidade", "UF",
-        "Título", "Dígito", "Série", "Nota/Cupom", "Planilha",
+        "Título", "Dígito", "Série", "Cupom", "Planilha",
         "Movimento", "Vencimento", "Últ.Pagamento", "Dias Atraso", "Status",
         "Valor Original (R$)", "Valor Pago (R$)", "Valor Aberto (R$)", "Juros Pendente (R$)",
         "Desconto Concedido (R$)", "Valor Líquido (R$)",
@@ -1027,6 +1037,101 @@ router.get("/exportar", isAuthenticated, async (req: AuthRequest, res: Response)
 });
 
 // ── GET /clientes-ignorados ──────────────────────────────────────────────────
+
+// Títulos ocultos removem cobranças indevidas dos relatórios sem apagar o cache do ERP.
+router.get("/titulos-ocultos", isAuthenticated, async (_req: AuthRequest, res: Response) => {
+  try {
+    const rows = await pgAll(`
+      SELECT chave_titulo, idclifor, nomecliente, idtitulo, digitotitulo, serienota,
+             numnota, motivo, criado_em, criado_por
+      FROM financeiro_titulos_ocultos
+      ORDER BY criado_em DESC
+      LIMIT 500
+    `);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    sendRouteError(res, "/titulos-ocultos GET", err, "Erro ao buscar títulos ocultos");
+  }
+});
+
+router.post("/titulos-ocultos", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  try {
+    const chaveTitulo = String(req.body?.chave_titulo ?? "").trim();
+    const motivo = String(req.body?.motivo ?? "").trim();
+
+    console.log("[financeiro] POST /titulos-ocultos — body:", JSON.stringify(req.body));
+
+    if (!chaveTitulo) {
+      return res.status(400).json({ success: false, error: "chave_titulo obrigatória", message: "chave_titulo obrigatória" });
+    }
+
+    // Garante que a tabela existe (bootstrap idempotente, custo mínimo)
+    await pgRun(`
+      CREATE TABLE IF NOT EXISTS financeiro_titulos_ocultos (
+        chave_titulo TEXT PRIMARY KEY,
+        idclifor     INTEGER,
+        nomecliente  TEXT,
+        idtitulo     INTEGER,
+        digitotitulo TEXT,
+        serienota    TEXT,
+        numnota      TEXT,
+        motivo       TEXT,
+        criado_em    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        criado_por   TEXT
+      )
+    `);
+
+    const titulo = await pgGet<{
+      chave_titulo: string; idclifor: number; nomecliente: string; idtitulo: number;
+      digitotitulo: string; serienota: string | null; numnota: string | null;
+    }>(`
+      SELECT chave_titulo, idclifor, nomecliente, idtitulo, digitotitulo, serienota, numnota
+      FROM cache_contas_receber
+      WHERE chave_titulo = $1
+      LIMIT 1
+    `, [chaveTitulo]);
+
+    if (!titulo) {
+      console.warn("[financeiro] /titulos-ocultos POST — título não encontrado no cache:", chaveTitulo);
+      return res.status(404).json({ success: false, error: "Título não encontrado no cache", message: "Título não encontrado no cache" });
+    }
+
+    const usuario = req.userEmail ?? req.userId?.toString() ?? "sistema";
+    const agora = new Date().toISOString();
+
+    await pgRun(`
+      INSERT INTO financeiro_titulos_ocultos
+        (chave_titulo, idclifor, nomecliente, idtitulo, digitotitulo, serienota, numnota, motivo, criado_em, criado_por)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      ON CONFLICT (chave_titulo) DO UPDATE SET
+        motivo = EXCLUDED.motivo,
+        criado_em = EXCLUDED.criado_em,
+        criado_por = EXCLUDED.criado_por
+    `, [
+      titulo.chave_titulo, titulo.idclifor, titulo.nomecliente, titulo.idtitulo,
+      titulo.digitotitulo, titulo.serienota, titulo.numnota, motivo || null, agora, usuario,
+    ]);
+
+    console.log("[financeiro] /titulos-ocultos POST — ocultado com sucesso:", chaveTitulo);
+    res.json({ success: true, data: titulo });
+  } catch (err) {
+    console.error("[financeiro] /titulos-ocultos POST — ERRO DETALHADO:", err);
+    sendRouteError(res, "/titulos-ocultos POST", err, "Erro ao ocultar título");
+  }
+});
+
+router.delete("/titulos-ocultos/:chave_titulo", isAuthenticated, async (req: AuthRequest, res: Response) => {
+  try {
+    const chaveTitulo = decodeURIComponent(String(req.params.chave_titulo ?? "")).trim();
+    if (!chaveTitulo) {
+      return res.status(400).json({ success: false, error: "chave_titulo inválida", message: "chave_titulo inválida" });
+    }
+    await pgRun(`DELETE FROM financeiro_titulos_ocultos WHERE chave_titulo = $1`, [chaveTitulo]);
+    res.json({ success: true });
+  } catch (err) {
+    sendRouteError(res, "/titulos-ocultos DELETE", err, "Erro ao reexibir título");
+  }
+});
 
 router.get("/clientes-ignorados", isAuthenticated, async (_req: AuthRequest, res: Response) => {
   try {

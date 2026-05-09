@@ -459,9 +459,9 @@ function GaugeMeter({
 }
 
 // ─── Conexões sobre Tubos card (velocímetro — full width) ─────────────────────
-function ConexoesTubosCard({ vendor: _vendor }: { vendor: VendedorApuracao }) {
-  const pending = true;
-  const value = 0;
+function ConexoesTubosCard({ vendor }: { vendor: VendedorApuracao }) {
+  const pending = vendor.conexoesPerc == null;
+  const value = vendor.conexoesPerc ?? 0;
   const color = A.cyan;
 
   return (

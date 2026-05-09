@@ -298,6 +298,22 @@ def _update_watermark(
     pg.commit()
 
 
+def _set_running(pg: psycopg2.extensions.connection, routine: str) -> None:
+    """Marks a routine as 'running' in sync_state so the UI knows sync is active."""
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO sync_state (routine_name, status, updated_at)
+            VALUES (%s, 'running', NOW())
+            ON CONFLICT (routine_name) DO UPDATE SET
+              status     = 'running',
+              updated_at = NOW()
+            """,
+            (routine,),
+        )
+    pg.commit()
+
+
 def _record_error(pg: psycopg2.extensions.connection, routine: str, msg: str) -> None:
     with pg.cursor() as cur:
         cur.execute(
@@ -408,6 +424,7 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     """
     routine = "cache_vendas"
     started = datetime.now(timezone.utc)
+    _set_running(pg, routine)
 
     watermark = _get_watermark(pg, routine)
     if watermark is None:
@@ -415,8 +432,9 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
         watermark = date.today().replace(day=1) - timedelta(days=365)
         log.info(f"[{routine}] Primeira execução — watermark inicial: {watermark}")
     else:
-        # Incremental: overlap by 3 days to catch late-arriving movements
-        watermark = watermark - timedelta(days=3)
+        # Incremental: overlap by 7 days to catch late-arriving or date-corrected movements
+        # (DTEMISSAO vs DTMOVIMENTO can differ by several days for devoluções)
+        watermark = watermark - timedelta(days=7)
         log.info(f"[{routine}] Sync incremental desde: {watermark}")
 
     date_to   = date.today()
@@ -428,6 +446,8 @@ def sync_vendas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
         # ── DB2 read ──────────────────────────────────────────────────────
         # WITH UR = uncommitted read (no shared lock on ERP pages)
         # Columns: only what the app queries
+        # 6 params: NES_H DTMOVIMENTO pre-filter, NOTAS DTEMISSAO pre-filter (avoids full scan),
+        #           definitive N.DTEMISSAO outer filter
         cur.execute(SQL_VENDAS, (watermark, date_to))
         log.info(f"[{routine}] Consulta DB2 executada. Lendo em lotes de {BATCH_SIZE}…")
 
@@ -504,11 +524,12 @@ def sync_campanhas(pg: psycopg2.extensions.connection) -> tuple[int, int]:
       - Shorter window (campaigns rarely look > 90 days back)
     """
     routine   = "cache_campanhas"
+    _set_running(pg, routine)
     watermark = _get_watermark(pg, routine)
     if watermark is None:
         watermark = date.today().replace(day=1) - timedelta(days=90)
     else:
-        watermark = watermark - timedelta(days=3)
+        watermark = watermark - timedelta(days=7)
 
     date_to = date.today()
     total_read, total_written = 0, 0
@@ -570,11 +591,12 @@ def sync_tubos(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     Same strategy as vendas; different source view filtered by product group.
     """
     routine   = "cache_tubos_conexoes"
+    _set_running(pg, routine)
     watermark = _get_watermark(pg, routine)
     if watermark is None:
         watermark = date.today().replace(day=1) - timedelta(days=365)
     else:
-        watermark = watermark - timedelta(days=3)
+        watermark = watermark - timedelta(days=7)
 
     date_to = date.today()
     total_read, total_written = 0, 0
@@ -641,6 +663,7 @@ def sync_pendentes(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     Columns: IDVENDEDOR[0] NOME_VENDEDOR[1] IDEMPRESA[2] QTD_PEDIDOS[3] VALOR_TOTAL[4]
     """
     routine = "cache_vendas_pendentes"
+    _set_running(pg, routine)
     today   = date.today()
     total_read, total_written = 0, 0
 
@@ -700,6 +723,7 @@ def sync_estoque_sugestao(pg: psycopg2.extensions.connection) -> tuple[int, int]
       QTDREPOSICAO, DTULT_COMPRA, VAL_UNITARIO, QTDPENDENTE, DESCRICAO
     """
     routine = "cache_estoque_sugestao"
+    _set_running(pg, routine)
     total_read, total_written = 0, 0
 
     with db2_connection() as db2conn:
@@ -783,6 +807,7 @@ def sync_contas_receber(pg: psycopg2.extensions.connection) -> tuple[int, int]:
     and to use the application server's timezone reference.
     """
     routine = "contas_receber"
+    _set_running(pg, routine)
     today   = date.today()
     total_read = 0
     total_written = 0

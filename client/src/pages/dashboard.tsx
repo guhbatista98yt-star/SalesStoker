@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { RefreshCw, Download, DollarSign, Receipt, Package, GripVertical, RotateCcw, AlertCircle, SlidersHorizontal, Users } from "lucide-react";
+import { Download, DollarSign, Receipt, Package, GripVertical, RotateCcw, AlertCircle, SlidersHorizontal, Users } from "lucide-react";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { useToast } from "@/hooks/use-toast";
 import { GroupSelector, type VendorGroup } from "@/components/dashboard/group-selector";
@@ -25,6 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 import { CompanySelector } from "@/components/dashboard/company-selector";
 import { RankingTable } from "@/components/dashboard/ranking-table";
 import { ProductMixChart } from "@/components/dashboard/product-mix-chart";
@@ -571,6 +571,7 @@ export default function Dashboard() {
 
           {/* Right: controls */}
           <div className="flex items-center gap-2">
+            <SyncStatusBar routine="vendas" label="Vendas" className="hidden sm:flex mr-1" />
             {/* Mobile: Filtros button */}
             <Button
               variant={activeFiltersCount > 0 ? "secondary" : "outline"}
@@ -586,18 +587,6 @@ export default function Dashboard() {
                 </span>
               )}
             </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => queryClient.invalidateQueries()}
-              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hidden sm:flex"
-              data-testid="button-refresh-data"
-              title="Atualizar dados"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-
 
             <div className="hidden sm:flex items-center gap-2">
               <CompanySelector

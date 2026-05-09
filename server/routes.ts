@@ -994,9 +994,48 @@ export async function registerRoutes(
   });
 
   // ── Sync & Bootstrap Status ────────────────────────────────────────────────
+  const SYNC_ROUTINE_CANONICAL: Record<string, string> = {
+    vendas: "cache_vendas",
+    campanhas: "cache_campanhas",
+    tubos: "cache_tubos_conexoes",
+    pendentes: "cache_vendas_pendentes",
+    estoque_sugestao: "cache_estoque_sugestao",
+    contas_receber: "contas_receber",
+    sync_config: "sync_config",
+    cache_vendas: "cache_vendas",
+    cache_campanhas: "cache_campanhas",
+    cache_tubos_conexoes: "cache_tubos_conexoes",
+    cache_vendas_pendentes: "cache_vendas_pendentes",
+    cache_estoque_sugestao: "cache_estoque_sugestao",
+  };
+
+  const SYNC_ROUTINE_TRIGGER_KEY: Record<string, string> = {
+    cache_vendas: "vendas",
+    cache_campanhas: "campanhas",
+    cache_tubos_conexoes: "tubos",
+    cache_vendas_pendentes: "pendentes",
+    cache_estoque_sugestao: "estoque_sugestao",
+    contas_receber: "contas_receber",
+    sync_config: "sync_config",
+  };
+
+  const canonicalSyncRoutine = (routineName: string): string =>
+    SYNC_ROUTINE_CANONICAL[routineName] ?? routineName;
+
+  const isBetterSyncStateRow = (next: any, current: any | undefined): boolean => {
+    if (!current) return true;
+    if (next.status === "running" && current.status !== "running") return true;
+    if (current.status === "running" && next.status !== "running") return false;
+    const nextUpdated = next.updated_at ? new Date(next.updated_at).getTime() : 0;
+    const currentUpdated = current.updated_at ? new Date(current.updated_at).getTime() : 0;
+    if (nextUpdated !== currentUpdated) return nextUpdated > currentUpdated;
+    if (next.status === "error" && current.status !== "error") return true;
+    return false;
+  };
+
   app.get("/api/sync/status", isAuthenticated, async (_req, res) => {
     try {
-      const [syncState, bootstrapStatus, bootstrapMeses] = await Promise.all([
+      const [syncStateRaw, bootstrapStatus, bootstrapMeses, avgDurations, activeLocks] = await Promise.all([
         pgAll(
           "SELECT routine_name, status, last_success_at, last_dt_movimento, " +
           "records_read, records_written, last_error, updated_at " +
@@ -1012,8 +1051,56 @@ export async function registerRoutes(
           "records_written, started_at, finished_at, error_msg " +
           "FROM bootstrap_historico ORDER BY routine_name, periodo_inicio"
         ),
+        // Média das últimas 50 execuções bem-sucedidas por rotina
+        pgAll(
+          "SELECT routine_name, " +
+          "ROUND(AVG(duration_ms)) AS avg_ms, " +
+          "MIN(duration_ms) AS min_ms, " +
+          "MAX(duration_ms) AS max_ms, " +
+          "COUNT(*) AS sample_count " +
+          "FROM (SELECT routine_name, duration_ms FROM sync_logs " +
+          "      WHERE success = TRUE AND duration_ms > 0 " +
+          "      ORDER BY ended_at DESC LIMIT 50) sub " +
+          "GROUP BY routine_name"
+        ),
+        // Active job_locks (non-expired) — used to detect orphaned 'running' states
+        pgAll(
+          "SELECT routine_name FROM job_locks WHERE expires_at > NOW()"
+        ),
       ]);
-      res.json({ syncState, bootstrapStatus, bootstrapMeses });
+
+      // If status='running' but no active lock exists → mark as 'idle' in response
+      // (the Python process crashed or its lock expired — don't show infinite spinner)
+      const activeLockNames = new Set(
+        (activeLocks as any[]).flatMap((r: any) => {
+          const routineName = String(r.routine_name ?? "");
+          return [routineName, canonicalSyncRoutine(routineName)];
+        })
+      );
+      const syncStateByRoutine = new Map<string, any>();
+      for (const row of syncStateRaw as any[]) {
+        const rawRoutine = String(row.routine_name ?? "");
+        const routineName = canonicalSyncRoutine(rawRoutine);
+        const normalizedRow = { ...row, routine_name: routineName, source_routine_name: rawRoutine };
+
+        if (normalizedRow.status === "running" && !activeLockNames.has(rawRoutine) && !activeLockNames.has(routineName)) {
+          // Auto-heal: also write idle back to DB so next poll is consistent
+          pgAll(
+            "UPDATE sync_state SET status = 'idle', updated_at = NOW() " +
+            "WHERE routine_name = $1 AND status = 'running'",
+            [rawRoutine]
+          ).catch(() => {});
+          normalizedRow.status = "idle";
+        }
+        if (isBetterSyncStateRow(normalizedRow, syncStateByRoutine.get(routineName))) {
+          syncStateByRoutine.set(routineName, normalizedRow);
+        }
+      }
+      const syncState = Array.from(syncStateByRoutine.values()).sort((a, b) =>
+        String(a.routine_name).localeCompare(String(b.routine_name))
+      );
+
+      res.json({ syncState, bootstrapStatus, bootstrapMeses, avgDurations });
     } catch (error) {
       console.error("Erro ao buscar status de sync:", error);
       res.status(500).json({ error: "Erro ao buscar status de sync" });
@@ -1029,16 +1116,39 @@ export async function registerRoutes(
     const logDir = path.join(process.cwd(), "sync", "logs");
     fs.mkdirSync(logDir, { recursive: true });
     const logFile = path.join(logDir, `${logTag}_${Date.now()}.log`);
-    const fd = fs.openSync(logFile, "w");
+    const ws = fs.createWriteStream(logFile);
+
+    console.log(`\n▶  [${logTag}] Iniciando: python ${path.basename(scriptPath)} ${args.join(" ")}`);
+    console.log(`   Log → ${logFile}`);
+
     const trySpawn = (cmd: string) => {
       const child = spawn(cmd, [scriptPath, ...args], {
         cwd: process.cwd(), detached: true,
-        stdio: ["ignore", fd, fd], env: process.env, windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"], env: process.env, windowsHide: true,
       });
       child.on("spawn", () => { if (child.pid) runningPids.set(logTag, child.pid); });
-      child.on("exit", () => runningPids.delete(logTag));
-      child.on("error", () => {
-        if (cmd === "py") trySpawn("python");
+      child.stdout?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString();
+        process.stdout.write(text);   // → terminal Node.js
+        ws.write(text);               // → arquivo de log
+      });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString();
+        process.stderr.write(text);
+        ws.write(text);
+      });
+      child.on("close", (code) => {
+        console.log(`■  [${logTag}] Concluído (exit ${code ?? "?"})`);
+        runningPids.delete(logTag);
+        ws.end();
+      });
+      child.on("error", (err) => {
+        if (cmd === "py") {
+          trySpawn("python");
+        } else {
+          console.error(`✗  [${logTag}] Falha ao spawnar: ${err.message}`);
+          ws.end();
+        }
       });
       child.unref();
     };
@@ -1066,6 +1176,11 @@ export async function registerRoutes(
     const rotina = String(req.body?.rotina ?? "all").trim();
     const force = req.body?.force !== false; // default true — libera locks travados
     if (!VALID_SYNC_ROTINAS.has(rotina)) return res.status(400).json({ error: "Rotina inválida" });
+    // ── Uma sincronização por vez ──────────────────────────────────────────────
+    if (runningPids.size > 0) {
+      const running = Array.from(runningPids.keys()).join(", ");
+      return res.status(409).json({ error: `Já existe sincronização em andamento (${running}). Aguarde concluir.` });
+    }
     const scriptPath = path.join(process.cwd(), "sync", "erp_sync.py");
     const args = force ? [rotina, "--force"] : [rotina];
     const logFile = spawnPyBackground(scriptPath, args, `sync_${rotina}`);
@@ -1088,6 +1203,10 @@ export async function registerRoutes(
     if (req.userRole !== "admin") return res.status(403).json({ error: "Apenas administradores podem recarregar sync" });
     const rotina = String(req.body?.rotina ?? "").trim();
     if (!RELOAD_TABLE_MAP[rotina]) return res.status(400).json({ error: "Rotina não suportada para reload" });
+    if (runningPids.size > 0) {
+      const running = Array.from(runningPids.keys()).join(", ");
+      return res.status(409).json({ error: `Sincronização em andamento (${running}). Aguarde concluir.` });
+    }
 
     const table = RELOAD_TABLE_MAP[rotina];
     const oneYearAgo = new Date();
@@ -1113,6 +1232,10 @@ export async function registerRoutes(
     if (req.userRole !== "admin") return res.status(403).json({ error: "Apenas administradores podem disparar bootstrap" });
     const rotina = String(req.body?.rotina ?? "all").trim();
     if (!VALID_BOOTSTRAP_ROTINAS.has(rotina)) return res.status(400).json({ error: "Rotina inválida" });
+    if (runningPids.size > 0) {
+      const running = Array.from(runningPids.keys()).join(", ");
+      return res.status(409).json({ error: `Sincronização em andamento (${running}). Aguarde concluir.` });
+    }
     const scriptPath = path.join(process.cwd(), "sync", "bootstrap_historico.py");
     // Sempre limpa locks travados antes de spawnar — evita "Já em execução" na UI
     const rotinasToUnlock = rotina === "all" ? ["vendas", "campanhas", "tubos"] : [rotina];
@@ -1152,6 +1275,53 @@ export async function registerRoutes(
     const cacheTable = CACHE_TABLE[rotina];
     if (cacheTable) await pool.query(`TRUNCATE TABLE ${cacheTable}`);
     res.json({ success: true, rotina, message: `Bootstrap '${rotina}' resetado. Cache limpo.` });
+  });
+
+  // ── Sync Cache Clear (limpa tabela + sync_state de uma rotina) ───────────────
+  const SYNC_CLEAR_TABLE: Record<string, string> = {
+    cache_vendas:           "cache_vendas",
+    cache_campanhas:        "cache_campanhas",
+    cache_tubos_conexoes:   "cache_tubos_conexoes",
+    cache_vendas_pendentes: "cache_vendas_pendentes",
+    cache_estoque_sugestao: "cache_estoque_sugestao",
+    contas_receber:         "cache_contas_receber",
+    sync_config:            "sync_config",
+  };
+  app.post("/api/sync/clear", isAuthenticated, async (req: AuthRequest, res) => {
+    if (req.userRole !== "admin") return res.status(403).json({ error: "Acesso negado" });
+    const requestedRoutineName = String(req.body?.routine_name ?? "").trim();
+    const routineName = canonicalSyncRoutine(requestedRoutineName);
+    const table = SYNC_CLEAR_TABLE[routineName];
+    if (!table) {
+      return res.status(400).json({
+        error: "Rotina não suportada para limpeza",
+        routine_name: requestedRoutineName,
+        supported: Object.keys(SYNC_CLEAR_TABLE),
+      });
+    }
+
+    // Para qualquer sync rodando para esta rotina
+    const trigKey = SYNC_ROUTINE_TRIGGER_KEY[routineName];
+    if (trigKey) {
+      killByLogTag(`sync_${trigKey}`);
+      killByLogTag(`sync_reload_${trigKey}`);
+    }
+    const controlRoutineNames = Array.from(new Set(
+      [routineName, requestedRoutineName, trigKey].filter(Boolean) as string[]
+    ));
+    for (const name of controlRoutineNames) {
+      await pool.query("DELETE FROM job_locks WHERE routine_name = $1", [name]);
+      await pool.query("DELETE FROM sync_state WHERE routine_name = $1", [name]);
+    }
+    await pool.query(`TRUNCATE TABLE ${table}`);
+
+    console.log(`[sync/clear] Cache '${table}' limpo`);
+    res.json({
+      success: true,
+      routine_name: routineName,
+      requested_routine_name: requestedRoutineName,
+      message: `Cache '${table}' limpo com sucesso`,
+    });
   });
 
   // ── Sync Log Reader ────────────────────────────────────────────────────────

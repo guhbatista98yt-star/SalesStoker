@@ -16,6 +16,7 @@ import { Search, SlidersHorizontal } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
 import type { DatePeriod, Company, SalespersonWithStats } from "@shared/schema";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 
 interface VendorGroup {
   id: string;
@@ -196,6 +197,7 @@ export default function Vendedores() {
             </div>
 
             <div className="flex items-center gap-2">
+              <SyncStatusBar routine="vendas" label="Vendas" className="hidden sm:flex mr-1" />
               {/* Mobile: Filtros button */}
               <Button
                 variant={activeFiltersCount > 0 ? "secondary" : "outline"}

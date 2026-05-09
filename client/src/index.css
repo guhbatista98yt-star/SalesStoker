@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Indeterminate progress bar animation (sync past ETA) ── */
+@keyframes slide {
+  0%   { left: -33%; }
+  100% { left: 100%; }
+}
+
 /* ════════════════════════════════════════════════
    CONECTUBOS — Berry Purple Design System
 ════════════════════════════════════════════════ */

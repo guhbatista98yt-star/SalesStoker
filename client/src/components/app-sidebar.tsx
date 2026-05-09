@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   BarChart3,
@@ -59,7 +60,6 @@ const analysisItems = [
 
 const vendedorCampaignItems = [
   { title: "DTR Amanco", url: "/metas-vendedor/dtr-amanco", icon: TrendingUp },
-  { title: "TV Amanco", url: "/metas-vendedor/tv-amanco", icon: Calendar },
   { title: "Tintas Elit", url: "/metas-vendedor/tintas-elit", icon: PaintBucket },
 ];
 
@@ -89,6 +89,16 @@ export function AppSidebar({ collapsible = "icon", side = "left" }: { collapsibl
   const isSupervisor = role === "supervisor";
   const isVendedor = role === "vendedor";
   const modPerms = user?.modulePermissions ?? null;
+
+  const { data: dynamicCampaigns = [] } = useQuery<any[]>({
+    queryKey: ["/api/campaigns"],
+    enabled: isVendedor && isModuleEnabled("Campanhas"),
+    staleTime: 60000,
+  });
+
+  const activeDynamicCampaigns = dynamicCampaigns
+    .filter(c => c.status === "ativa" || c.status === "pausada")
+    .map(c => ({ title: c.name, url: `/campanhas/${c.id}`, icon: Target }));
 
   function isModuleEnabled(moduleName: string): boolean {
     if (!modPerms) return true;

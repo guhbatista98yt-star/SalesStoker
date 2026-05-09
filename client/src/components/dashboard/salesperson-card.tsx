@@ -320,7 +320,7 @@ function FinancialSheet({
       maxAtraso: parcelas.reduce((m, t) => Math.max(m, Number(t.dias_atraso)), 0),
       forma: (() => {
         const formas = new Set(parcelas.map(t => t.forma_recebimento).filter(Boolean));
-        return formas.size === 1 ? [...formas][0] : formas.size > 1 ? "Misto" : "—";
+        return formas.size === 1 ? Array.from(formas)[0] : formas.size > 1 ? "Misto" : "—";
       })(),
     }));
   }
@@ -455,7 +455,7 @@ function FinancialSheet({
                                       const hasMultiple = nfGroup.parcelas.length > 1;
                                       return (
                                         <div key={nfGroup.key}>
-                                          {/* NF header row */}
+                                          {/* Cupom header row */}
                                           <div
                                             className={cn(
                                               "flex items-center gap-2 px-3 py-2 text-xs",
@@ -468,7 +468,7 @@ function FinancialSheet({
                                             )}
                                             {!hasMultiple && <span className="w-3" />}
                                             <span className="font-mono text-muted-foreground shrink-0">
-                                              {nfGroup.numnota ? `NF ${nfGroup.numnota}` : `${nfGroup.parcelas[0].idtitulo}${nfGroup.parcelas[0].digitotitulo ? `-${nfGroup.parcelas[0].digitotitulo}` : ""}`}
+                                              {nfGroup.numnota ? `Cupom ${nfGroup.numnota}` : `${nfGroup.parcelas[0].idtitulo}${nfGroup.parcelas[0].digitotitulo ? `-${nfGroup.parcelas[0].digitotitulo}` : ""}`}
                                             </span>
                                             {hasMultiple && (
                                               <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal shrink-0">

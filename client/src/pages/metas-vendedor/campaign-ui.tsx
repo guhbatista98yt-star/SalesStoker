@@ -2,6 +2,7 @@ import { AlertCircle, Award, CheckCircle2, Loader2, RefreshCw } from "lucide-rea
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { formatDateBR } from "@/lib/calendar-utils";
+import { SyncStatusBar } from "@/components/sync-status-bar";
 
 export const NAVY = "#002269";
 export const CYAN = "#00A8E1";
@@ -436,33 +437,41 @@ export function FooterRefresh({
   updatedAt,
   onRefresh,
   label,
+  syncRoutine,
 }: {
   updatedAt: string;
   onRefresh: () => void;
   label: string;
+  /** Rotina de sync ERP para exibir o botão de sincronização manual (ex: "campanhas") */
+  syncRoutine?: string;
 }) {
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24, gap: 12 }}>
         <span style={{ fontSize: 12, color: "#9CA3AF" }}>Atualizado as {updatedAt}</span>
-        <button
-          onClick={onRefresh}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "#00A8E115",
-            border: "1px solid #00A8E140",
-            color: CYAN,
-            borderRadius: 99,
-            padding: "6px 16px",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          <RefreshCw size={12} /> Atualizar
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {syncRoutine && (
+            <SyncStatusBar routine={syncRoutine} label={label} />
+          )}
+          <button
+            onClick={onRefresh}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "#00A8E115",
+              border: "1px solid #00A8E140",
+              color: CYAN,
+              borderRadius: 99,
+              padding: "6px 16px",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <RefreshCw size={12} /> Atualizar
+          </button>
+        </div>
       </div>
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 16 }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: CYAN }} />
